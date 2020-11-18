@@ -24,6 +24,13 @@ import metrics
 import model_selector
 from min_norm_solvers import MinNormSolver, gradient_normalizers
 
+import matplotlib.pyplot as plt
+
+torch.manual_seed(0)
+np.random.seed(0)
+#torch.set_deterministic(True)
+
+
 NUM_EPOCHS = 100
 
 @click.command()
@@ -45,7 +52,7 @@ def train_multi_task(param_file):
     exp_identifier = '|'.join(exp_identifier)
     params['exp_id'] = exp_identifier
 
-    writer = SummaryWriter(log_dir='runs/{}_{}'.format(params['exp_id'], datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")))
+    writer = SummaryWriter(log_dir='runs/{}_{}'.format(params['exp_id'][:15], datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")))
 
     train_loader, train_dst, val_loader, val_dst = datasets.get_dataset(params, configs)
     loss_fn = losses.get_loss(params)
@@ -75,20 +82,21 @@ def train_multi_task(param_file):
             print('Using full solver')
     n_iter = 0
     loss_init = {}
-    for epoch in tqdm(range(NUM_EPOCHS)):
+    for epoch in range(NUM_EPOCHS):
         start = timer()
         print('Epoch {} Started'.format(epoch))
         if (epoch+1) % 10 == 0:
             # Every 50 epoch, half the LR
             for param_group in optimizer.param_groups:
                 param_group['lr'] *= 0.85
-            print('Half the learning rate{}'.format(n_iter))
+            print('Half the learning rate at {} to {}'.format(n_iter, param_group['lr']))
 
         for m in model:
             model[m].train()
 
         for batch in train_loader:
             n_iter += 1
+            #print(n_iter)
             # First member is always images
             images = batch[0]
             images = Variable(images.cuda())
@@ -113,7 +121,8 @@ def train_multi_task(param_file):
                 if approximate_norm_solution:
                     optimizer.zero_grad()
                     # First compute representations (z)
-                    images_volatile = Variable(images.data, volatile=True)
+                    with torch.no_grad():
+                        images_volatile = Variable(images.data)
                     rep, mask = model['rep'](images_volatile, mask)
                     # As an approximate solution we only need gradients for input
                     if isinstance(rep, list):
@@ -130,7 +139,7 @@ def train_multi_task(param_file):
                         optimizer.zero_grad()
                         out_t, masks[t] = model[t](rep_variable, None)
                         loss = loss_fn[t](out_t, labels[t])
-                        loss_data[t] = loss.data[0]
+                        loss_data[t] = loss.item()
                         loss.backward()
                         grads[t] = []
                         if list_rep:
@@ -147,7 +156,7 @@ def train_multi_task(param_file):
                         rep, mask = model['rep'](images, mask)
                         out_t, masks[t] = model[t](rep, None)
                         loss = loss_fn[t](out_t, labels[t])
-                        loss_data[t] = loss.data[0]
+                        loss_data[t] = loss.data.item()
                         loss.backward()
                         grads[t] = []
                         for param in model['rep'].parameters():
@@ -161,7 +170,11 @@ def train_multi_task(param_file):
                         grads[t][gr_i] = grads[t][gr_i] / gn[t]
 
                 # Frank-Wolfe iteration to compute scales.
-                sol, min_norm = MinNormSolver.find_min_norm_element([grads[t] for t in tasks])
+                sol, min_norm = MinNormSolver.find_min_norm_element_FW([grads[t] for t in tasks])
+
+                norm = np.linalg.norm(sum(a * g[0] for a, g in zip(sol, grads.values())).cpu())
+                angle = torch.nn.functional.cosine_similarity(list(grads.values())[0][0], list(grads.values())[1][0]).mean()
+
                 for i, t in enumerate(tasks):
                     scale[t] = float(sol[i])
             else:
@@ -175,7 +188,7 @@ def train_multi_task(param_file):
             for i, t in enumerate(tasks):
                 out_t, _ = model[t](rep, masks[t])
                 loss_t = loss_fn[t](out_t, labels[t])
-                loss_data[t] = loss_t.data[0]
+                loss_data[t] = loss_t.item()
                 if i > 0:
                     loss = loss + scale[t]*loss_t
                 else:
@@ -183,9 +196,15 @@ def train_multi_task(param_file):
             loss.backward()
             optimizer.step()
 
-            writer.add_scalar('training_loss', loss.data[0], n_iter)
+            writer.add_scalar('training_loss', loss.item(), n_iter)
             for t in tasks:
                 writer.add_scalar('training_loss_{}'.format(t), loss_data[t], n_iter)
+            
+            #writer.add_histogram("alphas", sol, n_iter)
+            writer.add_scalar("alpha1", sol[0], n_iter)
+            writer.add_scalar("alpha2", sol[1], n_iter)
+            writer.add_scalar("min_norm", norm, n_iter)
+            writer.add_scalar("grad_angle", angle, n_iter)
 
         for m in model:
             model[m].eval()
@@ -199,7 +218,8 @@ def train_multi_task(param_file):
 
         num_val_batches = 0
         for batch_val in val_loader:
-            val_images = Variable(batch_val[0].cuda(), volatile=True)
+            with torch.no_grad():
+                val_images = Variable(batch_val[0].cuda())
             labels_val = {}
 
             for i, t in enumerate(all_tasks):
@@ -212,8 +232,8 @@ def train_multi_task(param_file):
             for t in tasks:
                 out_t_val, _ = model[t](val_rep, None)
                 loss_t = loss_fn[t](out_t_val, labels_val[t])
-                tot_loss['all'] += loss_t.data[0]
-                tot_loss[t] += loss_t.data[0]
+                tot_loss['all'] += loss_t.item()
+                tot_loss[t] += loss_t.item()
                 metric[t].update(out_t_val, labels_val[t])
             num_val_batches+=1
 
@@ -222,7 +242,7 @@ def train_multi_task(param_file):
             metric_results = metric[t].get_result()
             for metric_key in metric_results:
                 writer.add_scalar('metric_{}_{}'.format(metric_key, t), metric_results[metric_key], n_iter)
-            metric[t].reset()
+            #metric[t].reset()
         writer.add_scalar('validation_loss', tot_loss['all']/len(val_dst), n_iter)
 
         if epoch % 3 == 0:
@@ -234,10 +254,15 @@ def train_multi_task(param_file):
                 key_name = 'model_{}'.format(t)
                 state[key_name] = model[t].state_dict()
 
-            torch.save(state, "saved_models/{}_{}_model.pkl".format(params['exp_id'], epoch+1))
+            #torch.save(state, "saved_models/{}_{}_model.pkl".format(params['exp_id'], epoch+1))
 
         end = timer()
         print('Epoch ended in {}s'.format(end - start))
+
+        print("Validation acc", sum(float(v) for t in tasks for v in metric[t].get_result().values()) / len(tasks))
+        for t in tasks:
+            metric[t].reset()
+    
 
 
 if __name__ == '__main__':

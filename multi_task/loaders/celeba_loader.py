@@ -4,6 +4,8 @@ import numpy as np
 import scipy.misc as m
 import re
 import glob
+import cv2
+from PIL import Image
 
 from torch.utils import data
 
@@ -75,7 +77,7 @@ class CELEBA(data.Dataset):
         """
         img_path = self.files[self.split][index].rstrip()
         label = self.labels[self.split][index]
-        img = m.imread(img_path)
+        img = cv2.imread(img_path)
 
         if self.augmentations is not None:
             img = self.augmentations(np.array(img, dtype=np.uint8))
@@ -89,10 +91,10 @@ class CELEBA(data.Dataset):
         """transform
         Mean substraction, remap to [0,1], channel order transpose to make Torch happy
         """
+        img = np.array(Image.fromarray(img).resize((self.img_size[0], self.img_size[1])))
         img = img[:, :, ::-1]
         img = img.astype(np.float64)
         img -= self.mean
-        img = m.imresize(img, (self.img_size[0], self.img_size[1]))
         # Resize scales images from 0 to 255, thus we need
         # to divide by 255.0
         img = img.astype(float) / 255.0

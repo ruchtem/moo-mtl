@@ -1,0 +1,11 @@
+{
+    "optimizer": "SGD", 
+    "batch_size": 256, 
+    "lr": 0.05,
+    "dataset": "mnist", 
+    "tasks": ["R", "L"],
+    "normalization_type": "loss+",
+    "algorithm": "mgda",
+    "use_approximation": true,
+    "scales": {"0":0.5, "1":0.5}
+}

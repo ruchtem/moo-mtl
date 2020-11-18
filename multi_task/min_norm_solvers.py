@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+from scipy.optimize import minimize, LinearConstraint
 
 class MinNormSolver:
     MAX_ITER = 250
@@ -25,7 +26,7 @@ class MinNormSolver:
             cost = v2v2
             return gamma, cost
         # Case: Fig 1, second column
-        gamma = -1.0 * ( (v1v2 - v2v2) / (v1v1+v2v2 - 2*v1v2) )
+        gamma = -1.0 * ( (v1v2 - v2v2) / (v1v1+v2v2 - 2*v1v2) )  # remove the brackets of alg1 line 6
         cost = v2v2 + gamma*(v1v2 - v2v2)
         return gamma, cost
 
@@ -35,22 +36,25 @@ class MinNormSolver:
         This is correct only in 2D
         ie. min_c |\sum c_i x_i|_2^2 st. \sum c_i = 1 , 1 >= c_1 >= 0 for all i, c_i + c_j = 1.0 for some i, j
         """
+        def inner_product(x1, x2):
+            return torch.mul(x1, x2).sum().item()
+
         dmin = 1e8
         for i in range(len(vecs)):
             for j in range(i+1,len(vecs)):
                 if (i,j) not in dps:
                     dps[(i, j)] = 0.0
                     for k in range(len(vecs[i])):
-                        dps[(i,j)] += torch.dot(vecs[i][k], vecs[j][k]).data[0]
+                        dps[(i,j)] += inner_product(vecs[i][k], vecs[j][k])
                     dps[(j, i)] = dps[(i, j)]
                 if (i,i) not in dps:
                     dps[(i, i)] = 0.0
                     for k in range(len(vecs[i])):
-                        dps[(i,i)] += torch.dot(vecs[i][k], vecs[i][k]).data[0]
+                        dps[(i,i)] += inner_product(vecs[i][k], vecs[i][k])
                 if (j,j) not in dps:
                     dps[(j, j)] = 0.0   
                     for k in range(len(vecs[i])):
-                        dps[(j, j)] += torch.dot(vecs[j][k], vecs[j][k]).data[0]
+                        dps[(j, j)] += inner_product(vecs[j][k], vecs[j][k])
                 c,d = MinNormSolver._min_norm_element_from2(dps[(i,i)], dps[(i,j)], dps[(j,j)])
                 if d < dmin:
                     dmin = d
@@ -180,17 +184,32 @@ class MinNormSolver:
             sol_vec = new_sol_vec
 
 
+    def scipy_impl(vecs):
+
+        assert len(vecs) == 2
+        n=len(vecs)
+
+        def obj(alpha, x):
+            return np.linalg.norm(alpha * x[0] + (1-alpha) * x[1])
+        
+        vecs = [v[0].cpu().numpy() for v in vecs]
+        alpha = minimize(lambda a: obj(a, x=vecs), x0=.5, bounds=[(0, 1)]).x.item()
+        nd =obj(alpha, vecs)
+        sol_vec = np.array([alpha, 1-alpha])
+        
+        return sol_vec, nd
+
 def gradient_normalizers(grads, losses, normalization_type):
     gn = {}
     if normalization_type == 'l2':
         for t in grads:
-            gn[t] = np.sqrt(np.sum([gr.pow(2).sum().data[0] for gr in grads[t]]))
+            gn[t] = np.sqrt(np.sum([gr.pow(2).sum().item() for gr in grads[t]]))
     elif normalization_type == 'loss':
         for t in grads:
             gn[t] = losses[t]
     elif normalization_type == 'loss+':
         for t in grads:
-            gn[t] = losses[t] * np.sqrt(np.sum([gr.pow(2).sum().data[0] for gr in grads[t]]))
+            gn[t] = losses[t] * np.sqrt(np.sum([gr.pow(2).sum().item() for gr in grads[t]]))
     elif normalization_type == 'none':
         for t in grads:
             gn[t] = 1.0

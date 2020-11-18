@@ -1,0 +1,23 @@
+test accuracies, somehow no code for validation set (?)
+both tasks averaged
+
+Half the learning rate at every 30th epoch as reported in paper.
+    
+lr=1e−4: 
+lr=5e−4: 
+lr=1e−3: 
+lr=5e−3: 0.8704
+lr=1e−2: 0.8941
+lr=5e−2: 0.9083
+lr=1e-1: 0.9064
+
+
+Use the implementation in the code with at every 10th epoch multiply with 0.85
+
+lr=1e−4: 
+lr=5e−4: 
+lr=1e−3: 
+lr=5e−3: 
+lr=1e−2: 0.8941
+lr=5e−2: 0.9116   <-----
+lr=1e-1: 0.9056
