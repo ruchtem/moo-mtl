@@ -30,7 +30,6 @@ torch.manual_seed(0)
 np.random.seed(0)
 #torch.set_deterministic(True)
 
-
 NUM_EPOCHS = 100
 
 @click.command()
@@ -173,7 +172,15 @@ def train_multi_task(param_file):
                 sol, min_norm = MinNormSolver.find_min_norm_element_FW([grads[t] for t in tasks])
 
                 norm = np.linalg.norm(sum(a * g[0] for a, g in zip(sol, grads.values())).cpu())
-                angle = torch.nn.functional.cosine_similarity(list(grads.values())[0][0], list(grads.values())[1][0]).mean()
+
+                def calc_angle(g1, g2):
+                    start_dim = 1 if g1.shape[0] == params['batch_size'] else 0 
+                    return torch.nn.functional.cosine_similarity(torch.flatten(g1, start_dim), torch.flatten(g2, start_dim), start_dim)
+
+
+                for i, (g1, g2) in enumerate(zip(grads["L"], grads["R"])):
+                    writer.add_scalar("grad_angle_{}".format(i), calc_angle(g1, g2), n_iter)
+
 
                 for i, t in enumerate(tasks):
                     scale[t] = float(sol[i])
@@ -204,7 +211,7 @@ def train_multi_task(param_file):
             writer.add_scalar("alpha1", sol[0], n_iter)
             writer.add_scalar("alpha2", sol[1], n_iter)
             writer.add_scalar("min_norm", norm, n_iter)
-            writer.add_scalar("grad_angle", angle, n_iter)
+            
 
         for m in model:
             model[m].eval()

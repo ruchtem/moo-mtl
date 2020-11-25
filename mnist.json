@@ -6,6 +6,6 @@
     "tasks": ["R", "L"],
     "normalization_type": "loss+",
     "algorithm": "mgda",
-    "use_approximation": true,
+    "use_approximation": false,
     "scales": {"0":0.5, "1":0.5}
 }
