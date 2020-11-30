@@ -18,20 +18,9 @@ np.set_printoptions(precision=3, suppress=True, linewidth=250)
 torch.manual_seed(0)
 np.random.seed(0)
 
-def calc_angle(g1, g2):
-    if g1.ndim == g2.ndim == 1:
-        # biases
-        g1 = torch.unsqueeze(g1, dim=-1)
-        g2 = torch.unsqueeze(g2, dim=-1)
-        return torch.nn.functional.cosine_similarity(g1, g2)
-    elif g1.ndim == g2.ndim == 2:
-        # linear weights
-        return torch.nn.functional.cosine_similarity(g1, g2)
-    elif g1.ndim == g2.ndim > 2:
-        # kernel weights
-        return torch.nn.functional.cosine_similarity(g1.view(-1), g2.view(-1), dim=0)
-    else:
-        raise ValueError()
+def weight_reset(m):
+    if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+        m.reset_parameters()
 
 
 def l1_regularization(model, div=1):
@@ -69,8 +58,9 @@ model = nn.Sequential(
 
 losses = [nn.CrossEntropyLoss(reduction='mean'), l1_regularization]
 
+epochs = 30
 lr = 1e-1
-loss_scalar = 8
+loss_scalar = 70
 optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
 
 gradients = [{}, {}]
@@ -79,68 +69,41 @@ n_iter = 0
 
 model.cuda()
 
-for e in range(10):
+for e in range(epochs):
     model.train()
+    model.apply(weight_reset)
 
-    div = e * loss_scalar + 1
-    for batch in train_loader:
-        n_iter += 1
-        X = batch[0].cuda()
-        ys = batch[1].cuda()
-        #ys = (batch[1], batch[2])
+    div = (epochs - e) * loss_scalar
+    print(div)
+    for _ in range(2):
+        for batch in train_loader:
+            n_iter += 1
+            X = batch[0].cuda()
+            ys = batch[1].cuda()
 
-        loss_data = {}
-        
-        for task in tasks:
-            gradients[task] = {}
+                
             optimizer.zero_grad()
 
             logits = model(X.float())
-            output = losses[0](logits, ys) if task == 0 else losses[1](model, div)
+            out1 = losses[0](logits, ys)
+            out2 = losses[1](model, div)
+            output = out1 + out2
 
             output.backward()
-
-            loss_data[task] = output.data.item()
-
-            for name, param in model.named_parameters():
-                if param.requires_grad:
-                    writer.add_histogram("param/{}".format(name), param.data, n_iter)
-                    gradients[task][name] = param.grad.data.detach().clone()
-            
+            optimizer.step()
+                
             with torch.no_grad():
                 y_hat = torch.argmax(logits, dim=1)
                 accuracy = sum(y_hat == ys) / len(y_hat)
-                writer.add_scalar("acc/train_{}".format(task), accuracy, n_iter)
-            
-        for g1, g2 in zip(gradients[0].items(), gradients[1].items()):
-            writer.add_histogram("angle/{}".format(g1[0]), calc_angle(g1[1], g2[1]), n_iter)
-            writer.add_scalar("norm1/{}".format(g1[0]), torch.linalg.norm(g1[1]), n_iter)
-            writer.add_scalar("norm2/{}".format(g1[0]), torch.linalg.norm(g2[1]), n_iter)
+                writer.add_scalar("acc/train", accuracy, n_iter)
+                
 
-        # Normalize all gradients, this is optional and not included in the paper.
-        # gn = gradient_normalizers(gradients, loss_data, "loss+")
-        # for t in tasks:
-        #     for gr_i in gradients[t]:
-        #         gradients[t][gr_i] = gradients[t][gr_i] / gn[t]
+            # logging
+            params_sum = sum(param.data.abs().sum() for param in model.parameters())
+            writer.add_scalar("params_sum", params_sum, n_iter)
 
-        sol, min_norm = MinNormSolver.find_min_norm_element_FW([[v for k, v in sorted(grads.items())] for grads in gradients])
-        #sol, min_norm = MinNormSolver.scipy_impl([[v for k, v in sorted(grads.items())] for grads in gradients])
-
-        # Scaled back-propagation
-        for name, param in model.named_parameters():
-            param.grad = sum(sol[t] * gradients[t][name] for t in tasks).cuda()
-        optimizer.step()
-
-
-        # logging
-        params_sum = sum(param.data.abs().sum() for param in model.parameters())
-        
-        writer.add_scalar("alpha/0", sol[0], n_iter)
-        writer.add_scalar("alpha/1", sol[1], n_iter)
-        writer.add_scalar("min_norm", min_norm, n_iter)
-        writer.add_scalar("loss/train_0", loss_data[0], n_iter)
-        writer.add_scalar("loss/train_1", loss_data[1], n_iter)
-        writer.add_scalar("params_sum", params_sum, n_iter)
+            writer.add_scalar("loss/train_0", out1, n_iter)
+            writer.add_scalar("loss/train_1", out2, n_iter)
         
     
     model.eval()
@@ -167,5 +130,5 @@ pareto = np.array(pareto_front)
 np.save("pareto_points", pareto)
 plt.plot(pareto[:, 0], pareto[:, 1], 'o')
 plt.xlabel("params sum")
-plt.ylabel("misclassification rate (train)")
+plt.ylabel("misclassification rate (test)")
 plt.savefig("t.png")
