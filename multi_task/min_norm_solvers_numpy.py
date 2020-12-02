@@ -1,6 +1,6 @@
 import numpy as np
 
-class MinNormSolverNumpy:
+class MinNormSolver:
     MAX_ITER = 250
     STOP_CRIT = 1e-6
 
