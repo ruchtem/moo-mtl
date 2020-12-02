@@ -322,7 +322,7 @@ def pareto_mtl_scheduler(ref_vecs,i, x_pref, t_iter = 100, n_dim = 20, step_size
         x = x - step_size * np.dot(weights.T,f_dx).flatten()
         if nd == 0.0:
             break
-    print("t init={:02d}, t={:02d}, nd_init={:.3}, nd={:.03}".format(j, t, nd_init, nd))
+    print("{:02d}\t t-init={:02d}, t={:02d}, nd_init={:.3}, nd={:.03}".format(i, j, t, nd_init, nd))
     return x, f, j + t
 
 
@@ -349,12 +349,12 @@ def pareto_mtl_search(ref_vecs,i,t_iter = 100, n_dim = 20, step_size = 1):
         if nd == 0.0:
             break
     
-    print("t init={:02d}, t={:02d}, nd_init={:.3}, nd={:.03}".format(j, t, nd_init, nd))
+    print("{:02d}\t t-init={:02d}, t={:02d}, nd_init={:.3}, nd={:.03}".format(i, j, t, nd_init, nd))
     return x, f, j+t
 
 
 
-def run(method = 'MOOMTL', num = 20):
+def run(method = 'MOOMTL', num = 10, n_dim=20, t_iter=100):
     """
     run method on the synthetic example
     method: optimization method {'ParetoMTL', 'MOOMTL', 'Linear'}
@@ -363,8 +363,11 @@ def run(method = 'MOOMTL', num = 20):
     
     pf = create_pf()
     f_value_list = []
+    x_list = [np.random.uniform(-0.5,0.5,n_dim)]
+    k_list = []
     
     weights = circle_points([1], [num])[0]
+    weights = np.flip(weights, axis=0)
     
     x = None
     scheduler_values = np.linspace(.001, 4, num)
@@ -376,28 +379,43 @@ def run(method = 'MOOMTL', num = 20):
         #print(i)
         
         if method == 'ParetoMTL':
-            x, f, k = pareto_mtl_search(ref_vecs = weights,i = i)
+            x, f, k = pareto_mtl_search(ref_vecs = weights,i = i, n_dim=n_dim)
         if method == 'MOOMTL':
-            x, f = moo_mtl_search()
+            x, f = moo_mtl_search(n_dim=n_dim)
         if method == 'Linear':
-            x, f = linear_scalarization_search()
+            x, f = linear_scalarization_search(n_dim=n_dim)
         if method == 'Scheduler':
             #x, f, imp = scheduler_search(scheduler_values[i], x, f_value_list, t_iter=100)
-            x, f, k = pareto_mtl_scheduler(ref_vecs=weights, i=i, x_pref=x)
+            x, f, k = pareto_mtl_scheduler(ref_vecs=weights, i=i, x_pref=x, n_dim=n_dim)
         itera += k
-        
         
         #print(f)
         f_value_list.append(f)
-        
+        x_list.append(x)
+        k_list.append(k)
+
        
     f_value = np.array(f_value_list)
     plt.plot(pf[:,0],pf[:,1])
     plt.scatter(f_value[:,0], f_value[:,1], c = 'r', s = 80)
+    for i, text in enumerate(range(num)):
+        plt.annotate(text, (f_value[i,0], f_value[i,1]))
+
     plt.savefig("t.png")
+    plt.close()
+    
+    
+    
     print(itera)
+
+    dists = []
+    for i in range(num):
+        dists.append(np.linalg.norm(x_list[i] - x_list[i+1]))
+
+    plt.plot(dists)
+    plt.show()
     
     
-run('ParetoMTL')
-# run('Scheduler')
+# run('ParetoMTL')
+run('Scheduler')
 
