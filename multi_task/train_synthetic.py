@@ -243,12 +243,12 @@ def moo_mtl_search(t_iter = 100, n_dim = 20, step_size = 1):
     return x, f
 
 
-def scheduler_search(importance, x_prev = None, all_x=None, t_iter = 100, n_dim = 20, step_size = 1):
+def scheduler_search(importance, x_prev, all_x, i, t_iter = 100, n_dim = 20, step_size = 1):
     x = np.random.uniform(-0.5,0.5,n_dim) if x_prev is None else x_prev
     
     f_init, f_dx_init = concave_fun_eval(x)
-    norms = np.linalg.norm(f_dx_init, axis=1)
-    alpha = importance * norms[1] / (norms[0] + importance * norms[1])
+    norms = f_init #np.linalg.norm(f_init, axis=1)
+    alpha = importance * norms[1]/norms[0]
     #norms = norms / sum(norms)
 
     #importance += (1 + norms)**0.1
@@ -260,21 +260,9 @@ def scheduler_search(importance, x_prev = None, all_x=None, t_iter = 100, n_dim 
             f, f_dx = concave_fun_eval(x)
 
             weighted_f_dx = f_dx.copy()
-            if all_x.size > 0:
-                if np.min(np.linalg.norm(all_x - f, axis=1)) < .3:
-                    importance += .3
-                elif np.min(np.linalg.norm(all_x - f, axis=1)) > .4:
-                    importance -= 5
-                    #print(importance)
-                #else:
-                    #print()
 
-            norms = np.linalg.norm(f_dx, axis=1)
-            alpha = importance * norms[1] / (norms[0] + importance * norms[1])
-            alphas.append(alpha)
-
+            alpha = importance * f[1]/f[0]
             weighted_f_dx[0] *= alpha
-            weighted_f_dx[1] *= (1-alpha)
         
             weights, nd = get_d_moomtl(weighted_f_dx)
             #print(nd)
@@ -284,15 +272,18 @@ def scheduler_search(importance, x_prev = None, all_x=None, t_iter = 100, n_dim 
             if nd == 0.0:
                 break
 
-        return x, f, nd
+        return x, f, nd, t
+    
+    def transform_imp(x):
+        return -1/ (x-1) - 1
     
     all_x = np.array(all_x)
-    x, f, nd = run(x, importance, all_x)
+    x, f, nd, t = run(x, transform_imp(importance), all_x)
 
-    print("importance={:.3f},{:.3f} \t norm1={:.3f}, norm2={:.3f}, f={:.6f},{:.6f}\t nd={:.3}\t n={}".format(
-        importance, importance, np.linalg.norm(f_dx_init[0]), np.linalg.norm(f_dx_init[1]), f[0], f[1], nd, norms[0]/norms[1]))
+    print("{:2d}\t t={:2d} imp={:.3f},{:.3f} \t norm1={:.3f}, norm2={:.3f}, f={:.6f},{:.6f}\t nd={:.3}\t n={:.3f}".format(
+        i, t, importance, transform_imp(importance), np.linalg.norm(f_dx_init[0]), np.linalg.norm(f_dx_init[1]), f[0], f[1], nd, norms[0]/norms[1]))
 
-    return x, f, importance
+    return x, f, t
 
 
 def pareto_mtl_scheduler(ref_vecs,i, x_pref, t_iter = 100, n_dim = 20, step_size = 1):
@@ -314,15 +305,22 @@ def pareto_mtl_scheduler(ref_vecs,i, x_pref, t_iter = 100, n_dim = 20, step_size
             break
     
         
-    
+    gradient_norms = []
+    losses = []
     # find the Pareto optimal solution
     for t in range(int(t_iter * 0.8)):
         f, f_dx = concave_fun_eval(x)
+        gradient_norms.append(np.linalg.norm(f_dx, axis=1))
+        losses.append(f)
         weights, nd = get_d_paretomtl(f_dx,f,ref_vecs,i)
         x = x - step_size * np.dot(weights.T,f_dx).flatten()
         if nd == 0.0:
             break
-    print("{:02d}\t t-init={:02d}, t={:02d}, nd_init={:.3}, nd={:.03}".format(i, j, t, nd_init, nd))
+    
+    norms = np.array(gradient_norms)[-1:,:].mean(axis=0)
+    losses = np.array(losses)[-10:,:].mean(axis=0)
+    print("{:02d}\t t-init={:02d}, t={:02d}, nd_init={:7.4f}, nd={:7.4f}, norms={:.3f}, {:.3f}, relative={:.4f}, relative_l={:.4f}".format(
+        i, j, t, nd_init, nd, norms[0], norms[1], norms[0]/ norms[1], losses[0]/losses[1]))
     return x, f, j + t
 
 
@@ -341,15 +339,19 @@ def pareto_mtl_search(ref_vecs,i,t_iter = 100, n_dim = 20, step_size = 1):
         if nd_init == 0.0:
             break
     
+    gradient_norms = []
     # find the Pareto optimal solution
     for t in range(int(t_iter * 0.8)):
         f, f_dx = concave_fun_eval(x)
+        gradient_norms.append(np.linalg.norm(f_dx, axis=1))
         weights, nd =  get_d_paretomtl(f_dx,f,ref_vecs,i)
         x = x - step_size * np.dot(weights.T,f_dx).flatten()
         if nd == 0.0:
             break
     
-    print("{:02d}\t t-init={:02d}, t={:02d}, nd_init={:.3}, nd={:.03}".format(i, j, t, nd_init, nd))
+    norms = np.array(gradient_norms)[-1:,:].mean(axis=0)
+    print("{:02d}\t t-init={:02d}, t={:02d}, nd_init={:7.4f}, nd={:7.4f}, norms={:.3f}, {:.3f}, relative={:.4f}".format(
+        i, j, t, nd_init, nd, norms[0], norms[1], norms[0]/ norms[1]))
     return x, f, j+t
 
 
@@ -367,10 +369,10 @@ def run(method = 'MOOMTL', num = 10, n_dim=20, t_iter=100):
     k_list = []
     
     weights = circle_points([1], [num])[0]
-    weights = np.flip(weights, axis=0)
+    #weights = np.flip(weights, axis=0)
     
     x = None
-    scheduler_values = np.linspace(.001, 4, num)
+    scheduler_values = np.linspace(.0001, 2, num)
     imp = np.array([.999, .001])
     itera = 0
     
@@ -385,8 +387,8 @@ def run(method = 'MOOMTL', num = 10, n_dim=20, t_iter=100):
         if method == 'Linear':
             x, f = linear_scalarization_search(n_dim=n_dim)
         if method == 'Scheduler':
-            #x, f, imp = scheduler_search(scheduler_values[i], x, f_value_list, t_iter=100)
-            x, f, k = pareto_mtl_scheduler(ref_vecs=weights, i=i, x_pref=x, n_dim=n_dim)
+            x, f, k = scheduler_search(scheduler_values[i], x, f_value_list, i, t_iter=100)
+            #x, f, k = pareto_mtl_scheduler(ref_vecs=weights, i=i, x_pref=x, n_dim=n_dim)
         itera += k
         
         #print(f)
