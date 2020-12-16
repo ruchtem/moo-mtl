@@ -248,7 +248,7 @@ def scheduler_search(importance, x_prev, all_x, i, t_iter = 100, n_dim = 20, ste
     
     f_init, f_dx_init = concave_fun_eval(x)
     norms = f_init #np.linalg.norm(f_init, axis=1)
-    alpha = importance * norms[1]/norms[0]
+    #alpha = importance * norms[1]/norms[0]
     #norms = norms / sum(norms)
 
     #importance += (1 + norms)**0.1
@@ -261,7 +261,9 @@ def scheduler_search(importance, x_prev, all_x, i, t_iter = 100, n_dim = 20, ste
 
             weighted_f_dx = f_dx.copy()
 
-            alpha = importance * f[1]/f[0]
+            #alpha = importance * f[1]/f[0]
+            # alpha = -f[1] / (importance * f[0] - f[0]) - f[1] / f[0]
+            alpha = (importance * f[1]) / (f[0] - importance * f[0])
             weighted_f_dx[0] *= alpha
         
             weights, nd = get_d_moomtl(weighted_f_dx)
@@ -278,7 +280,7 @@ def scheduler_search(importance, x_prev, all_x, i, t_iter = 100, n_dim = 20, ste
         return -1/ (x-1) - 1
     
     all_x = np.array(all_x)
-    x, f, nd, t = run(x, transform_imp(importance), all_x)
+    x, f, nd, t = run(x, importance, all_x)
 
     print("{:2d}\t t={:2d} imp={:.3f},{:.3f} \t norm1={:.3f}, norm2={:.3f}, f={:.6f},{:.6f}\t nd={:.3}\t n={:.3f}".format(
         i, t, importance, transform_imp(importance), np.linalg.norm(f_dx_init[0]), np.linalg.norm(f_dx_init[1]), f[0], f[1], nd, norms[0]/norms[1]))
@@ -372,8 +374,7 @@ def run(method = 'MOOMTL', num = 10, n_dim=20, t_iter=100):
     #weights = np.flip(weights, axis=0)
     
     x = None
-    scheduler_values = np.linspace(.0001, 2, num)
-    imp = np.array([.999, .001])
+    scheduler_values = np.linspace(.001, .999, num)
     itera = 0
     
     for i in range(num):
@@ -410,12 +411,12 @@ def run(method = 'MOOMTL', num = 10, n_dim=20, t_iter=100):
     
     print(itera)
 
-    dists = []
-    for i in range(num):
-        dists.append(np.linalg.norm(x_list[i] - x_list[i+1]))
+    # dists = []
+    # for i in range(num):
+    #     dists.append(np.linalg.norm(x_list[i] - x_list[i+1]))
 
-    plt.plot(dists)
-    plt.show()
+    # plt.plot(dists)
+    # plt.show()
     
     
 # run('ParetoMTL')
