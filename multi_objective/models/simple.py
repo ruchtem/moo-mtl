@@ -21,3 +21,5 @@ FullyConnected = nn.Sequential(
     #nn.Dropout(p=0.2),
     nn.Linear(25, 1),
 )
+
+TwoParameters = nn.Linear(2, 1, bias=False)

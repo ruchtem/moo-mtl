@@ -1,18 +1,57 @@
 import torch
 import numpy as np
 
+from abc import abstractmethod
 
-def mcr(logits, labels, sensible_attribute=None):
-    # missclassification rate
-    with torch.no_grad():
-        if logits.shape[1] == 1:
-            # binary case
-            logits = torch.squeeze(logits)
-            y_hat = torch.round(torch.sigmoid(logits))
-        else:
-            y_hat = torch.argmax(logits, dim=1)
-        accuracy = sum(y_hat == labels) / len(y_hat)
-    return 1 - accuracy.item()
+from objectives import *
+
+
+def from_objectives(objectives):
+    scores = {
+        #CrossEntropyLoss: mcr,
+        #BinaryCrossEntropyLoss: mcr,
+        #DDPHyperbolicTangentRelaxation: DDP,
+        #DEOHyperbolicTangentRelaxation: DEO,
+        MSELoss: L2Distance,
+    }
+    return [scores[o.__class__](o.label_name) for o in objectives]
+
+class BaseScore():
+
+    def __init__(self, label_name='labels'):
+        super().__init__()
+        self.label_name = label_name
+
+
+    @abstractmethod
+    def __call__(self, **kwargs):
+        raise NotImplementedError()
+
+
+class L2Distance(BaseScore):
+
+    def __call__(self, **kwargs):
+        prediction = kwargs['logits']
+        labels = kwargs[self.label_name]
+        with torch.no_grad():
+            return torch.linalg.norm(prediction - labels, ord=2)
+
+
+class mcr(BaseScore):
+
+    def __call__(self, **kwargs):
+        # missclassification rate
+        logits = kwargs['logits']
+        labels = kwargs[self.label_name]
+        with torch.no_grad():
+            if logits.shape[1] == 1:
+                # binary case
+                logits = torch.squeeze(logits)
+                y_hat = torch.round(torch.sigmoid(logits))
+            else:
+                y_hat = torch.argmax(logits, dim=1)
+            accuracy = sum(y_hat == labels) / len(y_hat)
+        return 1 - accuracy.item()
 
 
 def DDP(logits, labels, sensible_attribute):
@@ -21,5 +60,15 @@ def DDP(logits, labels, sensible_attribute):
         n = logits.shape[0]
         logits_s_negative = logits[sensible_attribute.bool()]
         logits_s_positive = logits[~sensible_attribute.bool()]
+
+        return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0).item()).cpu().item()
+
+
+def DEO(logits, labels, sensible_attribute):
+    """Difference in Equality of Opportunity"""
+    with torch.no_grad():
+        n = logits.shape[0]
+        logits_s_negative = logits[(sensible_attribute.bool()) & (labels == 1)]
+        logits_s_positive = logits[(~sensible_attribute.bool()) & (labels == 1)]
 
         return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0).item()).cpu().item()

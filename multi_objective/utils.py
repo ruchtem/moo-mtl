@@ -6,14 +6,12 @@ import matplotlib.pyplot as plt
 def calc_devisor(train_loader, model, objectives):
     values = np.zeros(len(objectives))
     for batch in train_loader:
-        data = batch.data.cuda()
-        labels = batch.labels.cuda()
-        sensible_attribute = batch.sensible_attribute.cuda() if hasattr(batch, 'sensible_attribute') else None
+        batch = dict_to_cuda(batch)
         
-        logits = model(data)
+        batch['logits'] = model(batch['data'])
 
         for i, objective in enumerate(objectives):
-            values[i] += objective(logits, labels, model, sensible_attribute)
+            values[i] += objective(**batch)
 
     divisor = values / min(values)
     print("devisor={}".format(divisor))
@@ -21,11 +19,16 @@ def calc_devisor(train_loader, model, objectives):
 
 
 def reset_weights(model):
-    if isinstance(model, torch.nn.Conv2d) or isinstance(model, torch.nn.Linear):
-        model.reset_parameters()
+    for layer in model.children():
+        if isinstance(layer, torch.nn.Conv2d) or isinstance(layer, torch.nn.Linear):
+            layer.reset_parameters()
 
 
-def calc_gradients(data, labels, sensible_attribute, model, objectives):
+def dict_to_cuda(d):
+    return {k: v.cuda() if isinstance(v, torch.Tensor) else v for k, v in d.items()}
+
+
+def calc_gradients(batch, model, objectives):
     # store gradients and objective values
     gradients = []
     obj_values = []
@@ -33,9 +36,9 @@ def calc_gradients(data, labels, sensible_attribute, model, objectives):
         # zero grad
         model.zero_grad()
         
-        logits = model(data)
+        batch['logits'] = model(batch['data'])
 
-        output = objective(logits, labels, model, sensible_attribute)
+        output = objective(**batch)
         output.backward()
         
         obj_values.append(output.item())
@@ -48,17 +51,7 @@ def calc_gradients(data, labels, sensible_attribute, model, objectives):
     return gradients, obj_values
 
 
-class ParetoFront():
-
-    def __init__(self, labels):
-        self.labels = labels
-        self.points = []
-
-    def append(self, point):
-        self.points.append(point)
-    
-    @staticmethod
-    def _is_pareto_efficient(costs, return_mask=True):
+def is_pareto_efficient(costs, return_mask=True):
         """
         From https://stackoverflow.com/questions/32791911/fast-calculation-of-pareto-front-in-python
         Find the pareto-efficient points
@@ -83,6 +76,17 @@ class ParetoFront():
             return is_efficient_mask
         else:
             return is_efficient
+
+
+class ParetoFront():
+
+    def __init__(self, labels):
+        self.labels = labels
+        self.points = []
+
+    def append(self, point):
+        self.points.append(point)
+    
     
     def plot(self):
         p = np.array(self.points)
@@ -90,11 +94,11 @@ class ParetoFront():
         for i, text in enumerate(range(len(self.points))):
             plt.annotate(text, (p[i,0], p[i,1]))
         
-        if p.shape[0] >= 3:
-            front = p[self._is_pareto_efficient(p)]
-            plt.plot(front[:, 0], front[:, 1], 'ro')
+        #if p.shape[0] >= 3:
+        #    front = p[self._is_pareto_efficient(p)]
+        #    plt.plot(front[:, 0], front[:, 1], 'ro')
 
         plt.xlabel(self.labels[0])
         plt.ylabel(self.labels[1])
         plt.savefig("t.png")
-        #plt.close()
+        plt.close()

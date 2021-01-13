@@ -59,9 +59,6 @@ def load_dataset(path):
     return X_train, X_test, y_train, y_test, s_train, s_test
 
 
-Batch = namedtuple('Batch', ['data', 'labels', 'sensible_attribute'])
-
-
 class ADULT(data.Dataset):
 
 
@@ -88,7 +85,7 @@ class ADULT(data.Dataset):
     
 
     def __getitem__(self, index):
-        return Batch(self.X[index], self.y[index], self.s[index])
+        return dict(data=self.X[index], labels=self.y[index], sensible_attribute=self.s[index])
 
 
 

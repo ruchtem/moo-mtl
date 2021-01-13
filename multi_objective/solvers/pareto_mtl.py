@@ -1,8 +1,37 @@
 import torch
+import numpy as np
+import matplotlib.pyplot as plt
 from torch.autograd import Variable
 
+from min_norm_solvers import MinNormSolver
 
-from utils import calc_gradients
+from utils import calc_gradients, dict_to_cuda
+
+
+def circle_points(r, n):
+    """
+    generate evenly distributed unit preference vectors for two tasks
+    """
+    circles = []
+    for r, n in zip(r, n):
+        t = np.linspace(0, 0.5 * np.pi, n)
+        x = r * np.cos(t)
+        y = r * np.sin(t)
+        circles.append(np.c_[x, y])
+    return circles
+
+def sphere_points(n, d, r=1):
+    """
+    generate random points on a d-dimensional sphere
+    """
+
+    # todo: fix
+    points = []
+    for _ in range(n):
+        x = np.random.uniform(size=d)
+        r = np.sum(x**2) **(.5)
+        points.append(x/r)
+    return points
 
 
 def get_d_paretomtl_init(grads, losses, preference_vectors, pref_idx):
@@ -43,7 +72,6 @@ def get_d_paretomtl_init(grads, losses, preference_vectors, pref_idx):
         gx_gradient = torch.matmul(active_constraints, grads)    # We need to take the derivatives of G_j which is w.dot(grads)
         sol, nd = MinNormSolver.find_min_norm_element([[gx_gradient[t]] for t in range(len(gx_gradient))])
         sol = torch.Tensor(sol).cuda()
-        print(nd)
     
     # from MinNormSolver we get the weights (alpha) for each gradient. But we need the weights for the losses?
     weight = torch.matmul(sol, active_constraints)
@@ -74,32 +102,50 @@ def get_d_paretomtl(grads, losses, preference_vectors, pref_idx):
     # calculate the descent direction
     if torch.sum(idx) <= 0:
         # here there are no active constrains in gx
-        sol, nd = MinNormSolver.find_min_norm_element([[grads[t]] for t in range(len(grads))])
+        sol, nd = MinNormSolver.find_min_norm_element_FW([[grads[t]] for t in range(len(grads))])
         return torch.tensor(sol).cuda().float()
     else:
-        # we have active constraints
+        # we have active constraints, i.e. we have move too far away from out preference vector
+        #print('optim idx', idx)
         vec =  torch.cat((grads, torch.matmul(w[idx],grads)))
         sol, nd = MinNormSolver.find_min_norm_element([[vec[t]] for t in range(len(vec))])
+        sol = torch.Tensor(sol).cuda()
 
+        n = preference_vectors.shape[1]
+        weights = []
+        for i in range(n):
+            weight_i =  sol[i] + torch.sum(torch.stack([sol[j] * w[idx][j - n , i] for j in torch.arange(n, n + torch.sum(idx))]))
+            weights.append(weight_i)
+        # weight0 =  sol[0] + torch.sum(torch.stack([sol[j] * w[idx][j - 2 ,0] for j in torch.arange(2, 2 + torch.sum(idx))]))
+        # weight1 =  sol[1] + torch.sum(torch.stack([sol[j] * w[idx][j - 2 ,1] for j in torch.arange(2, 2 + torch.sum(idx))]))
+        # weight = torch.stack([weight0,weight1])
 
-        weight0 =  sol[0] + torch.sum(torch.stack([sol[j] * w[idx][j - 2 ,0] for j in torch.arange(2, 2 + torch.sum(idx))]))
-        weight1 =  sol[1] + torch.sum(torch.stack([sol[j] * w[idx][j - 2 ,1] for j in torch.arange(2, 2 + torch.sum(idx))]))
-        weight = torch.stack([weight0,weight1])
+        weight = torch.stack(weights)
+        
         
         return weight
 
 
 class ParetoMTLSolver():
 
-    def __init__(self, objectives, model, reference_vector):
+    def __init__(self, objectives, model, num_pareto_points):
         self.objectives = objectives
         self.model = model
-        self.train_loader = train_loader
-        self.pref_idx = 0
-        self.ref_vec = reference_vector
+        self.pref_idx = -1
+        #self.ref_vec = torch.Tensor(circle_points([1], [num_pareto_points])[0]).cuda().float()
+
+        self.ref_vec = torch.Tensor(sphere_points(num_pareto_points, len(objectives))).cuda()
+
+        # for p in self.ref_vec:
+        #     p = p.cpu().numpy()
+        #     plt.arrow(0, 0, p[0], p[1], color='red')
+
+        # plt.savefig('preferences.png')
 
 
     def new_point(self, train_loader, optimizer):
+        self.pref_idx += 1
+
         # run at most 2 epochs to find the initial solution
         # stop early once a feasible solution is found 
         # usually can be found with a few steps
@@ -107,11 +153,7 @@ class ParetoMTLSolver():
             
             self.model.train()
             for (it, batch) in enumerate(train_loader):
-                X = batch[0]
-                ts = batch[1]
-                if torch.cuda.is_available():
-                    X = X.cuda()
-                    ts = ts.cuda()
+                batch = dict_to_cuda(batch)
 
                 grads = {}
                 losses_vec = []
@@ -119,16 +161,17 @@ class ParetoMTLSolver():
                 # obtain and store the gradient value
                 for i in range(len(self.objectives)):
                     optimizer.zero_grad()
-                    task_loss = model(X, ts) 
-                    losses_vec.append(task_loss[i].data)
+                    batch['logits'] = self.model(batch['data'])
+                    task_loss = self.objectives[i](**batch) 
+                    losses_vec.append(task_loss.data)
                     
-                    task_loss[i].backward()
+                    task_loss.backward()
                     
                     grads[i] = []
                     
                     # can use scalable method proposed in the MOO-MTL paper for large scale problem
                     # but we keep use the gradient of all parameters in this experiment
-                    for param in model.parameters():
+                    for param in self.model.parameters():
                         if param.grad is not None:
                             grads[i].append(Variable(param.grad.data.clone().flatten(), requires_grad=False))
 
@@ -139,7 +182,7 @@ class ParetoMTLSolver():
                 # calculate the weights
                 losses_vec = torch.stack(losses_vec)
                 flag, weight_vec = get_d_paretomtl_init(grads, losses_vec, self.ref_vec, self.pref_idx)
-                print(weight_vec)
+                #print(weight_vec)
                 
                 # early stop once a feasible solution is obtained
                 if flag == True:
@@ -148,38 +191,33 @@ class ParetoMTLSolver():
                 
                 # optimization step
                 optimizer.zero_grad()
-                for i in range(len(task_loss)):
-                    task_loss = model(X, ts)
+                for i in range(len(self.objectives)):
+                    batch['logits'] = self.model(batch['data'])
+                    task_loss = self.objectives[i](**batch) 
                     if i == 0:
-                        loss_total = weight_vec[i] * task_loss[i]
+                        loss_total = weight_vec[i] * task_loss
                     else:
-                        loss_total = loss_total + weight_vec[i] * task_loss[i]
+                        loss_total = loss_total + weight_vec[i] * task_loss
                 
                 loss_total.backward()
                 optimizer.step()
-        self.pref_idx += 1
+            if flag:
+                break
 
 
-    def step(self, data, labels):
-        gradients, obj_values = calc_gradients(data, labels, self.model, self.objectives)
-
-        grads_list = [torch.cat(grads[i]) for i in range(len(grads))]
-        grads = torch.stack(grads_list)
+    def step(self, batch):
+        gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
         
+        grads = [torch.cat([torch.flatten(v) for k, v in sorted(grads.items())]) for grads in gradients]
+        grads = torch.stack(grads)
         # calculate the weights
-        losses_vec = torch.stack(losses_vec)
-        weight_vec = get_d_paretomtl(grads,losses_vec,ref_vec,pref_idx)
+        losses_vec = torch.Tensor(obj_values).cuda()
+        weight_vec = get_d_paretomtl(grads, losses_vec, self.ref_vec, self.pref_idx)
         
-        normalize_coeff = n_tasks / torch.sum(torch.abs(weight_vec))
+        normalize_coeff = len(self.objectives) / torch.sum(torch.abs(weight_vec))
         weight_vec = weight_vec * normalize_coeff
         
         # optimization step
-        optimizer.zero_grad()
-        for i in range(len(task_loss)):
-            task_loss = model(X, ts)
-            if i == 0:
-                loss_total = weight_vec[i] * task_loss[i]
-            else:
-                loss_total = loss_total + weight_vec[i] * task_loss[i]
-        
-        loss_total.backward()
+        self.model.zero_grad()
+        for name, param in self.model.named_parameters():
+            param.grad = sum(weight_vec[o] * gradients[o][name] for o in range(len(self.objectives))).cuda()

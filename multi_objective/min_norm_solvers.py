@@ -39,7 +39,7 @@ class MinNormSolver:
         def inner_product(x1, x2):
             return torch.mul(x1, x2).sum().item()
 
-        dmin = 1e15
+        dmin = np.inf
         for i in range(len(vecs)):
             for j in range(i+1,len(vecs)):
                 if (i,j) not in dps:
@@ -182,20 +182,39 @@ class MinNormSolver:
             if np.sum(np.abs(change)) < MinNormSolver.STOP_CRIT:
                 return sol_vec, nd
             sol_vec = new_sol_vec
+            iter_count += 1
+        return sol_vec, nd
 
 
     def scipy_impl(vecs):
 
-        assert len(vecs) == 2
+        #assert len(vecs) == 2
         n=len(vecs)
 
-        def obj(alpha, x):
-            return np.linalg.norm(alpha * x[0] + (1-alpha) * x[1])
+        if isinstance(vecs[0], list):
+            vecs = [torch.cat([torch.squeeze(v_i) for v_i in v]) for v in vecs]
+
+        def obj(x, vecs):
+            lin_combination = np.sum(vecs * x, axis=1)
+            return np.linalg.norm(lin_combination)
         
-        vecs = [v[0].cpu().numpy() for v in vecs]
-        alpha = minimize(lambda a: obj(a, x=vecs), x0=.5, bounds=[(0, 1)]).x.item()
-        nd =obj(alpha, vecs)
-        sol_vec = np.array([alpha, 1-alpha])
+        vecs = np.array([v.cpu().numpy() for v in vecs]).T
+        alpha0 = np.array([1./n for _ in range(n)])
+
+        t = obj(alpha0, vecs)
+        
+        eq_constraint = LinearConstraint(A=np.ones(n), lb=[1], ub=[1])  # sum(alpha)=1 
+        ineq_constraints = LinearConstraint(A=np.eye(n), lb=np.zeros(n), ub=np.ones(n))  # alpha_i >= 0
+
+        sol = minimize(
+            lambda x: obj(x, vecs=vecs), 
+            x0=alpha0, 
+            constraints=[eq_constraint, ineq_constraints],
+            options={'maxiter': 300})
+        #print(sol.success)
+
+        nd = sol.fun
+        sol_vec = sol.x
         
         return sol_vec, nd
 
