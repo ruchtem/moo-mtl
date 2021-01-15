@@ -1,25 +1,44 @@
 import torch
+import autograd
 
-def from_name(names):
+
+def from_name(names, label_names, logits_names):
     objectives = {
         'CrossEntropyLoss': CrossEntropyLoss,
-        'BinaryCrossEntroyLoss': BinaryCrossEntropyLoss,
+        'BinaryCrossEntropyLoss': BinaryCrossEntropyLoss,
         'L1Regularization': L1Regularization,
         'L2Regularization': L2Regularization,
         'ddp': DDPHyperbolicTangentRelaxation,
         'deo': DEOHyperbolicTangentRelaxation,
     }
-    return [objectives[n] for n in names]
+    if not label_names and not logits_names:
+        return [objectives[n]() for n in names]
+    elif label_names or logits_names:
+        if not logits_names:
+            assert len(names) == len(label_names)
+            return [objectives[n](label_name=la) for n, la in zip(names, label_names)]
+        elif not label_names:
+            assert len(names) == len(logits_names)
+            return [objectives[n](logits_name=lo) for n, lo in zip(names, logits_names)]
+        elif len(names) == len(label_names) == len(logits_names):
+            return [objectives[n](la, lo) for n, la, lo in zip(names, label_names, logits_names)]
+        
+    raise ValueError('unknown situation')
+    
 
 
 class CrossEntropyLoss(torch.nn.CrossEntropyLoss):
     
-    def __init__(self):
+    def __init__(self, label_name='labels', logits_name='logits'):
         super().__init__(reduction='mean')
+        self.label_name = label_name
+        self.logits_name = logits_name
     
 
-    def __call__(self, logits=None, targets=None, model=None, sensible_attribute=None):
-        return super().__call__(logits, targets)
+    def __call__(self, **kwargs):
+        logits = kwargs[self.logits_name]
+        labels = kwargs[self.label_name]
+        return super().__call__(logits, labels)
 
 
 class BinaryCrossEntropyLoss(torch.nn.BCEWithLogitsLoss):
@@ -106,3 +125,53 @@ class DEOHyperbolicTangentRelaxation():
         s_positive = logits[(~sensible_attribute.bool()) & (targets == 1)]
 
         return 1/n * torch.abs(torch.sum(torch.tanh(self.c * torch.relu(s_positive))) - torch.sum(torch.tanh(self.c * torch.relu(s_negative))))
+
+
+"""
+Popular problem proposed by
+
+    Carlos Manuel Mira da Fonseca. Multiobjective genetic algorithms with 
+    application to controlengineering problems.PhD thesis, University of Sheffield, 1995.
+
+with a concave pareto front.
+
+$ \mathcal{L}_1(\theta) = 1 - \exp{ - || \theta - 1 / \sqrt{d} || $
+$ \mathcal{L}_1(\theta) = 1 - \exp{ - || \theta + 1 / \sqrt{d} || $
+
+with $\theta \in R^d$ and $ d = 100$
+"""
+class Fonseca1():
+
+    def f1(theta):
+        d = len(theta)
+        sum1 = autograd.numpy.sum([(theta[i] - 1.0/autograd.numpy.sqrt(d)) ** 2 for i in range(d)])
+        f1 = 1 - autograd.numpy.exp(- sum1)
+        return f1
+
+    f1_dx = autograd.grad(f1)
+    
+    def __call__(self, **kwargs):
+        return f1(kwargs['parameters'])
+    
+
+    def gradient(self, **kwargs):
+        return f1_dx(kwargs['parameters'])
+
+
+class Fonseca2():
+
+    def f2(theta):
+        d = len(theta)
+        sum1 = autograd.numpy.sum([(theta[i] + 1.0/autograd.numpy.sqrt(d)) ** 2 for i in range(d)])
+        f1 = 1 - autograd.numpy.exp(- sum1)
+        return f1
+
+    f2_dx = autograd.grad(f2)
+    
+    def __call__(self, **kwargs):
+        return f2(kwargs['parameters'])
+    
+
+    def gradient(self, **kwargs):
+        return f2_dx(kwargs['parameters'])
+

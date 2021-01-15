@@ -13,9 +13,6 @@ import scipy.misc as m
 
 from torchvision import transforms
 
-from collections import namedtuple
-
-Batch = namedtuple("Batch", ["data", "labels", "sensible_attribute"])
 
 class MNIST(data.Dataset):
     """`MNIST <http://yann.lecun.com/exdb/mnist/>`_ Dataset.
@@ -49,9 +46,9 @@ class MNIST(data.Dataset):
     data_buffer = None
     label_buffer = None
 
-    def __init__(self, root, split='train', transform=transforms.ToTensor(), download=False, train_size=50000):
-        assert split in ['train', 'val', 'test']
-
+    def __init__(self, root='data/mnist', split='train', transform=transforms.ToTensor(), download=False, train_size=50000, multi=False):
+        self.multi = multi
+        self.split = split
         self.root = os.path.expanduser(root)
         self.transform = transform
 
@@ -66,36 +63,60 @@ class MNIST(data.Dataset):
             raise RuntimeError('Multi Task extension not found.' +
                                ' You can use download=True to download it')
 
-
-        if MNIST.data_buffer is None or MNIST.label_buffer is None:
-
-            data, labels = torch.load(
-                os.path.join(self.root, self.processed_folder, self.training_file))
+        if split == 'test' or (MNIST.data_buffer is None or MNIST.label_buffer is None):
+            self._load_into_buffer()
             
-            # randomly shuffle and buffer
-            idx = torch.randperm(data.shape[0])
-            MNIST.data_buffer = data[idx].float()
-            MNIST.label_buffer = labels[idx]
-
-            MNIST.data_buffer = torch.unsqueeze(MNIST.data_buffer, dim=1)
 
         if split == 'train':
-            self.data = MNIST.data_buffer[:train_size]
-            self.labels = MNIST.label_buffer[:train_size]
+            self.data = MNIST.data_buffer[:train_size].clone()
+            self.labels = MNIST.label_buffer[:train_size].clone()
         elif split == 'val':
-            self.data = MNIST.data_buffer[train_size:]
-            self.labels = MNIST.label_buffer[train_size:]
+            self.data = MNIST.data_buffer[train_size:].clone()
+            self.labels = MNIST.label_buffer[train_size:].clone()
         elif split == 'test':
-            self.data, self.labels = torch.load(
-                os.path.join(self.root, self.processed_folder, self.test_file))
+            self.data = MNIST.data_buffer.clone()
+            self.labels = MNIST.label_buffer.clone()
+        else:
+            raise ValueError("Unkown split {}, expecting either 'train', 'val', or 'test".format(split))
 
 
     def __getitem__(self, index):
-        return Batch(self.data[index], self.labels[index])
+        if not self.multi:
+            return dict(data=self.data[index], labels=self.labels[index])
+        else:
+            return dict(data=self.data[index], label_l=self.labels[index, 0], label_r=self.labels[index, 1])
 
 
     def __len__(self):
         return len(self.labels)
+    
+
+    def getall(self):
+        if not self.multi:
+            return dict(data=self.data, labels=self.labels)
+        else:
+            return dict(data=self.data, label_l=self.labels[:, 0], label_r=self.labels[:, 1])
+
+
+    def label_names(self):
+        return ['label_l', 'label_r']
+
+
+    def _load_into_buffer(self):
+        if not self.multi:
+            file = self.training_file if self.split in ['train', 'val'] else self.test_file
+            data, labels = torch.load(os.path.join(self.root, self.processed_folder, file))
+        else:
+            file = self.multi_training_file if self.split in ['train', 'val'] else self.multi_test_file
+            data, labels_l, labels_r = torch.load(os.path.join(self.root, self.processed_folder, file))
+            labels = torch.vstack((labels_l, labels_r)).T
+        
+        # randomly shuffle and buffer
+        idx = torch.randperm(data.shape[0])
+        MNIST.data_buffer = data[idx].float()
+        MNIST.label_buffer = labels[idx]
+
+        MNIST.data_buffer = torch.unsqueeze(MNIST.data_buffer, dim=1)
 
 
     def _check_exists(self):
@@ -222,23 +243,15 @@ def read_image_file(path):
         return torch.from_numpy(parsed).view(length, num_rows, num_cols), torch.from_numpy(multi_data).view(length,num_rows, num_cols), extension
 
 if __name__ == '__main__':
-    import torch
-    import torchvision
     import matplotlib.pyplot as plt
-    from torchvision import transforms
-    import matplotlib.pyplot as plt
-
-    def global_transformer():
-        return transforms.Compose([transforms.ToTensor(),
-                                   transforms.Normalize((0.1307,), (0.3081,))])
-
-    dst = MNIST(root='/home/ozansener/Data/MultiMNIST/', train=True, download=True, transform=global_transformer(), multi=True)
-    loader = torch.utils.data.DataLoader(dst, batch_size=10, shuffle=True, num_workers=4)
+    
+    dst = MNIST(multi=True)
+    loader = torch.utils.data.DataLoader(dst, batch_size=10, shuffle=True, num_workers=0)
     for dat in loader:
-        ims = dat[0].view(10,28,28).numpy()
+        ims = dat['data'].view(10,28,28).numpy()
 
-        labs_l = dat[1]
-        labs_r = dat[2]
+        labs_l = dat['label_l']
+        labs_r = dat['label_r']
         f, axarr = plt.subplots(2,5)
         for j in range(5):
             for i in range(2):

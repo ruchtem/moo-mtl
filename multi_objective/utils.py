@@ -4,6 +4,33 @@ import matplotlib.pyplot as plt
 
 from itertools import chain, combinations
 
+from loaders import adult_loader, multi_mnist_loader
+from models import simple
+
+
+def dataset_from_name(name, **kwargs):
+    if name == 'adult':
+        return adult_loader.ADULT(**kwargs)
+    elif name == 'mnist':
+        return multi_mnist_loader.MNIST(multi=False, **kwargs)
+    elif name == 'multi_mnist':
+        return multi_mnist_loader.MNIST(multi=True, **kwargs)
+    else:
+        raise ValueError("Unknown dataset: {}".format(name))
+
+
+def model_from_dataset(name, method=None):
+    if name == 'adult':
+        input_dim = 90 if method == 'proposed' else 88
+        return simple.FullyConnected(input_dim)
+    elif name == 'mnist':
+        return simple.LeNet()
+    elif name == 'multi_mnist':
+        input_dim = 3 if method == 'proposed' else 1
+        return simple.MultiLeNet(input_dim)
+    else:
+        raise ValueError("Unknown model name {}".format(name))
+
 
 def calc_devisor(train_loader, model, objectives):
     values = np.zeros(len(objectives))
@@ -44,7 +71,8 @@ def calc_gradients(batch, model, objectives):
         # zero grad
         model.zero_grad()
         
-        batch['logits'] = model(batch['data'])
+        logits = model(batch['data'])
+        batch.update(logits)
 
         output = objective(**batch)
         output.backward()
@@ -52,8 +80,9 @@ def calc_gradients(batch, model, objectives):
         obj_values.append(output.item())
         gradients.append({})
         
+        private_params = model.private_params() if hasattr(model, 'private_params') else []
         for name, param in model.named_parameters():
-            if param.requires_grad:
+            if name not in private_params and param.requires_grad:
                 gradients[i][name] = param.grad.data.detach().clone()
     
     return gradients, obj_values
@@ -90,17 +119,26 @@ class ParetoFront():
 
     def __init__(self, labels):
         self.labels = labels
-        self.points = []
+        self.points = np.array([])
+        self.e = 0
 
     def append(self, point):
-        self.points.append(point)
+        point = np.array(point)
+        if not len(self.points):
+            self.points = point
+        else:
+            self.points = np.vstack((self.points, point))
     
     
     def plot(self):
-        p = np.array(self.points)
+        p = self.points
+        # for e in range(self.e + 1):
+        #     idx1 = e * 20
+        #     idx2 = (e+1) * 20
+        #    plt.plot(p[idx1:idx2, 0], p[idx1:idx2, 1], '-', label="e={}".format(e+1))
         plt.plot(p[:, 0], p[:, 1], 'o')
-        for i, text in enumerate(range(len(self.points))):
-            plt.annotate(text, (p[i,0], p[i,1]))
+        # for i, text in enumerate(range(len(self.points))):
+        #     plt.annotate(text, (p[i,0], p[i,1]))
         
         #if p.shape[0] >= 3:
         #    front = p[self._is_pareto_efficient(p)]
@@ -108,5 +146,6 @@ class ParetoFront():
 
         plt.xlabel(self.labels[0])
         plt.ylabel(self.labels[1])
+        # plt.legend()
         plt.savefig("t.png")
         plt.close()

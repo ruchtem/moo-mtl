@@ -20,19 +20,6 @@ def circle_points(r, n):
         circles.append(np.c_[x, y])
     return circles
 
-def sphere_points(n, d, r=1):
-    """
-    generate random points on a d-dimensional sphere
-    """
-
-    # todo: fix
-    points = []
-    for _ in range(n):
-        x = np.random.uniform(size=d)
-        r = np.sum(x**2) **(.5)
-        points.append(x/r)
-    return points
-
 
 def get_d_paretomtl_init(grads, losses, preference_vectors, pref_idx):
     """ 
@@ -128,19 +115,12 @@ def get_d_paretomtl(grads, losses, preference_vectors, pref_idx):
 
 class ParetoMTLSolver():
 
-    def __init__(self, objectives, model, num_pareto_points):
+    def __init__(self, objectives, model, num_pareto_points, **kwargs):
+        assert len(objectives) <= 2, "Only implemented for max 2 objectives"
         self.objectives = objectives
         self.model = model
         self.pref_idx = -1
-        #self.ref_vec = torch.Tensor(circle_points([1], [num_pareto_points])[0]).cuda().float()
-
-        self.ref_vec = torch.Tensor(sphere_points(num_pareto_points, len(objectives))).cuda()
-
-        # for p in self.ref_vec:
-        #     p = p.cpu().numpy()
-        #     plt.arrow(0, 0, p[0], p[1], color='red')
-
-        # plt.savefig('preferences.png')
+        self.ref_vec = torch.Tensor(circle_points([1], [num_pareto_points])[0]).cuda().float()
 
 
     def new_point(self, train_loader, optimizer):
@@ -161,7 +141,7 @@ class ParetoMTLSolver():
                 # obtain and store the gradient value
                 for i in range(len(self.objectives)):
                     optimizer.zero_grad()
-                    batch['logits'] = self.model(batch['data'])
+                    batch.update(self.model(batch['data']))
                     task_loss = self.objectives[i](**batch) 
                     losses_vec.append(task_loss.data)
                     
@@ -171,12 +151,13 @@ class ParetoMTLSolver():
                     
                     # can use scalable method proposed in the MOO-MTL paper for large scale problem
                     # but we keep use the gradient of all parameters in this experiment
-                    for param in self.model.parameters():
-                        if param.grad is not None:
+                    private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
+                    for name, param in self.model.named_parameters():
+                        if name not in private_params and param.grad is not None:
                             grads[i].append(Variable(param.grad.data.clone().flatten(), requires_grad=False))
 
                 
-                grads_list = [torch.cat(grads[i]) for i in range(len(grads))]
+                grads_list = [torch.cat([g for g in grads[i]]) for i in range(len(grads))]
                 grads = torch.stack(grads_list)
                 
                 # calculate the weights
@@ -192,7 +173,7 @@ class ParetoMTLSolver():
                 # optimization step
                 optimizer.zero_grad()
                 for i in range(len(self.objectives)):
-                    batch['logits'] = self.model(batch['data'])
+                    batch.update(self.model(batch['data']))
                     task_loss = self.objectives[i](**batch) 
                     if i == 0:
                         loss_total = weight_vec[i] * task_loss
@@ -210,6 +191,7 @@ class ParetoMTLSolver():
         
         grads = [torch.cat([torch.flatten(v) for k, v in sorted(grads.items())]) for grads in gradients]
         grads = torch.stack(grads)
+        
         # calculate the weights
         losses_vec = torch.Tensor(obj_values).cuda()
         weight_vec = get_d_paretomtl(grads, losses_vec, self.ref_vec, self.pref_idx)
@@ -218,6 +200,11 @@ class ParetoMTLSolver():
         weight_vec = weight_vec * normalize_coeff
         
         # optimization step
-        self.model.zero_grad()
+        private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
         for name, param in self.model.named_parameters():
-            param.grad = sum(weight_vec[o] * gradients[o][name] for o in range(len(self.objectives))).cuda()
+            if name not in private_params:
+                param.grad.data.zero_()
+                param.grad = sum(weight_vec[o] * gradients[o][name] for o in range(len(self.objectives))).cuda()
+    
+    def eval_step(self, batch):
+        return [self.model(batch['data'])]

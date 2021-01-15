@@ -3,24 +3,25 @@ import numpy as np
 
 from abc import abstractmethod
 
-from objectives import *
+import objectives as obj
 
 
 def from_objectives(objectives):
     scores = {
-        CrossEntropyLoss: mcr,
-        BinaryCrossEntropyLoss: mcr,
-        DDPHyperbolicTangentRelaxation: DDP,
-        DEOHyperbolicTangentRelaxation: DEO,
-        MSELoss: L2Distance,
+        obj.CrossEntropyLoss: mcr,
+        obj.BinaryCrossEntropyLoss: mcr,
+        obj.DDPHyperbolicTangentRelaxation: DDP,
+        obj.DEOHyperbolicTangentRelaxation: DEO,
+        obj.MSELoss: L2Distance,
     }
-    return [scores[o.__class__](o.label_name) for o in objectives]
+    return [scores[o.__class__](o.label_name, o.logits_name) for o in objectives]
 
 class BaseScore():
 
-    def __init__(self, label_name='labels'):
+    def __init__(self, label_name='labels', logits_name='logits'):
         super().__init__()
         self.label_name = label_name
+        self.logits_name = logits_name
 
 
     @abstractmethod
@@ -41,7 +42,7 @@ class mcr(BaseScore):
 
     def __call__(self, **kwargs):
         # missclassification rate
-        logits = kwargs['logits']
+        logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
         with torch.no_grad():
             if logits.shape[1] == 1:
@@ -58,7 +59,7 @@ class DDP(BaseScore):
     """Difference in Democratic Parity"""
 
     def __call__(self, **kwargs):
-        logits = kwargs['logits']
+        logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
         sensible_attribute = kwargs['sensible_attribute']
     
@@ -74,7 +75,7 @@ class DEO(BaseScore):
     """Difference in Equality of Opportunity"""
 
     def __call__(self, **kwargs):
-        logits = kwargs['logits']
+        logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
         sensible_attribute = kwargs['sensible_attribute']
 

@@ -9,7 +9,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from torch.utils import data
 from collections import namedtuple
 
-def load_dataset(path):
+def load_dataset(path, s_label):
     data = pd.read_csv(path)
     # Preprocessing taken from https://www.kaggle.com/islomjon/income-prediction-with-ensembles-of-decision-trees
     
@@ -41,11 +41,11 @@ def load_dataset(path):
     # encode categorical values
     data1 = data.copy()
     data1 = pd.get_dummies(data1)
-    data1 = data1.drop(['income', 'gender'], axis=1)
+    data1 = data1.drop(['income', s_label], axis=1)
 
     X = StandardScaler().fit(data1).transform(data1)
     y = data['income'].values
-    s = data['gender'].values
+    s = data[s_label].values
 
     X_train, X_test, y_train, y_test, s_train, s_test = train_test_split(X, y, s, test_size=0.3, random_state=1)
 
@@ -62,12 +62,10 @@ def load_dataset(path):
 class ADULT(data.Dataset):
 
 
-    weight = 8146 / 34189
-
-    def __init__(self, root="data/adult", split="train"):
+    def __init__(self, root="data/adult", split="train", sensible_attribute="gender"):
         assert split in ["train", "test"]
         path = os.path.join(root, "adult.csv")
-        X_train, X_test, y_train, y_test, s_train, s_test = load_dataset(path)
+        X_train, X_test, y_train, y_test, s_train, s_test = load_dataset(path, sensible_attribute)
         if split == 'train':
             self.X = X_train
             self.y = y_train
@@ -76,7 +74,8 @@ class ADULT(data.Dataset):
             self.X = X_test
             self.y = y_test
             self.s = s_test
-        print("loaded {} instances. y positives={}, s positives={}".format(len(self.y), sum(self.y), sum(self.s)))
+        print("loaded {} instances for split {}. y positives={}, {} positives={}".format(
+            len(self.y), split, sum(self.y), sensible_attribute, sum(self.s)))
 
 
     def __len__(self):
@@ -87,9 +86,12 @@ class ADULT(data.Dataset):
     def __getitem__(self, index):
         return dict(data=self.X[index], labels=self.y[index], sensible_attribute=self.s[index])
 
+
     def getall(self):
         return dict(data=self.X, labels=self.y, sensible_attribute=self.s)
 
+
+    
 if __name__ == "__main__":
     dataset = ADULT(split="train")
     trainloader = data.DataLoader(dataset, batch_size=256, num_workers=0)
