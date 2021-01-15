@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
+from itertools import chain, combinations
+
 
 def calc_devisor(train_loader, model, objectives):
     values = np.zeros(len(objectives))
@@ -26,6 +28,12 @@ def reset_weights(model):
 
 def dict_to_cuda(d):
     return {k: v.cuda() if isinstance(v, torch.Tensor) else v for k, v in d.items()}
+
+
+def powerset(s):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    p = chain.from_iterable(combinations(s, r) for r in range(1, len(s)+1))
+    return list(reversed(list(p)))
 
 
 def calc_gradients(batch, model, objectives):

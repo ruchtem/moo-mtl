@@ -8,10 +8,10 @@ from objectives import *
 
 def from_objectives(objectives):
     scores = {
-        #CrossEntropyLoss: mcr,
-        #BinaryCrossEntropyLoss: mcr,
-        #DDPHyperbolicTangentRelaxation: DDP,
-        #DEOHyperbolicTangentRelaxation: DEO,
+        CrossEntropyLoss: mcr,
+        BinaryCrossEntropyLoss: mcr,
+        DDPHyperbolicTangentRelaxation: DDP,
+        DEOHyperbolicTangentRelaxation: DEO,
         MSELoss: L2Distance,
     }
     return [scores[o.__class__](o.label_name) for o in objectives]
@@ -54,21 +54,33 @@ class mcr(BaseScore):
         return 1 - accuracy.item()
 
 
-def DDP(logits, labels, sensible_attribute):
+class DDP(BaseScore):
     """Difference in Democratic Parity"""
-    with torch.no_grad():
-        n = logits.shape[0]
-        logits_s_negative = logits[sensible_attribute.bool()]
-        logits_s_positive = logits[~sensible_attribute.bool()]
 
-        return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0).item()).cpu().item()
+    def __call__(self, **kwargs):
+        logits = kwargs['logits']
+        labels = kwargs[self.label_name]
+        sensible_attribute = kwargs['sensible_attribute']
+    
+        with torch.no_grad():
+            n = logits.shape[0]
+            logits_s_negative = logits[sensible_attribute.bool()]
+            logits_s_positive = logits[~sensible_attribute.bool()]
+
+            return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0).item()).cpu().item()
 
 
-def DEO(logits, labels, sensible_attribute):
+class DEO(BaseScore):
     """Difference in Equality of Opportunity"""
-    with torch.no_grad():
-        n = logits.shape[0]
-        logits_s_negative = logits[(sensible_attribute.bool()) & (labels == 1)]
-        logits_s_positive = logits[(~sensible_attribute.bool()) & (labels == 1)]
 
-        return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0).item()).cpu().item()
+    def __call__(self, **kwargs):
+        logits = kwargs['logits']
+        labels = kwargs[self.label_name]
+        sensible_attribute = kwargs['sensible_attribute']
+
+        with torch.no_grad():
+            n = logits.shape[0]
+            logits_s_negative = logits[(sensible_attribute.bool()) & (labels == 1)]
+            logits_s_positive = logits[(~sensible_attribute.bool()) & (labels == 1)]
+
+            return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0).item()).cpu().item()        

@@ -5,7 +5,7 @@ from torch.utils import data
 from collections import deque
 from copy import deepcopy
 
-seed = 0
+seed = 1
 
 torch.manual_seed(seed)
 np.random.seed(seed)
@@ -30,24 +30,25 @@ from solvers.pareto_mtl import ParetoMTLSolver
 from scores import mcr, DDP, from_objectives
 
 batch_size = 64
-lr = .0001
-epochs = 10
+lr = .001
+epochs = 1
 first_epoch = epochs
 num_workers = 0
 data_path = "data/mnist"
 epsilon = 1e-4
 warmstart = True
-num_pareto_points = 2
+num_pareto_points = 3
 
-#objectives = [BinaryCrossEntropyLoss(), DDPHyperbolicTangentRelaxation()]
-objectives = [MSELoss(label_name='labels1'), MSELoss(label_name='labels2'), MSELoss(label_name='labels3'),]
+
+objectives = [BinaryCrossEntropyLoss(), DDPHyperbolicTangentRelaxation()]
+#objectives = [MSELoss(label_name='labels1'), MSELoss(label_name='labels2'), MSELoss(label_name='labels3'),]
 scores = from_objectives(objectives)
 
 # prepare
-train_set = Synthetic(size=1000)
-test_set = Synthetic(size=200)
-# train_set = ADULT(split="train")
-# test_set = ADULT(split="test")
+# train_set = Synthetic(size=1000)
+# test_set = Synthetic(size=200)
+train_set = ADULT(split="train")
+test_set = ADULT(split="test")
 # train_set = MNIST(data_path, split='train')
 # test_set = MNIST(data_path, split='val')
 
@@ -55,10 +56,11 @@ train_loader = data.DataLoader(train_set, batch_size, num_workers)
 test_loader = data.DataLoader(test_set, len(test_set), num_workers)
 
 pareto_front = ParetoFront([s.__class__.__name__ for s in scores])
+# pareto_front = ParetoFront(['w1', 'w2'])
 
 # model = LeNet
-# model = FullyConnected
-model = TwoParameters
+model = FullyConnected
+# model = TwoParameters
 model.cuda()
 
 # assumes objectives are scaled in [0, +inf]
@@ -71,13 +73,13 @@ solver = ProposedSolver(objectives, divisor, model, num_pareto_points)
 # train_set.plot_pareto_loss(loss=solver.ref_vec.cpu())
 
 for j in range(num_pareto_points):
-    #optimizer = torch.optim.Adam(model.parameters(), lr)
-    optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
-    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs, eta_min=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr)
+    # optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
+    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs, eta_min=1e-6)
 
     if not warmstart:
         reset_weights(model)
-        #optimizer = torch.optim.Adam(model.parameters(), lr)
+        optimizer = torch.optim.Adam(model.parameters(), lr)
 
     solver.new_point(train_loader, optimizer)
 
@@ -109,18 +111,18 @@ for j in range(num_pareto_points):
         batch = dict_to_cuda(test_set.getall())
         batch['logits'] = model(batch['data'])
         score_values = [s(**batch) for s in scores]
-        #pareto_front.append(score_values)
-        weights = model.weight.data.detach().clone().cpu()[0].numpy()
-        print(weights)
-        pareto_front.append(weights)
+        pareto_front.append(score_values)
+        #weights = model.weight.data.detach().clone().cpu()[0].numpy()
+        #print(weights)
+        #pareto_front.append(weights)
 
         #print("train acc", mcr(model(train_set.X.cuda()), train_set.y.cuda()))
         #print("test acc", mcr(model(test_set.X.cuda()), test_set.y.cuda()))
         #print('fairness', DDP(model(test_set.X.cuda()), test_set.y.cuda(), test_set.s.cuda()))
         #print('fairness proxy', test(model(test_set.X.cuda()), test_set.y.cuda(), None, test_set.s.cuda()).item())
 
-        train_set.plot_pareto_loss(model.weight.data.detach().clone().cpu())
+        #train_set.plot_pareto_loss(model.weight.data.detach().clone().cpu())
         
-        train_set.plot_pareto_front()
+        #train_set.plot_pareto_front()
         pareto_front.plot()
     print()

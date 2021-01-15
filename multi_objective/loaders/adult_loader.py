@@ -87,7 +87,8 @@ class ADULT(data.Dataset):
     def __getitem__(self, index):
         return dict(data=self.X[index], labels=self.y[index], sensible_attribute=self.s[index])
 
-
+    def getall(self):
+        return dict(data=self.X, labels=self.y, sensible_attribute=self.s)
 
 if __name__ == "__main__":
     dataset = ADULT(split="train")

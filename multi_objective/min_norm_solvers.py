@@ -192,7 +192,7 @@ class MinNormSolver:
         n=len(vecs)
 
         if isinstance(vecs[0], list):
-            vecs = [torch.cat([torch.squeeze(v_i) for v_i in v]) for v in vecs]
+            vecs = [torch.cat([torch.flatten(v_i) for v_i in v]) for v in vecs]
 
         def obj(x, vecs):
             lin_combination = np.sum(vecs * x, axis=1)

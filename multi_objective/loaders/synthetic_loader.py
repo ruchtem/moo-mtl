@@ -36,21 +36,22 @@ def network(x, w):
 
 class Synthetic(data.Dataset):
 
-    def __init__(self, size=1000, std=10):
+    def __init__(self, size=1000, std=5):
 
         self.X = torch.distributions.Uniform(-10, 10).sample((size, 2))
-        self.y1 = f1(self.X[:, 0], self.X[:, 1]) + torch.distributions.Normal(loc=0, scale=std).sample((size, ))
-        self.y2 = f2(self.X[:, 0], self.X[:, 1]) + torch.distributions.Normal(loc=0, scale=std).sample((size, ))
-        self.y3 = f3(self.X[:, 0], self.X[:, 1]) + torch.distributions.Normal(loc=0, scale=std).sample((size, ))
+        self.y1 = f1(self.X[:, 0], self.X[:, 1]) #+ torch.distributions.Normal(loc=0, scale=std).sample((size, ))
+        self.y2 = f2(self.X[:, 0], self.X[:, 1]) #+ torch.distributions.Normal(loc=0, scale=std).sample((size, ))
+        self.y3 = f3(self.X[:, 0], self.X[:, 1]) #+ torch.distributions.Normal(loc=0, scale=std).sample((size, ))
 
         # pareto front in loss space
         w = []
-        for w1 in np.linspace(-1, 1, 100):
-            for w2 in np.linspace(-1, 1, 100):
+        for w1 in np.linspace(-1, 1, 50):
+            for w2 in np.linspace(-1, 1, 50):
                 if w1 >= -.5 and w1 <= .5 and w2 >= -np.sqrt(.5) and w2 <= .5:
                     w.append(np.array([w1, w2]))
 
         self.loss_pf = self._loss(torch.Tensor(w))
+        self.loss_buffer = []
 
 
     def _loss(self, w):
@@ -73,18 +74,25 @@ class Synthetic(data.Dataset):
         return dict(data=self.X, labels1=self.y1, labels2=self.y2, labels3=self.y3)
 
 
-    def plot_pareto_loss(self, w=None, loss=None):
+    def plot_pareto_loss(self, w=None):
         if w is not None:
             assert w.ndim == 2
             loss = self._loss(w)
+            self.loss_buffer.append(loss)
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
+        ax.view_init(elev=16., azim=41)
+        ax.set_xlabel('loss 1')
+        ax.set_ylabel('loss 2')
+        ax.set_zlabel('loss 3')
 
         ax.plot(self.loss_pf[:, 0], self.loss_pf[:, 1], self.loss_pf[:, 2], '.')
-        if loss is not None:
+        for loss in self.loss_buffer:
             ax.plot(loss[:, 0], loss[:, 1], loss[:, 2], 'r.')
-        plt.show()
+        plt.savefig('u.png')
+        #plt.show()
+        plt.close()
 
 
     def plot_pareto_front(self):
