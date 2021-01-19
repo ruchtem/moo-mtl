@@ -23,6 +23,7 @@ from scores import mcr, DDP, from_objectives
 
 
 def main(settings):
+    print("start processig with settings", settings)
     num_workers = 0
     use_scheduler = False
 
@@ -47,13 +48,13 @@ def main(settings):
     # main
     model.cuda()
     for j in range(settings['num_starts']):
-        optimizer = torch.optim.Adam(model.parameters(), settings['lr'])
+        optimizer = torch.optim.Adam(solver.model_params() if hasattr(solver, 'model_params') else model.parameters(), settings['lr'])
         # optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[8, ])
 
         if not settings['warmstart']:
             utils.reset_weights(model)
-            optimizer = torch.optim.Adam(model.parameters(), settings['lr'])
+            optimizer = torch.optim.Adam(solver.model_params() if hasattr(solver, 'model_params') else model.parameters(), settings['lr'])
 
         # solver.new_point(train_loader, optimizer)
 
@@ -66,7 +67,6 @@ def main(settings):
                 optimizer.zero_grad()
                 solver.step(batch)
                 optimizer.step()
-                break
             
             if use_scheduler:
                 scheduler.step()
@@ -118,7 +118,7 @@ def main(settings):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='multi_mnist')
-    parser.add_argument('--method', '-m', default='single_task')
+    parser.add_argument('--method', '-m', default='hyper')
     args = parser.parse_args()
 
     if args.dataset == 'multi_mnist':

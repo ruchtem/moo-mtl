@@ -183,6 +183,9 @@ class HypernetSolver():
 
         self.solver = LinearScalarizationSolver(n_tasks=len(objectives))
 
+    def model_params(self):
+        return self.hnet.parameters()
+
 
     def new_point(self, *args):
         self.hnet.train()
