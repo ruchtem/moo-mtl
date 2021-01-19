@@ -4,14 +4,11 @@
 metric: cross entropy (left range & right range)
 
 
-| dataset         | single task     | a fusion early | a fusion late |
-|-----------------|-----------------|----------------|---------------|
-| multi-mnist test| 0.2832 & 0.3096 |
+| method          | multi-mnist test | multi-mnist val  |
+|-----------------|------------------|------------------|
+| single task     | 0.2832 & 0.3096  | 0.139  & 0.2102  |
+| a fusion early  |                  |                  |
+| a fusion late   |                  |                  |
+| hypernetwork    |                  |                  |
+| paretoMTL       |                  |                  |
 
-
-## Validation set
-(same size as test set)
-
- dataset          | single task     | a fusion early | a fusion late |
-|-----------------|-----------------|----------------|---------------|
-| multi-mnist val | 0.139  & 0.2102 |

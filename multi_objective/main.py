@@ -1,3 +1,4 @@
+import argparse
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,122 +13,126 @@ np.random.seed(seed)
 
 import utils
 import settings as s
-from loaders.multi_mnist_loader import MNIST
-from loaders.adult_loader import ADULT
-from loaders.synthetic_loader import Synthetic
-from models.simple import LeNet, FullyConnected
-from objectives import (
-    CrossEntropyLoss, 
-    L1Regularization, 
-    L2Regularization, 
-    DDPHyperbolicTangentRelaxation, 
-    BinaryCrossEntropyLoss, 
-    DEOHyperbolicTangentRelaxation,
-    MSELoss,
-    from_name
-)
+from objectives import from_name
+
 
 from solvers.proposed import ProposedSolver
 from solvers.pareto_mtl import ParetoMTLSolver
 from solvers.base import solver_from_name
 from scores import mcr, DDP, from_objectives
 
-# settings = s.adult
-settings = s.multi_mnist
-# settings = s.multi_fashion_mnist
-# settings.update(s.afeature)
-# settings.update(s.baseSolver)
-settings.update(s.hyperSolver)
-num_workers = 0
-use_scheduler = False
 
+def main(settings):
+    num_workers = 0
+    use_scheduler = False
 
+    # prepare
+    train_set = utils.dataset_from_name(settings['dataset'], split='train')
+    val_set = utils.dataset_from_name(settings['dataset'], split='val')
+    test_set = utils.dataset_from_name(settings['dataset'], split='test')
 
-# prepare
-train_set = utils.dataset_from_name(settings['dataset'], split='train')
-val_set = utils.dataset_from_name(settings['dataset'], split='val')
-test_set = utils.dataset_from_name(settings['dataset'], split='test')
+    train_loader = data.DataLoader(train_set, settings['batch_size'], num_workers)
+    val_loader = data.DataLoader(val_set, settings['batch_size'], num_workers)
+    test_loader = data.DataLoader(test_set, len(test_set), num_workers)
 
-train_loader = data.DataLoader(train_set, settings['batch_size'], num_workers)
-val_loader = data.DataLoader(val_set, settings['batch_size'], num_workers)
-test_loader = data.DataLoader(test_set, len(test_set), num_workers)
+    model = utils.model_from_dataset(**settings)
 
-model = utils.model_from_dataset(settings['dataset'], settings['name'])
+    objectives = from_name(settings.pop('objectives'), train_set.task_names())
+    scores = from_objectives(objectives)
 
-label_names = train_set.label_names() if hasattr(train_set, 'label_names') else None
-logits_names = model.logits_names() if hasattr(model, 'logits_names') else None
-objectives = from_name(settings.pop('objectives'), label_names, logits_names)
-scores = from_objectives(objectives)
+    pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores])
 
-pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores])
+    solver = solver_from_name(objectives=objectives, model=model, **settings)
 
-solver = solver_from_name(objectives=objectives, model=model, **settings)
-
-# main
-model.cuda()
-for j in range(settings['num_starts']):
-    optimizer = torch.optim.Adam(model.parameters(), settings['lr'])
-    # optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[8, ])
-
-    if not settings['warmstart']:
-        utils.reset_weights(model)
+    # main
+    model.cuda()
+    for j in range(settings['num_starts']):
         optimizer = torch.optim.Adam(model.parameters(), settings['lr'])
+        # optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[8, ])
 
-    # solver.new_point(train_loader, optimizer)
+        if not settings['warmstart']:
+            utils.reset_weights(model)
+            optimizer = torch.optim.Adam(model.parameters(), settings['lr'])
 
-    for e in range(settings['epochs']):
-        solver.new_point(train_loader, optimizer)
-        model.train()
-        for batch in train_loader:
-            batch = utils.dict_to_cuda(batch)
+        # solver.new_point(train_loader, optimizer)
 
-            optimizer.zero_grad()
-            solver.step(batch)
-            optimizer.step()
-        
-        if use_scheduler:
-            scheduler.step()
-            print(scheduler.get_last_lr())
+        for e in range(settings['epochs']):
+            solver.new_point(train_loader, optimizer)
+            model.train()
+            for batch in train_loader:
+                batch = utils.dict_to_cuda(batch)
 
-        model.eval()
-        score_values = np.array([])
-        for batch in val_loader:
-            batch = utils.dict_to_cuda(batch)
+                optimizer.zero_grad()
+                solver.step(batch)
+                optimizer.step()
+                break
             
-            # more than one for some solvers
-            s = []
-            for l in solver.eval_step(batch):
-                batch.update(l)
-                s.append([s(**batch) for s in scores])
-            if score_values.size == 0:
-                score_values = np.array(s)
-            else:
-                score_values += np.array(s)
-        
-        score_values /= len(val_loader)
-        
-        if e < 60:
-            pareto_front.points = []
-        pareto_front.append(score_values)
-        pareto_front.plot()
-        print("Epoch {}, val scores={}".format(e, score_values.ravel()))
+            if use_scheduler:
+                scheduler.step()
+                print(scheduler.get_last_lr())
+
+            model.eval()
+            score_values = np.array([])
+            for batch in val_loader:
+                batch = utils.dict_to_cuda(batch)
+                
+                # more than one for some solvers
+                s = []
+                for l in solver.eval_step(batch):
+                    batch.update(l)
+                    s.append([s(**batch) for s in scores])
+                if score_values.size == 0:
+                    score_values = np.array(s)
+                else:
+                    score_values += np.array(s)
+            
+            score_values /= len(val_loader)
+            
+            if e < 60:
+                pareto_front.points = []
+            pareto_front.append(score_values)
+            pareto_front.plot()
+            print("Epoch {}, val scores={}".format(e, score_values))
 
 
-model.eval()
-score_values = np.array([])
-for batch in test_loader:
-    batch = utils.dict_to_cuda(batch)
+    model.eval()
+    score_values = np.array([])
+    for batch in test_loader:
+        batch = utils.dict_to_cuda(batch)
+        
+        # more than one for some solvers
+        s = []
+        for l in solver.eval_step(batch):
+            batch.update(l)
+            s.append([s(**batch) for s in scores])
+        if score_values.size == 0:
+            score_values = np.array(s)
+        else:
+            score_values += np.array(s)
+
+    score_values /= len(test_loader)
+    print("test scores", score_values)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset', '-d', default='multi_mnist')
+    parser.add_argument('--method', '-m', default='single_task')
+    args = parser.parse_args()
+
+    if args.dataset == 'multi_mnist':
+        settings = s.multi_mnist
+    elif args.dataset == 'adult':
+        settings = s.adult
+    elif args.dataset == 'multi_fashion_mnist':
+        settings = s.multi_fashion_mnist
     
-    # more than one for some solvers
-    s = []
-    for l in solver.eval_step(batch):
-        batch.update(l)
-        s.append([s(**batch) for s in scores])
-    if score_values.size == 0:
-        score_values = np.array(s)
-    else:
-        score_values += np.array(s)
+    if args.method == 'single_task':
+        settings.update(s.SingleTaskSolver)
+    elif args.method == 'afeature':
+        settings.update(s.afeature)
+    elif args.method == 'hyper':
+        settings.update(s.hyperSolver)
 
-score_values /= len(test_loader)
-print("test scores", score_values)
+    main(settings)

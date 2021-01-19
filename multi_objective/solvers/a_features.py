@@ -46,11 +46,11 @@ def alpha_as_feature(batch, overwrite=False, append_to_data=True):
 
 class AFeaturesSolver():
 
-    def __init__(self, objectives, model, **kwargs):
+    def __init__(self, objectives, model, early_fusion, **kwargs):
         self.objectives = objectives
         self.model = model
         self.K = len(objectives)
-        self.alpha_extra = False
+        self.alpha_extra = not early_fusion
 
         self.norms = []
 

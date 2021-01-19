@@ -16,7 +16,7 @@ multi_fashion_mnist = dict(
 )
 
 paretoMTL = dict(
-    name='ParetoMTL',
+    method='ParetoMTL',
     lr=1e-3,
     batch_size=64,
     epochs=5,
@@ -25,16 +25,17 @@ paretoMTL = dict(
 )
 
 afeature = dict(
-    name='proposed',
+    method='afeature',
     lr=1e-4,
     batch_size=64,
     epochs=300,
     num_starts=1,
     warmstart=True,
+    early_fusion=True
 )
 
-baseSolver = dict(
-    name='base',
+SingleTaskSolver = dict(
+    method='SingleTask',
     lr=1e-4,
     batch_size=64,
     epochs=100,
@@ -44,10 +45,10 @@ baseSolver = dict(
 )
 
 hyperSolver = dict(
-    name='hyper',
+    method='hyper',
     lr=1e-4,
-    batch_size=64,
-    epochs=100,
+    batch_size=256,
+    epochs=150,
     num_starts=1,
     warmstart=False,
 )

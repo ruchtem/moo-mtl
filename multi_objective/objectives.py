@@ -2,7 +2,7 @@ import torch
 import autograd
 
 
-def from_name(names, label_names, logits_names):
+def from_name(names, task_names):
     objectives = {
         'CrossEntropyLoss': CrossEntropyLoss,
         'BinaryCrossEntropyLoss': BinaryCrossEntropyLoss,
@@ -11,19 +11,11 @@ def from_name(names, label_names, logits_names):
         'ddp': DDPHyperbolicTangentRelaxation,
         'deo': DEOHyperbolicTangentRelaxation,
     }
-    if not label_names and not logits_names:
+
+    if task_names is not None:
+        return [objectives[n]("label_{}".format(t), "logits_{}".format(t)) for n, t in zip(names, task_names)]
+    else:
         return [objectives[n]() for n in names]
-    elif label_names or logits_names:
-        if not logits_names:
-            assert len(names) == len(label_names)
-            return [objectives[n](label_name=la) for n, la in zip(names, label_names)]
-        elif not label_names:
-            assert len(names) == len(logits_names)
-            return [objectives[n](logits_name=lo) for n, lo in zip(names, logits_names)]
-        elif len(names) == len(label_names) == len(logits_names):
-            return [objectives[n](la, lo) for n, la, lo in zip(names, label_names, logits_names)]
-        
-    raise ValueError('unknown situation')
     
 
 

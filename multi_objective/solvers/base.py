@@ -4,15 +4,17 @@ from .pareto_mtl import ParetoMTLSolver
 from .a_features import AFeaturesSolver
 from .hypernetwork import HypernetSolver
 
-def solver_from_name(name, **kwargs):
-    if name == 'ParetoMTL':
+def solver_from_name(method, **kwargs):
+    if method == 'ParetoMTL':
         return ParetoMTLSolver(**kwargs)
-    elif name == 'proposed':
+    elif method == 'afeature':
         return AFeaturesSolver(**kwargs)
-    elif name == 'base':
+    elif method == 'SingleTask':
         return BaseSolver(**kwargs)
-    elif name == 'hyper':
+    elif method == 'hyper':
         return HypernetSolver(**kwargs)
+    else:
+        raise ValueError("Unkown method {}".format(method))
 
 
 class BaseSolver():

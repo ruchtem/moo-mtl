@@ -2,35 +2,35 @@ import torch
 import os
 import pickle
 
-class Multi(torch.utils.data.Dataset):
 
+class MultiMNIST(torch.utils.data.Dataset):
+    """
+    The datasets from ParetoMTL
+    """
 
     def __init__(self, dataset, split, root='data/multi'):
         assert dataset in ['mnist', 'fashion', 'fashion_and_mnist']
         assert split in ['train', 'val', 'test']
 
+        # equal size of val and test split
         train_split = 5/6
 
-        # MultiMNIST: multi_mnist.pickle
         if dataset == 'mnist':
             with open(os.path.join(root, 'multi_mnist.pickle'),'rb') as f:
                 trainX, trainLabel, testX, testLabel = pickle.load(f)  
         
-        # MultiFashionMNIST: multi_fashion.pickle
         if dataset == 'fashion':
             with open(os.path.join(root, 'multi_fashion.pickle'),'rb') as f:
                 trainX, trainLabel,testX, testLabel = pickle.load(f)  
         
-        
-        # Multi-(Fashion+MNIST): multi_fashion_and_mnist.pickle
         if dataset == 'fashion_and_mnist':
             with open(os.path.join(root, 'multi_fashion_and_mnist.pickle'),'rb') as f:
                 trainX, trainLabel,testX, testLabel = pickle.load(f)
         
-        trainX = torch.Tensor(trainX)
+        trainX = torch.Tensor(trainX).float()
         trainLabel = torch.Tensor(trainLabel).long()
-        testX = torch.Tensor(testX)
-        testLabel = torch.Tensor(testLabel).int()
+        testX = torch.Tensor(testX).float()
+        testLabel = torch.Tensor(testLabel).long()
 
         # normalize
         trainX -= trainX.min(1, keepdim=True)[0]
@@ -38,7 +38,7 @@ class Multi(torch.utils.data.Dataset):
         testX -= testX.min(1, keepdim=True)[0]
         testX /= testX.max(1, keepdim=True)[0] + 1e-15
 
-        # randomly shuffle and buffer
+        # randomly shuffle
         idx = torch.randperm(trainX.shape[0])
         trainX = trainX[idx].float()
         trainLabel = trainLabel[idx]
@@ -51,7 +51,7 @@ class Multi(torch.utils.data.Dataset):
             elif split == 'train':
                 self.X = trainX[:n]
                 self.y = trainLabel[:n]
-        else:
+        elif split == 'test':
             self.X = testX
             self.y = testLabel
         
@@ -66,8 +66,16 @@ class Multi(torch.utils.data.Dataset):
         return len(self.X)
 
 
-    def label_names(self):
-        return ['label_l', 'label_r']
+    def task_names(self):
+        return ['l', 'r']
+
+
+
+
+
+
+
+
 
 
 if __name__ == '__main__':

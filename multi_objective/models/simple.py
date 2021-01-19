@@ -4,11 +4,11 @@ import torch.nn as nn
 
 class MultiLeNet(nn.Module):
 
-    def __init__(self, alpha=False):
+    def __init__(self, early_fusion=False, late_fusion=False):
         super().__init__()
-        self.alpha = alpha
+        self.late_fusion = late_fusion
         self.f1 =  nn.Sequential(
-            nn.Conv2d(3, 10, kernel_size=5),
+            nn.Conv2d(3 if early_fusion else 1, 10, kernel_size=5),
             nn.MaxPool2d(kernel_size=2),
             nn.ReLU(),
             nn.Conv2d(10, 20, kernel_size=5),
@@ -17,43 +17,23 @@ class MultiLeNet(nn.Module):
             nn.Flatten(),
         )
         self.f2 = nn.Sequential(
-            nn.Linear(722 if alpha else 720 , 50),
-            # nn.ReLU(),
-            # nn.Linear(320 , 50),
+            nn.Linear(722 if late_fusion else 720 , 50),
             nn.ReLU(),
         )
-        # self.f = nn.Sequential(
-        #     nn.Linear(36*36+2, 256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 50),
-        #     nn.ReLU(),
-        # )
-        # self.combined = nn.Linear(50, 20)
         self.left = nn.Linear(50, 10)
         self.right = nn.Linear(50, 10)
     
     def forward(self, batch):
         x = batch['data']
         x = self.f1(x)
-        if self.alpha:
-            
-            # b = x.shape[0]
-            # x = x.view(b, -1)
+        if self.late_fusion:
             x = torch.hstack((x, batch['alpha_features']))
-            # x = self.f(x)
         x = self.f2(x)
         return dict(logits_l=self.left(x), logits_r=self.right(x))
-        # return dict(logits_l=x[:, :10], logits_r=x[:, 10:])
 
 
     def private_params(self):
         return ['left.weight', 'left.bias', 'right.weight', 'right.bias']
-
-    
-    def logits_names(self):
-        return ['logits_l', 'logits_r']
 
 
 class LeNet(nn.Module):

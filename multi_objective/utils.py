@@ -4,34 +4,34 @@ import matplotlib.pyplot as plt
 
 from itertools import chain, combinations
 
-from loaders import adult_loader, multi_mnist_loader, multi_loader
+from loaders import adult_loader, multi_loader
 from models import simple
 
 
-def dataset_from_name(name, **kwargs):
-    if name == 'adult':
+def dataset_from_name(dataset, **kwargs):
+    if dataset == 'adult':
         return adult_loader.ADULT(**kwargs)
-    elif name == 'mnist':
-        return multi_mnist_loader.MNIST(multi=False, **kwargs)
-    elif name == 'multi_mnist':
-        return multi_loader.Multi(dataset='mnist', **kwargs)
-        #return multi_mnist_loader.MNIST(multi=True, **kwargs)
-    elif name == 'multi_fashion_mnist':
+    elif dataset == 'multi_mnist':
+        return multi_loader.MultiMNIST(dataset='mnist', **kwargs)
+    elif dataset == 'multi_fashion_mnist':
         return multi_loader.Multi(dataset='fashion_and_mnist', **kwargs)
     else:
-        raise ValueError("Unknown dataset: {}".format(name))
+        raise ValueError("Unknown dataset: {}".format(dataset))
 
 
-def model_from_dataset(name, method=None):
-    if name == 'adult':
+def model_from_dataset(dataset, method, **kwargs):
+    if dataset == 'adult':
         input_dim = 90 if method == 'proposed' else 88
         return simple.FullyConnected(input_dim)
-    elif name == 'mnist':
+    elif dataset == 'mnist':
         return simple.LeNet()
-    elif name == 'multi_mnist' or name == 'multi_fashion_mnist':
-        return simple.MultiLeNet(alpha=False if method == 'proposed' else False)
+    elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist':
+        if method == 'afeature':
+            return simple.MultiLeNet(early_fusion=kwargs['early_fusion'], late_fusion=not kwargs['early_fusion'])
+        else:
+            return simple.MultiLeNet()
     else:
-        raise ValueError("Unknown model name {}".format(name))
+        raise ValueError("Unknown model name {}".format(dataset))
 
 
 def calc_devisor(train_loader, model, objectives):

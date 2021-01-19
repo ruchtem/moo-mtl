@@ -87,8 +87,8 @@ class ADULT(data.Dataset):
         return dict(data=self.X[index], labels=self.y[index], sensible_attribute=self.s[index])
 
 
-    def getall(self):
-        return dict(data=self.X, labels=self.y, sensible_attribute=self.s)
+    def task_names(self):
+        return None
 
 
     
