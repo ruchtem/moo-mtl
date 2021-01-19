@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from itertools import chain, combinations
 
-from loaders import adult_loader, multi_mnist_loader
+from loaders import adult_loader, multi_mnist_loader, multi_loader
 from models import simple
 
 
@@ -14,7 +14,10 @@ def dataset_from_name(name, **kwargs):
     elif name == 'mnist':
         return multi_mnist_loader.MNIST(multi=False, **kwargs)
     elif name == 'multi_mnist':
-        return multi_mnist_loader.MNIST(multi=True, **kwargs)
+        return multi_loader.Multi(dataset='mnist', **kwargs)
+        #return multi_mnist_loader.MNIST(multi=True, **kwargs)
+    elif name == 'multi_fashion_mnist':
+        return multi_loader.Multi(dataset='fashion_and_mnist', **kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(name))
 
@@ -25,9 +28,8 @@ def model_from_dataset(name, method=None):
         return simple.FullyConnected(input_dim)
     elif name == 'mnist':
         return simple.LeNet()
-    elif name == 'multi_mnist':
-        input_dim = 3 if method == 'proposed' else 1
-        return simple.MultiLeNet(input_dim)
+    elif name == 'multi_mnist' or name == 'multi_fashion_mnist':
+        return simple.MultiLeNet(alpha=False if method == 'proposed' else False)
     else:
         raise ValueError("Unknown model name {}".format(name))
 
@@ -45,6 +47,19 @@ def calc_devisor(train_loader, model, objectives):
     divisor = values / min(values)
     print("devisor={}".format(divisor))
     return divisor
+
+
+def angle(grads):
+    grads = flatten_grads(grads)
+    return torch.cosine_similarity(grads[0], grads[1], dim=0)
+
+
+def flatten_grads(grads):
+    result = []
+    for grad in grads:
+        flatten = torch.cat(([torch.flatten(g) for g in grad.values()]))
+        result.append(flatten)
+    return result
 
 
 def reset_weights(model):
@@ -71,7 +86,7 @@ def calc_gradients(batch, model, objectives):
         # zero grad
         model.zero_grad()
         
-        logits = model(batch['data'])
+        logits = model(batch)
         batch.update(logits)
 
         output = objective(**batch)
@@ -82,7 +97,7 @@ def calc_gradients(batch, model, objectives):
         
         private_params = model.private_params() if hasattr(model, 'private_params') else []
         for name, param in model.named_parameters():
-            if name not in private_params and param.requires_grad:
+            if name not in private_params and param.requires_grad and param.grad is not None:
                 gradients[i][name] = param.grad.data.detach().clone()
     
     return gradients, obj_values
@@ -147,5 +162,7 @@ class ParetoFront():
         plt.xlabel(self.labels[0])
         plt.ylabel(self.labels[1])
         # plt.legend()
-        plt.savefig("t.png")
+        plt.savefig("tmp/e{:03d}.png".format(self.e))
+        plt.savefig('t.png')
         plt.close()
+        self.e += 1

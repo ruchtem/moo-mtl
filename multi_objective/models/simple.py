@@ -1,27 +1,51 @@
+import torch
 import torch.nn as nn
 
 
 class MultiLeNet(nn.Module):
 
-    def __init__(self, input_dim=1):
+    def __init__(self, alpha=False):
         super().__init__()
-        self.f =  nn.Sequential(
-            nn.Conv2d(input_dim, 10, kernel_size=5),
+        self.alpha = alpha
+        self.f1 =  nn.Sequential(
+            nn.Conv2d(3, 10, kernel_size=5),
             nn.MaxPool2d(kernel_size=2),
             nn.ReLU(),
             nn.Conv2d(10, 20, kernel_size=5),
             nn.MaxPool2d(kernel_size=2),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(320, 50),
+        )
+        self.f2 = nn.Sequential(
+            nn.Linear(722 if alpha else 720 , 50),
+            # nn.ReLU(),
+            # nn.Linear(320 , 50),
             nn.ReLU(),
         )
+        # self.f = nn.Sequential(
+        #     nn.Linear(36*36+2, 256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 50),
+        #     nn.ReLU(),
+        # )
+        # self.combined = nn.Linear(50, 20)
         self.left = nn.Linear(50, 10)
         self.right = nn.Linear(50, 10)
     
-    def forward(self, x):
-        x = self.f(x)
+    def forward(self, batch):
+        x = batch['data']
+        x = self.f1(x)
+        if self.alpha:
+            
+            # b = x.shape[0]
+            # x = x.view(b, -1)
+            x = torch.hstack((x, batch['alpha_features']))
+            # x = self.f(x)
+        x = self.f2(x)
         return dict(logits_l=self.left(x), logits_r=self.right(x))
+        # return dict(logits_l=x[:, :10], logits_r=x[:, 10:])
 
 
     def private_params(self):
@@ -46,7 +70,8 @@ class LeNet(nn.Module):
             nn.Linear(320, 10),
         )
     
-    def forward(self, x):
+    def forward(self, batch):
+        x = batch['data']
         return dict(logits=self.f(x))
     
 
@@ -65,7 +90,6 @@ class FullyConnected(nn.Module):
             nn.Linear(25, 1),
         )
 
-    def forward(self, x):
+    def forward(self, batch):
+        x = batch['data']
         return dict(logits=self.f(x))
-
-TwoParameters = nn.Linear(2, 1, bias=False)

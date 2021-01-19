@@ -111,6 +111,10 @@ class MNIST(data.Dataset):
             data, labels_l, labels_r = torch.load(os.path.join(self.root, self.processed_folder, file))
             labels = torch.vstack((labels_l, labels_r)).T
         
+        # normalize
+        data -= data.min(1, keepdim=True)[0]
+        data /= data.max(1, keepdim=True)[0] + 1e-15
+
         # randomly shuffle and buffer
         idx = torch.randperm(data.shape[0])
         MNIST.data_buffer = data[idx].float()

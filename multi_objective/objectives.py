@@ -43,9 +43,10 @@ class CrossEntropyLoss(torch.nn.CrossEntropyLoss):
 
 class BinaryCrossEntropyLoss(torch.nn.BCEWithLogitsLoss):
     
-    def __init__(self, label_name='labels', pos_weight=None):
+    def __init__(self, label_name='labels', logits_name='logits', pos_weight=None):
         super().__init__(reduction='mean', pos_weight=torch.Tensor([pos_weight]).cuda() if pos_weight else None)
         self.label_name = label_name
+        self.logits_name = logits_name
     
 
     def __call__(self, **kwargs):
@@ -89,8 +90,9 @@ class L2Regularization():
 
 class DDPHyperbolicTangentRelaxation():
 
-    def __init__(self, label_name='labels', s_name='sensible_attribute', c=1):
+    def __init__(self, label_name='labels', logits_name='logits', s_name='sensible_attribute', c=1):
         self.label_name = label_name
+        self.logits_name = logits_name
         self.s_name = s_name
         self.c = c
 
