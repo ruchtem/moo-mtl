@@ -22,20 +22,20 @@ def dirichlet_sampling(size, alpha):
     return torch.from_numpy(result).cuda()
 
 
-def alpha_as_feature(batch, overwrite=False, append_to_data=True):
+def alpha_as_feature(batch, early_fusion=True, append=False, overwrite=False):
     if batch['data'].ndim == 2:
         # tabular data
         alpha_columnwise = batch['alpha'].repeat(len(batch['data']), 1)
-        if append_to_data:
+        if early_fusion:
             if not overwrite:
                 batch['data'] = torch.hstack((batch['data'], alpha_columnwise))
             else:
                 batch['data'][:,-2:] = alpha_columnwise
-        else:
+        if append:
             batch['alpha_features'] = alpha_columnwise
     elif batch['data'].ndim == 4:
         # image data
-        if append_to_data:
+        if early_fusion:
             b, c, w, h = batch['data'].shape
             alpha_channelwise = batch['alpha'].repeat(b, w, h, 1)
             alpha_channelwise = torch.movedim(alpha_channelwise, 3, 1)
@@ -43,7 +43,7 @@ def alpha_as_feature(batch, overwrite=False, append_to_data=True):
                 batch['data'] = torch.cat((batch['data'], alpha_channelwise), dim=1)
             else:
                 batch['data'][:, -2:, :, :] = alpha_channelwise
-        else:
+        if append:
             alpha_columnwise = batch['alpha'].repeat(len(batch['data']), 1)
             batch['alpha_features'] = alpha_columnwise
     return batch
@@ -51,12 +51,13 @@ def alpha_as_feature(batch, overwrite=False, append_to_data=True):
 
 class AFeaturesSolver():
 
-    def __init__(self, objectives, model, early_fusion, **kwargs):
+    def __init__(self, objectives, model, early_fusion, late_fusion, alpha_dir, **kwargs):
         self.objectives = objectives
         self.model = model
         self.K = len(objectives)
-        self.alpha_extra = not early_fusion
-        self.alpha_dir = kwargs['alpha_dir']
+        self.early_fusion = early_fusion
+        self.late_fusion = late_fusion
+        self.alpha_dir = alpha_dir
 
         print("Number of parameters: {}".format(num_parameters(model)))
 
@@ -69,7 +70,7 @@ class AFeaturesSolver():
             batch['alpha'] = uniform_sample_alpha(self.K)
 
         # append as features
-        batch = alpha_as_feature(batch, append_to_data=not self.alpha_extra)
+        batch = alpha_as_feature(batch, self.early_fusion, self.late_fusion)
 
         # calulate the gradient and update the parameters
         gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
@@ -96,7 +97,7 @@ class AFeaturesSolver():
             for i, a in enumerate(np.linspace(.001, .999, 20)):
                 batch['alpha'] = torch.Tensor([a, 1-a]).cuda()
                 # batch['alpha'] = torch.Tensor([1., 0.]).cuda()
-                batch = alpha_as_feature(batch, overwrite=False if i==0 else True, append_to_data=not self.alpha_extra)
+                batch = alpha_as_feature(batch, self.early_fusion, self.late_fusion, overwrite=False if i==0 else True)
                 logits.append(self.model(batch))
         return logits
 

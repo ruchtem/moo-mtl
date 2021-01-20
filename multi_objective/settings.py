@@ -47,6 +47,7 @@ afeature = dict(
     num_starts=1,
     warmstart=True,
     early_fusion=True,
+    late_fusion=True,
     alpha_dir=.2,   # dirichlet sampling
 )
 

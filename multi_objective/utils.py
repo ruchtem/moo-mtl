@@ -38,7 +38,7 @@ def model_from_dataset(dataset, method, **kwargs):
         return simple.LeNet()
     elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist':
         if method == 'afeature':
-            return simple.MultiLeNet(early_fusion=kwargs['early_fusion'], late_fusion=not kwargs['early_fusion'])
+            return simple.MultiLeNet(early_fusion=kwargs['early_fusion'], late_fusion=kwargs['late_fusion'])
         else:
             return simple.MultiLeNet()
     else:
