@@ -2,6 +2,7 @@ import argparse
 import torch
 import os
 import pathlib
+import random
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils import data
@@ -10,8 +11,17 @@ from copy import deepcopy
 
 seed = 0
 
-torch.manual_seed(seed)
 np.random.seed(seed)
+random.seed(seed)
+
+torch.manual_seed(seed)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+torch.backends.cudnn.enabled = True
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 import utils
 import settings as s
@@ -135,7 +145,7 @@ def main(settings):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='multi_mnist')
-    parser.add_argument('--method', '-m', default='afeature')
+    parser.add_argument('--method', '-m', default='hyper')
     args = parser.parse_args()
 
     settings = s.generic
