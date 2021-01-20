@@ -115,7 +115,12 @@ def main(settings):
             score_values += np.array(s)
 
     score_values /= len(test_loader)
-    print("test scores", score_values)
+
+    referencePoint = [1, 1]
+    hv = HyperVolume(referencePoint)
+    volume = hv.compute(score_values)
+
+    print("test hv={}, scores={}".format(volume, score_values))
 
 
 if __name__ == "__main__":
