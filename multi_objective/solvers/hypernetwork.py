@@ -7,6 +7,8 @@ import numpy as np
 from typing import List
 from abc import abstractmethod
 
+from utils import num_parameters
+
 """
 Nets
 """
@@ -174,9 +176,12 @@ class HypernetSolver():
     def __init__(self, objectives, model, **kwargs):
         self.objectives = objectives
         self.model = model
+        self.alpha = kwargs['alpha_dir']
 
         hnet: nn.Module = PHNHyper([9, 5], ray_hidden_dim=100)
         net: nn.Module = PHNTarget([9, 5])
+
+        print("Number of parameters: {}".format(num_parameters(hnet)))
 
         self.hnet = hnet.cuda()
         self.net = net.cuda()
@@ -191,9 +196,13 @@ class HypernetSolver():
         self.hnet.train()
 
     def step(self, batch):
-        # TODO: diriclet sampling
-        alpha = torch.empty(1, ).uniform_(0., 1.)
-        ray = torch.tensor([alpha.item(), 1 - alpha.item()]).cuda()
+        if self.alpha > 0:
+            ray = torch.from_numpy(
+                np.random.dirichlet([self.alpha for _ in range(len(self.objectives))], 1).astype(np.float32).flatten()
+            ).cuda()
+        else:
+            alpha = torch.empty(1, ).uniform_(0., 1.)
+            ray = torch.tensor([alpha.item(), 1 - alpha.item()]).cuda()
 
         img = batch['data']
 

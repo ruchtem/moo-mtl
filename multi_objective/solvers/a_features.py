@@ -2,19 +2,24 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils import calc_gradients, flatten_grads, angle
+from utils import calc_gradients, flatten_grads, num_parameters
 
 
 def uniform_sample_alpha(size):
     alpha = torch.rand(size)
     # unlikely but to be save:
-    while sum(alpha) == 0.0:    
+    while sum(alpha) == 0.0:
         alpha = torch.rand(len(self.objectives))
     
     if torch.cuda.is_available():
         alpha = alpha.cuda()
     
     return alpha / sum(alpha)
+
+
+def dirichlet_sampling(size, alpha):
+    result = np.random.dirichlet([alpha for _ in range(size)], 1).astype(np.float32).flatten()
+    return torch.from_numpy(result).cuda()
 
 
 def alpha_as_feature(batch, overwrite=False, append_to_data=True):
@@ -51,23 +56,23 @@ class AFeaturesSolver():
         self.model = model
         self.K = len(objectives)
         self.alpha_extra = not early_fusion
+        self.alpha_dir = kwargs['alpha_dir']
 
-        self.norms = []
+        print("Number of parameters: {}".format(num_parameters(model)))
 
 
     def step(self, batch):
         # step 1: sample alphas
-        batch['alpha'] = uniform_sample_alpha(self.K)
-        # batch['alpha'] = torch.Tensor([1., 0.]).cuda()
+        if self.alpha_dir:
+            batch['alpha'] = dirichlet_sampling(self.K, self.alpha_dir)
+        else:
+            batch['alpha'] = uniform_sample_alpha(self.K)
 
         # append as features
         batch = alpha_as_feature(batch, append_to_data=not self.alpha_extra)
 
         # calulate the gradient and update the parameters
         gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
-
-        # self.norms.append([torch.linalg.norm(g).cpu().numpy() for g in flatten_grads(gradients)])
-        self.norms.append(angle(gradients))
         
         private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
         for name, param in self.model.named_parameters():
@@ -97,11 +102,4 @@ class AFeaturesSolver():
 
 
     def new_point(self, *args):
-        if len(self.norms) > 0:
-            p = np.array(self.norms)
-            plt.plot(p, '.')
-            # plt.plot(p[:, 0])
-            # plt.plot(p[:, 1])
-            plt.savefig('u.png')
-            plt.close()
-            self.norms = []
+        pass

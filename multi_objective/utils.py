@@ -1,4 +1,5 @@
 import torch
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -57,6 +58,11 @@ def calc_devisor(train_loader, model, objectives):
     divisor = values / min(values)
     print("devisor={}".format(divisor))
     return divisor
+
+
+def num_parameters(m):
+    model_parameters = filter(lambda p: p.requires_grad, m.parameters())
+    return sum([np.prod(p.size()) for p in model_parameters])
 
 
 def angle(grads):
@@ -142,10 +148,14 @@ def is_pareto_efficient(costs, return_mask=True):
 
 class ParetoFront():
 
-    def __init__(self, labels):
+    def __init__(self, labels, logdir='tmp'):
         self.labels = labels
+        self.logdir = os.path.join(logdir, 'pf')
         self.points = np.array([])
         self.e = 0
+
+        if not os.path.exists(self.logdir):
+            os.makedirs(self.logdir)
 
     def append(self, point):
         point = np.array(point)
@@ -172,7 +182,7 @@ class ParetoFront():
         plt.xlabel(self.labels[0])
         plt.ylabel(self.labels[1])
         # plt.legend()
-        plt.savefig("tmp/e{:03d}.png".format(self.e))
-        plt.savefig('t.png')
+        plt.savefig(os.path.join(self.logdir, "x_e{:03d}.png".format(self.e)))
+        plt.savefig(os.path.join(self.logdir, 'latest.png'))
         plt.close()
         self.e += 1

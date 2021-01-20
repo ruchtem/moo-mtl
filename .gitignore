@@ -3,6 +3,7 @@ runs/
 saved_models/
 .vscode/
 tmp/
+results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,5 +1,7 @@
 import argparse
 import torch
+import os
+import pathlib
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils import data
@@ -28,6 +30,11 @@ def main(settings):
     num_workers = 0
     use_scheduler = False
 
+    # create the experiment folders
+    logdir = os.path.join(settings['logdir'], settings['dataset'], settings['method'])
+    pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
+
+
     # prepare
     train_set = utils.dataset_from_name(settings['dataset'], split='train')
     val_set = utils.dataset_from_name(settings['dataset'], split='val')
@@ -42,7 +49,7 @@ def main(settings):
     objectives = from_name(settings.pop('objectives'), train_set.task_names())
     scores = from_objectives(objectives)
 
-    pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores])
+    pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir)
 
     solver = solver_from_name(objectives=objectives, model=model, **settings)
 
@@ -89,8 +96,7 @@ def main(settings):
                     score_values += np.array(s)
             
             score_values /= len(val_loader)
-            referencePoint = [1, 1]
-            hv = HyperVolume(referencePoint)
+            hv = HyperVolume(settings['reference_point'])
             volume = hv.compute(score_values)
             
             pareto_front.points = []
@@ -116,8 +122,11 @@ def main(settings):
 
     score_values /= len(test_loader)
 
-    referencePoint = [1, 1]
-    hv = HyperVolume(referencePoint)
+    pareto_front.points = []
+    pareto_front.append(score_values)
+    pareto_front.plot()
+
+    hv = HyperVolume(settings['reference_point'])
     volume = hv.compute(score_values)
 
     print("test hv={}, scores={}".format(volume, score_values))
@@ -129,16 +138,18 @@ if __name__ == "__main__":
     parser.add_argument('--method', '-m', default='afeature')
     args = parser.parse_args()
 
+    settings = s.generic
+
     if args.dataset == 'multi_mnist':
-        settings = s.multi_mnist
+        settings.update(s.multi_mnist)
     elif args.dataset == 'adult':
-        settings = s.adult
+        settings.update(s.adult)
     elif args.dataset == 'multi_fashion_mnist':
-        settings = s.multi_fashion_mnist
+        settings.update(s.multi_fashion_mnist)
     elif args.dataset == 'credit':
-        settings = s.credit
+        settings.update(s.credit)
     elif args.dataset == 'compas':
-        settings = s.compas
+        settings.update(s.compas)
     
     if args.method == 'single_task':
         settings.update(s.SingleTaskSolver)
