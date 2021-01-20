@@ -4,6 +4,16 @@ adult = dict(
     objectives=['BinaryCrossEntropyLoss', 'ddp'],
 )
 
+credit = dict(
+    dataset='credit',
+    objectives=['BinaryCrossEntropyLoss', 'ddp']
+)
+
+compas = dict(
+    dataset='compas',
+    objectives=['BinaryCrossEntropyLoss', 'ddp']
+)
+
 multi_mnist = dict(
     dataset='multi_mnist',
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss']
@@ -28,7 +38,7 @@ afeature = dict(
     method='afeature',
     lr=1e-4,
     batch_size=64,
-    epochs=300,
+    epochs=150,
     num_starts=1,
     warmstart=True,
     early_fusion=True
@@ -41,7 +51,7 @@ SingleTaskSolver = dict(
     epochs=100,
     num_starts=1,
     warmstart=False,
-    task=1,
+    task=0,
 )
 
 hyperSolver = dict(

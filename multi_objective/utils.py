@@ -4,13 +4,17 @@ import matplotlib.pyplot as plt
 
 from itertools import chain, combinations
 
-from loaders import adult_loader, multi_mnist_loader
+from loaders import adult_loader, compas_loader, multi_mnist_loader
 from models import simple
 
 
 def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':
         return adult_loader.ADULT(**kwargs)
+    elif dataset == 'credit':
+        return credit_loader.Credit(**kwargs)
+    elif dataset == 'compas':
+        return compas_loader.Compas(**kwargs)
     elif dataset == 'multi_mnist':
         return multi_mnist_loader.MultiMNIST(dataset='mnist', **kwargs)
     elif dataset == 'multi_fashion_mnist':
@@ -21,7 +25,13 @@ def dataset_from_name(dataset, **kwargs):
 
 def model_from_dataset(dataset, method, **kwargs):
     if dataset == 'adult':
-        input_dim = 90 if method == 'proposed' else 88
+        input_dim = 90 if method == 'afeature' else 88
+        return simple.FullyConnected(input_dim)
+    elif dataset == 'credit':
+        input_dim = 92 if method == 'afeature' else 90
+        return simple.FullyConnected(input_dim)
+    elif dataset == 'compas':
+        input_dim = 22 if method == 'afeature' else 20
         return simple.FullyConnected(input_dim)
     elif dataset == 'mnist':
         return simple.LeNet()

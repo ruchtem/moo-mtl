@@ -1,6 +1,6 @@
-# Results on multi-mnist (ParetoMTL implementation)
+# Results on multi-mnist datasets (ParetoMTL implementation)
 
-100 epochs, lr 1e-4
+Adam, lr 1e-4
 metric: cross entropy (left range & right range)
 
 
@@ -11,4 +11,16 @@ metric: cross entropy (left range & right range)
 | a fusion late   |        |                           |                           |
 | hypernetwork    | 150    | 0.316-0.324 & 0.361-0.356 | 0.205-0.223 & 0.247-0.241 |
 | paretoMTL       | 100    |                           |                           |
+
+
+
+
+| method          | epochs | multi-fashion+mnist test  | multi-fashion+mnist val   |
+|-----------------|--------|---------------------------|---------------------------|
+| single task     | 100    |             &             |             &             |
+| a fusion early  |        |                           |                           |
+| a fusion late   |        |                           |                           |
+| hypernetwork    | 150    |             &             |             &             |
+| paretoMTL       | 100    |                           |                           |
+
 

@@ -14,6 +14,7 @@ np.random.seed(seed)
 import utils
 import settings as s
 from objectives import from_name
+from hv import HyperVolume
 
 
 from solvers.proposed import ProposedSolver
@@ -88,11 +89,14 @@ def main(settings):
                     score_values += np.array(s)
             
             score_values /= len(val_loader)
+            referencePoint = [1, 1]
+            hv = HyperVolume(referencePoint)
+            volume = hv.compute(score_values)
             
             pareto_front.points = []
             pareto_front.append(score_values)
             pareto_front.plot()
-            print("Epoch {}, val scores={}".format(e, score_values))
+            print("Epoch {}, hv={}".format(e, volume))
 
 
     model.eval()
@@ -116,8 +120,8 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='multi_fashion_mnist')
-    parser.add_argument('--method', '-m', default='hyper')
+    parser.add_argument('--dataset', '-d', default='multi_mnist')
+    parser.add_argument('--method', '-m', default='afeature')
     args = parser.parse_args()
 
     if args.dataset == 'multi_mnist':
@@ -126,6 +130,10 @@ if __name__ == "__main__":
         settings = s.adult
     elif args.dataset == 'multi_fashion_mnist':
         settings = s.multi_fashion_mnist
+    elif args.dataset == 'credit':
+        settings = s.credit
+    elif args.dataset == 'compas':
+        settings = s.compas
     
     if args.method == 'single_task':
         settings.update(s.SingleTaskSolver)
