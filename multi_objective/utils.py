@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from itertools import chain, combinations
 
-from loaders import adult_loader, multi_loader
+from loaders import adult_loader, multi_mnist_loader
 from models import simple
 
 
@@ -12,9 +12,9 @@ def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':
         return adult_loader.ADULT(**kwargs)
     elif dataset == 'multi_mnist':
-        return multi_loader.MultiMNIST(dataset='mnist', **kwargs)
+        return multi_mnist_loader.MultiMNIST(dataset='mnist', **kwargs)
     elif dataset == 'multi_fashion_mnist':
-        return multi_loader.Multi(dataset='fashion_and_mnist', **kwargs)
+        return multi_mnist_loader.MultiMNIST(dataset='fashion_and_mnist', **kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
 

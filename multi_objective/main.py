@@ -34,7 +34,7 @@ def main(settings):
 
     train_loader = data.DataLoader(train_set, settings['batch_size'], num_workers)
     val_loader = data.DataLoader(val_set, settings['batch_size'], num_workers)
-    test_loader = data.DataLoader(test_set, len(test_set), num_workers)
+    test_loader = data.DataLoader(test_set, settings['batch_size'], num_workers)
 
     model = utils.model_from_dataset(**settings)
 
@@ -89,8 +89,7 @@ def main(settings):
             
             score_values /= len(val_loader)
             
-            if e < 60:
-                pareto_front.points = []
+            pareto_front.points = []
             pareto_front.append(score_values)
             pareto_front.plot()
             print("Epoch {}, val scores={}".format(e, score_values))
@@ -117,7 +116,7 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='multi_mnist')
+    parser.add_argument('--dataset', '-d', default='multi_fashion_mnist')
     parser.add_argument('--method', '-m', default='hyper')
     args = parser.parse_args()
 
