@@ -155,17 +155,17 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='multi_mnist')
+    parser.add_argument('--dataset', '-d', default='mm')
     parser.add_argument('--method', '-m', default='hyper')
     args = parser.parse_args()
 
     settings = s.generic
 
-    if args.dataset == 'multi_mnist':
+    if args.dataset == 'mm':
         settings.update(s.multi_mnist)
     elif args.dataset == 'adult':
         settings.update(s.adult)
-    elif args.dataset == 'multi_fashion_mnist':
+    elif args.dataset == 'mfm':
         settings.update(s.multi_fashion_mnist)
     elif args.dataset == 'credit':
         settings.update(s.credit)
