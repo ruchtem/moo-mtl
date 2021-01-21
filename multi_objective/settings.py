@@ -1,24 +1,28 @@
 
 adult = dict(
     dataset='adult',
+    dim=(88,),
     objectives=['BinaryCrossEntropyLoss', 'ddp'],
     reference_point=[1, 1],
 )
 
 credit = dict(
     dataset='credit',
+    dim=(90,),
     objectives=['BinaryCrossEntropyLoss', 'ddp'],
     reference_point=[1, 1],
 )
 
 compas = dict(
     dataset='compas',
+    dim=(20,),
     objectives=['BinaryCrossEntropyLoss', 'ddp'],
     reference_point=[1, 1],
 )
 
 multi_mnist = dict(
     dataset='multi_mnist',
+    dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
 )
@@ -26,13 +30,15 @@ multi_mnist = dict(
 
 multi_fashion_mnist = dict(
     dataset='multi_fashion_mnist',
+    dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
 )
 
 celeba = dict(
     dataset='celeba',
-    task_ids=[22, 39]   # [] for all tasks
+    dim=(3, 64, 64),
+    task_ids=[22, 39],   # [] for all tasks
     objectives=['BinaryCrossEntropyLoss', 'BinaryCrossEntropyLoss'],
     reference_point=[2, 2],
 )
@@ -55,6 +61,7 @@ afeature = dict(
     warmstart=True,
     early_fusion=True,
     late_fusion=False,
+    alpha_generator_dim=2,
     alpha_dir=.2,   # dirichlet sampling
 )
 
@@ -79,5 +86,7 @@ hyperSolver = dict(
 )
 
 generic = dict(
-    logdir='results'
+    logdir='results',
+    num_workers=0,  # dataloader worker threads
+    n_test_rays=25,
 )

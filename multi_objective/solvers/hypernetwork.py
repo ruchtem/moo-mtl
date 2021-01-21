@@ -8,6 +8,7 @@ from typing import List
 from abc import abstractmethod
 
 from utils import num_parameters
+from solvers.base import BaseSolver
 
 """
 Nets
@@ -161,7 +162,7 @@ class LinearScalarizationSolver(Solver):
         return (losses * ray).sum()
 
 
-def circle_points(K, min_angle=None, max_angle=None):
+def circle_points(K, min_angle=0.1, max_angle=np.pi / 2 - 0.1):
     # generate evenly distributed preference vector
     ang0 = 1e-6 if min_angle is None else min_angle
     ang1 = np.pi / 2 - ang0 if max_angle is None else max_angle
@@ -171,11 +172,11 @@ def circle_points(K, min_angle=None, max_angle=None):
     return np.c_[x, y]
 
 
-class HypernetSolver():
+class HypernetSolver(BaseSolver):
 
-    def __init__(self, objectives, model, **kwargs):
+    def __init__(self, objectives, n_test_rays, **kwargs):
         self.objectives = objectives
-        self.model = model
+        self.n_test_rays = n_test_rays
         self.alpha = kwargs['alpha_dir']
 
         hnet: nn.Module = PHNHyper([9, 5], ray_hidden_dim=100)
@@ -183,17 +184,11 @@ class HypernetSolver():
 
         print("Number of parameters: {}".format(num_parameters(hnet)))
 
-        self.hnet = hnet.cuda()
+        self.model = hnet.cuda()
         self.net = net.cuda()
 
         self.solver = LinearScalarizationSolver(n_tasks=len(objectives))
 
-    def model_params(self):
-        return self.hnet.parameters()
-
-
-    def new_point(self, *args):
-        self.hnet.train()
 
     def step(self, batch):
         if self.alpha > 0:
@@ -206,29 +201,26 @@ class HypernetSolver():
 
         img = batch['data']
 
-        weights = self.hnet(ray)
+        weights = self.model(ray)
         batch.update(self.net(img, weights))
 
         losses = torch.stack([o(**batch) for o in self.objectives])
 
         ray = ray.squeeze(0)
-        loss = self.solver(losses, ray, list(self.hnet.parameters()))
+        loss = self.solver(losses, ray, list(self.model.parameters()))
         loss.backward()
     
     def eval_step(self, batch):
-        self.hnet.eval()
+        self.model.eval()
 
-        min_angle = 0.1
-        max_angle = np.pi / 2 - 0.1
-        n_rays = 25
-        test_rays = circle_points(n_rays, min_angle=min_angle, max_angle=max_angle)
+        test_rays = circle_points(self.n_test_rays)
 
         logits = []
         for ray in test_rays:
             ray = torch.from_numpy(ray.astype(np.float32)).cuda()
             ray /= ray.sum()
 
-            weights = self.hnet(ray)
+            weights = self.model(ray)
             logits.append(self.net(batch['data'], weights))
         return logits
 

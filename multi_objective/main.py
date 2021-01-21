@@ -30,15 +30,28 @@ from objectives import from_name
 from hv import HyperVolume
 
 
-from solvers.proposed import ProposedSolver
+from solvers.a_features import AFeaturesSolver
 from solvers.pareto_mtl import ParetoMTLSolver
-from solvers.base import solver_from_name
+from solvers.base import BaseSolver
+from solvers.hypernetwork import HypernetSolver
 from scores import mcr, DDP, from_objectives
+
+
+def solver_from_name(method, **kwargs):
+    if method == 'ParetoMTL':
+        return ParetoMTLSolver(**kwargs)
+    elif method == 'afeature':
+        return AFeaturesSolver(**kwargs)
+    elif method == 'SingleTask':
+        return BaseSolver(**kwargs)
+    elif method == 'hyper':
+        return HypernetSolver(**kwargs)
+    else:
+        raise ValueError("Unkown method {}".format(method))
 
 
 def main(settings):
     print("start processig with settings", settings)
-    num_workers = 0
     use_scheduler = False
 
     # create the experiment folders
@@ -51,35 +64,25 @@ def main(settings):
     val_set = utils.dataset_from_name(settings['dataset'], split='val')
     test_set = utils.dataset_from_name(settings['dataset'], split='test')
 
-    train_loader = data.DataLoader(train_set, settings['batch_size'], num_workers)
-    val_loader = data.DataLoader(val_set, settings['batch_size'], num_workers)
-    test_loader = data.DataLoader(test_set, settings['batch_size'], num_workers)
-
-    model = utils.model_from_dataset(**settings)
+    train_loader = data.DataLoader(train_set, settings['batch_size'], settings['num_workers'])
+    val_loader = data.DataLoader(val_set, settings['batch_size'], settings['num_workers'])
+    test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
 
     objectives = from_name(settings.pop('objectives'), train_set.task_names())
     scores = from_objectives(objectives)
 
     pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir)
 
-    solver = solver_from_name(objectives=objectives, model=model, **settings)
+    solver = solver_from_name(objectives=objectives, **settings)
 
     # main
-    model.cuda()
     for j in range(settings['num_starts']):
-        optimizer = torch.optim.Adam(solver.model_params() if hasattr(solver, 'model_params') else model.parameters(), settings['lr'])
+        optimizer = torch.optim.Adam(solver.model_params(), settings['lr'])
         # optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[8, ])
 
-        if not settings['warmstart']:
-            utils.reset_weights(model)
-            optimizer = torch.optim.Adam(solver.model_params() if hasattr(solver, 'model_params') else model.parameters(), settings['lr'])
-
-        #solver.new_point(train_loader, optimizer)
-
         for e in range(settings['epochs']):
-            solver.new_point(train_loader, optimizer)
-            model.train()
+            solver.new_epoch(e)
             for batch in train_loader:
                 batch = utils.dict_to_cuda(batch)
 
@@ -91,7 +94,6 @@ def main(settings):
                 scheduler.step()
                 print(scheduler.get_last_lr())
 
-            model.eval()
             score_values = np.array([])
             for batch in val_loader:
                 batch = utils.dict_to_cuda(batch)
@@ -116,7 +118,6 @@ def main(settings):
             print("Epoch {}, hv={}".format(e, volume))
 
 
-    model.eval()
     score_values = np.array([])
     for batch in test_loader:
         batch = utils.dict_to_cuda(batch)
@@ -145,7 +146,7 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='celeba')
+    parser.add_argument('--dataset', '-d', default='multi_mnist')
     parser.add_argument('--method', '-m', default='afeature')
     args = parser.parse_args()
 

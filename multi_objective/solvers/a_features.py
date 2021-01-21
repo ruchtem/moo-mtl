@@ -1,9 +1,10 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils import calc_gradients, flatten_grads, num_parameters
-
+from utils import calc_gradients, flatten_grads, num_parameters, model_from_dataset
+from solvers.base import BaseSolver
 
 def uniform_sample_alpha(size):
     alpha = torch.rand(size)
@@ -49,17 +50,50 @@ def alpha_as_feature(batch, early_fusion=True, append=False, overwrite=False):
     return batch
 
 
-class AFeaturesSolver():
+class AlphaGenerator(nn.Module):
+    def __init__(self, K, child_model, hidden_dim=2, target_size=(36, 36)):
+        super().__init__()
+        self.main = nn.Sequential(
+            nn.ConvTranspose2d(K, hidden_dim, kernel_size=4, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(hidden_dim, hidden_dim, kernel_size=6, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Upsample(target_size)
+        )
+        self.child_model = child_model
 
-    def __init__(self, objectives, model, early_fusion, late_fusion, alpha_dir, **kwargs):
+    def forward(self, batch):
+        b = batch['data'].shape[0]
+        a = batch['alpha'].repeat(b, 1)
+        a = a.reshape(b, len(batch['alpha']), 1, 1)
+
+        a = self.main(a)
+
+        x = torch.cat((batch['data'], a), dim=1)
+
+        return self.child_model(dict(data=x))
+
+
+
+class AFeaturesSolver(BaseSolver):
+
+    def __init__(self, objectives, alpha_dir, dim, early_fusion, late_fusion, alpha_generator_dim, **kwargs):
         self.objectives = objectives
-        self.model = model
         self.K = len(objectives)
         self.early_fusion = early_fusion
         self.late_fusion = late_fusion
         self.alpha_dir = alpha_dir
 
-        print("Number of parameters: {}".format(num_parameters(model)))
+        dim = list(dim)
+        dim[0] = dim[0] if not early_fusion else dim[0] + alpha_generator_dim
+
+        model = model_from_dataset(method='afeature', dim=dim, late_fusion=late_fusion, **kwargs)
+
+        self.model = AlphaGenerator(self.K, model, alpha_generator_dim, target_size=dim[-2:]).cuda()
+
+        print("Number of parameters: {}".format(num_parameters(self.model)))
 
 
     def step(self, batch):
@@ -68,9 +102,6 @@ class AFeaturesSolver():
             batch['alpha'] = dirichlet_sampling(self.K, self.alpha_dir)
         else:
             batch['alpha'] = uniform_sample_alpha(self.K)
-
-        # append as features
-        batch = alpha_as_feature(batch, self.early_fusion, self.late_fusion)
 
         # calulate the gradient and update the parameters
         gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
@@ -92,15 +123,11 @@ class AFeaturesSolver():
 
     def eval_step(self, batch):
         assert self.K <= 2
+        self.model.eval()
         logits = []
         with torch.no_grad():
             for i, a in enumerate(np.linspace(.001, .999, 20)):
                 batch['alpha'] = torch.Tensor([a, 1-a]).cuda()
-                # batch['alpha'] = torch.Tensor([1., 0.]).cuda()
-                batch = alpha_as_feature(batch, self.early_fusion, self.late_fusion, overwrite=False if i==0 else True)
                 logits.append(self.model(batch))
         return logits
 
-
-    def new_point(self, *args):
-        pass

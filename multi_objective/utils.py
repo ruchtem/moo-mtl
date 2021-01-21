@@ -26,25 +26,17 @@ def dataset_from_name(dataset, **kwargs):
         raise ValueError("Unknown dataset: {}".format(dataset))
 
 
-def model_from_dataset(dataset, method, **kwargs):
+def model_from_dataset(dataset, **kwargs):
     if dataset == 'adult':
-        input_dim = 90 if method == 'afeature' else 88
-        return simple.FullyConnected(input_dim)
+        return simple.FullyConnected(**kwargs)
     elif dataset == 'credit':
-        input_dim = 92 if method == 'afeature' else 90
-        return simple.FullyConnected(input_dim)
+        return simple.FullyConnected(**kwargs)
     elif dataset == 'compas':
-        input_dim = 22 if method == 'afeature' else 20
-        return simple.FullyConnected(input_dim)
-    elif dataset == 'mnist':
-        return simple.LeNet()
+        return simple.FullyConnected(**kwargs)
     elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist':
-        if method == 'afeature':
-            return simple.MultiLeNet(early_fusion=kwargs['early_fusion'], late_fusion=kwargs['late_fusion'])
-        else:
-            return simple.MultiLeNet()
+        return simple.MultiLeNet(**kwargs)
     elif dataset == 'celeba':
-        return simple.MultiLeNet()
+        return simple.MultiLeNet(**kwargs)
     else:
         raise ValueError("Unknown model name {}".format(dataset))
 
@@ -82,8 +74,8 @@ def flatten_grads(grads):
     return result
 
 
-def reset_weights(model):
-    for layer in model.children():
+def reset_weights(params):
+    for p in params:
         if isinstance(layer, torch.nn.Conv2d) or isinstance(layer, torch.nn.Linear):
             layer.reset_parameters()
 
