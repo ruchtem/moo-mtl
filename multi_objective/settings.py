@@ -30,6 +30,13 @@ multi_fashion_mnist = dict(
     reference_point=[2, 2],
 )
 
+celeba = dict(
+    dataset='celeba',
+    task_ids=[22, 39]   # [] for all tasks
+    objectives=['BinaryCrossEntropyLoss', 'BinaryCrossEntropyLoss'],
+    reference_point=[2, 2],
+)
+
 paretoMTL = dict(
     method='ParetoMTL',
     lr=1e-3,
@@ -47,7 +54,7 @@ afeature = dict(
     num_starts=1,
     warmstart=True,
     early_fusion=True,
-    late_fusion=True,
+    late_fusion=False,
     alpha_dir=.2,   # dirichlet sampling
 )
 

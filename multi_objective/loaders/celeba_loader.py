@@ -1,17 +1,16 @@
 import os
 import torch
 import numpy as np
-import scipy.misc as m
 import re
 import glob
-import cv2
+import torchvision.transforms as transforms
 from PIL import Image
 
 from torch.utils import data
 
 
-class CELEBA(data.Dataset):
-    def __init__(self, root, split="train", is_transform=False, img_size=(32, 32), augmentations=None):
+class CelebA(data.Dataset):
+    def __init__(self, split, task_ids=[], root='data/celeba', img_size=64, augmentations=None):
         """__init__
 
         :param root:
@@ -22,13 +21,18 @@ class CELEBA(data.Dataset):
         """
         self.root = root
         self.split = split
-        self.is_transform = is_transform
+        self.task_ids = task_ids
         self.augmentations = augmentations
         self.n_classes =  40
-        self.img_size = img_size if isinstance(img_size, tuple) else (img_size, img_size)
-        self.mean = np.array([73.15835921, 82.90891754, 72.39239876]) # TODO(compute this mean)
         self.files = {}
         self.labels = {}
+
+        self.transform=transforms.Compose([
+            transforms.Resize(img_size),
+            transforms.CenterCrop(img_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
 
         self.label_file = self.root+"/Anno/list_attr_celeba.txt"
         label_map = {}
@@ -64,7 +68,11 @@ class CELEBA(data.Dataset):
         if len(self.files[self.split]) < 2:
             raise Exception("No files for split=[%s] found in %s" % (self.split, self.root))
 
-        print("Found %d %s images" % (len(self.files[self.split]), self.split))
+        print("Found {} {} images. Defined tasks: {}".format(
+            len(self.files[self.split]), 
+            self.split,
+            [self.class_names[i] for i in task_ids] if task_ids else 'all'
+        ))
 
     def __len__(self):
         """__len__"""
@@ -75,56 +83,48 @@ class CELEBA(data.Dataset):
 
         :param index:
         """
-        img_path = self.files[self.split][index].rstrip()
         label = self.labels[self.split][index]
-        img = cv2.imread(img_path)
+        label = torch.Tensor(label).long()
+
+        img_path = self.files[self.split][index].rstrip()
+        img = Image.open(img_path)
 
         if self.augmentations is not None:
             img = self.augmentations(np.array(img, dtype=np.uint8))
 
-        if self.is_transform:
-            img = self.transform_img(img)
+        img = self.transform(img)
 
-        return [img] + label
+        labels = {'labels_{}'.format(i): label[i] for i in self.task_names()}
 
-    def transform_img(self, img):
-        """transform
-        Mean substraction, remap to [0,1], channel order transpose to make Torch happy
-        """
-        img = np.array(Image.fromarray(img).resize((self.img_size[0], self.img_size[1])))
-        img = img[:, :, ::-1]
-        img = img.astype(np.float64)
-        img -= self.mean
-        # Resize scales images from 0 to 255, thus we need
-        # to divide by 255.0
-        img = img.astype(float) / 255.0
-        # NHWC -> NCWH
-        img = img.transpose(2, 0, 1)
-        img = torch.from_numpy(img).float()
-        return img
+        return dict(data=img, **labels)
+
+    
+    def task_names(self):
+        return self.task_ids if self.task_ids else range(self.n_classes)
 
 if __name__ == '__main__':
     import torchvision
     import matplotlib.pyplot as plt
 
 
-    local_path = 'CELEB_A_PATH'
-    dst = CELEBA(local_path, is_transform=True, augmentations=None)
+    dst = CelebA(split='val', task_ids=[22, 39])
     bs = 4
     trainloader = data.DataLoader(dst, batch_size=bs, num_workers=0)
 
     for i, data in enumerate(trainloader):
+        imgs = data['data']
+        labels = data['labels']
         imgs = imgs.numpy()[:, ::-1, :, :]
         imgs = np.transpose(imgs, [0,2,3,1])
 
         f, axarr = plt.subplots(bs,4)
         for j in range(bs):
             axarr[j][0].imshow(imgs[j])
-            axarr[j][1].imshow(dst.decode_segmap(labels.numpy()[j]))
-            axarr[j][2].imshow(instances[j,0,:,:])
-            axarr[j][3].imshow(instances[j,1,:,:])
+            #axarr[j][1].imshow(labels.numpy()[j])
+            #axarr[j][2].imshow(instances[j,0,:,:])
+            #axarr[j][3].imshow(instances[j,1,:,:])
         plt.show()
-        a = raw_input()
+        a = input()
         if a == 'ex':
             break
         else:

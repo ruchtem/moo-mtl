@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from torch.utils import data
 from collections import deque
 from copy import deepcopy
+from datetime import datetime
 
 seed = 0
 
@@ -41,7 +42,7 @@ def main(settings):
     use_scheduler = False
 
     # create the experiment folders
-    logdir = os.path.join(settings['logdir'], settings['dataset'], settings['method'])
+    logdir = os.path.join(settings['logdir'], settings['dataset'], settings['method'], datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
 
@@ -74,7 +75,7 @@ def main(settings):
             utils.reset_weights(model)
             optimizer = torch.optim.Adam(solver.model_params() if hasattr(solver, 'model_params') else model.parameters(), settings['lr'])
 
-        # solver.new_point(train_loader, optimizer)
+        #solver.new_point(train_loader, optimizer)
 
         for e in range(settings['epochs']):
             solver.new_point(train_loader, optimizer)
@@ -144,8 +145,8 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='multi_mnist')
-    parser.add_argument('--method', '-m', default='hyper')
+    parser.add_argument('--dataset', '-d', default='celeba')
+    parser.add_argument('--method', '-m', default='afeature')
     args = parser.parse_args()
 
     settings = s.generic
@@ -160,6 +161,8 @@ if __name__ == "__main__":
         settings.update(s.credit)
     elif args.dataset == 'compas':
         settings.update(s.compas)
+    elif args.dataset == 'celeba':
+        settings.update(s.celeba)
     
     if args.method == 'single_task':
         settings.update(s.SingleTaskSolver)

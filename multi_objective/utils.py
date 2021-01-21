@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from itertools import chain, combinations
 
-from loaders import adult_loader, compas_loader, multi_mnist_loader
+from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader
 from models import simple
 
 
@@ -20,6 +20,8 @@ def dataset_from_name(dataset, **kwargs):
         return multi_mnist_loader.MultiMNIST(dataset='mnist', **kwargs)
     elif dataset == 'multi_fashion_mnist':
         return multi_mnist_loader.MultiMNIST(dataset='fashion_and_mnist', **kwargs)
+    elif dataset == 'celeba':
+        return celeba_loader.CelebA(**kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
 
@@ -41,6 +43,8 @@ def model_from_dataset(dataset, method, **kwargs):
             return simple.MultiLeNet(early_fusion=kwargs['early_fusion'], late_fusion=kwargs['late_fusion'])
         else:
             return simple.MultiLeNet()
+    elif dataset == 'celeba':
+        return simple.MultiLeNet()
     else:
         raise ValueError("Unknown model name {}".format(dataset))
 
