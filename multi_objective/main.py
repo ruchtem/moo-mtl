@@ -10,7 +10,7 @@ from collections import deque
 from copy import deepcopy
 from datetime import datetime
 
-seed = 0
+seed = 42
 
 np.random.seed(seed)
 random.seed(seed)
@@ -64,8 +64,8 @@ def main(settings):
     val_set = utils.dataset_from_name(settings['dataset'], split='val')
     test_set = utils.dataset_from_name(settings['dataset'], split='test')
 
-    train_loader = data.DataLoader(train_set, settings['batch_size'], settings['num_workers'])
-    val_loader = data.DataLoader(val_set, settings['batch_size'], settings['num_workers'])
+    train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
+    val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
     test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
 
     objectives = from_name(settings.pop('objectives'), train_set.task_names())
@@ -74,6 +74,9 @@ def main(settings):
     pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir)
 
     solver = solver_from_name(objectives=objectives, **settings)
+
+    epoch_max = -1
+    volume_max = -1
 
     # main
     for j in range(settings['num_starts']):
@@ -111,13 +114,19 @@ def main(settings):
             score_values /= len(val_loader)
             hv = HyperVolume(settings['reference_point'])
             volume = hv.compute(score_values)
+
+            if volume > volume_max:
+                volume_max = volume
+                epoch_max = e
             
             pareto_front.points = []
             pareto_front.append(score_values)
             pareto_front.plot()
             print("Epoch {}, hv={}".format(e, volume))
+            print('score values', score_values[:, 0])
+            print()
 
-
+    print("epoch_max={}, volume_max={}".format(epoch_max, volume_max))
     score_values = np.array([])
     for batch in test_loader:
         batch = utils.dict_to_cuda(batch)
@@ -147,7 +156,7 @@ def main(settings):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='multi_mnist')
-    parser.add_argument('--method', '-m', default='afeature')
+    parser.add_argument('--method', '-m', default='hyper')
     args = parser.parse_args()
 
     settings = s.generic

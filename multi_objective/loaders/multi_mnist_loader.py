@@ -2,6 +2,8 @@ import torch
 import os
 import pickle
 
+import pickle
+from sklearn.model_selection import train_test_split
 
 class MultiMNIST(torch.utils.data.Dataset):
     """
@@ -13,49 +15,84 @@ class MultiMNIST(torch.utils.data.Dataset):
         assert split in ['train', 'val', 'test']
 
         # equal size of val and test split
-        train_split = 5/6
+        train_split = .9
 
-        if dataset == 'mnist':
-            with open(os.path.join(root, 'multi_mnist.pickle'),'rb') as f:
-                trainX, trainLabel, testX, testLabel = pickle.load(f)  
+        # if dataset == 'mnist':
+        #     with open(os.path.join(root, 'multi_mnist.pickle'),'rb') as f:
+        #         trainX, trainLabel, testX, testLabel = pickle.load(f)  
         
-        if dataset == 'fashion':
-            with open(os.path.join(root, 'multi_fashion.pickle'),'rb') as f:
-                trainX, trainLabel,testX, testLabel = pickle.load(f)  
+        # if dataset == 'fashion':
+        #     with open(os.path.join(root, 'multi_fashion.pickle'),'rb') as f:
+        #         trainX, trainLabel,testX, testLabel = pickle.load(f)  
         
-        if dataset == 'fashion_and_mnist':
-            with open(os.path.join(root, 'multi_fashion_and_mnist.pickle'),'rb') as f:
-                trainX, trainLabel,testX, testLabel = pickle.load(f)
+        # if dataset == 'fashion_and_mnist':
+        #     with open(os.path.join(root, 'multi_fashion_and_mnist.pickle'),'rb') as f:
+        #         trainX, trainLabel,testX, testLabel = pickle.load(f)
         
-        trainX = torch.Tensor(trainX).float()
-        trainLabel = torch.Tensor(trainLabel).long()
-        testX = torch.Tensor(testX).float()
-        testLabel = torch.Tensor(testLabel).long()
+        # trainX = torch.Tensor(trainX).float()
+        # trainLabel = torch.Tensor(trainLabel).long()
+        # testX = torch.Tensor(testX).float()
+        # testLabel = torch.Tensor(testLabel).long()
 
-        # normalize
-        trainX -= trainX.min(1, keepdim=True)[0]
-        trainX /= trainX.max(1, keepdim=True)[0] + 1e-15
-        testX -= testX.min(1, keepdim=True)[0]
-        testX /= testX.max(1, keepdim=True)[0] + 1e-15
+        # # normalize
+        # # trainX -= trainX.min(1, keepdim=True)[0]
+        # # trainX /= trainX.max(1, keepdim=True)[0] + 1e-15
+        # # testX -= testX.min(1, keepdim=True)[0]
+        # # testX /= testX.max(1, keepdim=True)[0] + 1e-15
 
-        # randomly shuffle
-        idx = torch.randperm(trainX.shape[0])
-        trainX = trainX[idx].float()
-        trainLabel = trainLabel[idx]
+        # # randomly shuffle
+        # idx = torch.randperm(trainX.shape[0])
+        # trainX = trainX[idx].float()
+        # trainLabel = trainLabel[idx]
+
+        # if split in ['train', 'val']:
+        #     n = int(len(trainX) * train_split)
+        #     if split == 'val':
+        #         self.X = trainX[n:]
+        #         self.y = trainLabel[n:]
+        #     elif split == 'train':
+        #         self.X = trainX[:n]
+        #         self.y = trainLabel[:n]
+        # elif split == 'test':
+        #     self.X = testX
+        #     self.y = testLabel
+        
+        # self.X = torch.unsqueeze(self.X, dim=1)
+
+        self.path = 'data/multi/multi_mnist.pickle'
+        self.val_size = .1
+        with open(self.path, 'rb') as f:
+            trainX, trainLabel, testX, testLabel = pickle.load(f)
+
+        n_train = len(trainX)
+        if self.val_size > 0:
+            trainX, valX, trainLabel, valLabel = train_test_split(
+                trainX, trainLabel, test_size=self.val_size, random_state=42
+            )
+            n_train = len(trainX)
+            n_val = len(valX)
+
+        trainX = torch.from_numpy(trainX.reshape(n_train, 1, 36, 36)).float()
+        trainLabel = torch.from_numpy(trainLabel).long()
+        testX = torch.from_numpy(testX.reshape(20000, 1, 36, 36)).float()
+        testLabel = torch.from_numpy(testLabel).long()
+
+        if self.val_size > 0:
+            valX = torch.from_numpy(valX.reshape(n_val, 1, 36, 36)).float()
+            valLabel = torch.from_numpy(valLabel).long()
+
 
         if split in ['train', 'val']:
             n = int(len(trainX) * train_split)
             if split == 'val':
-                self.X = trainX[n:]
-                self.y = trainLabel[n:]
+                self.X = valX
+                self.y = valLabel
             elif split == 'train':
-                self.X = trainX[:n]
-                self.y = trainLabel[:n]
+                self.X = trainX
+                self.y = trainLabel
         elif split == 'test':
             self.X = testX
             self.y = testLabel
-        
-        self.X = torch.unsqueeze(self.X, dim=1)
 
     
     def __getitem__(self, index):
