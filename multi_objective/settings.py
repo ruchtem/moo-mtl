@@ -40,6 +40,8 @@ celeba = dict(
     dim=(3, 64, 64),
     task_ids=[22, 39],   # list(range(40)) for all tasks
     objectives=['BinaryCrossEntropyLoss', 'BinaryCrossEntropyLoss'],
+    # task_ids=list(range(40)),
+    # objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
     reference_point=[2, 2],
 )
 
@@ -62,7 +64,7 @@ afeature = dict(
     early_fusion=True,
     late_fusion=False,
     alpha_generator_dim=2,
-    alpha_dir=.2,   # dirichlet sampling
+    alpha_dir=None,   # dirichlet sampling, None=Uniform sampling
 )
 
 SingleTaskSolver = dict(
@@ -89,5 +91,5 @@ generic = dict(
     logdir='results',
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
-    eval_every=10,
+    eval_every=1,
 )

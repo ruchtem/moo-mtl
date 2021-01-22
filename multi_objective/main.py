@@ -3,6 +3,8 @@ import torch
 import os
 import pathlib
 import random
+import time
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils import data
@@ -55,7 +57,8 @@ def main(settings):
     use_scheduler = False
 
     # create the experiment folders
-    logdir = os.path.join(settings['logdir'], settings['dataset'], settings['method'], datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
+    slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ else None
+    logdir = os.path.join(settings['logdir'], settings['dataset'], settings['method'], slurm_job_id if slurm_job_id else datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
 
@@ -78,6 +81,8 @@ def main(settings):
     epoch_max = -1
     volume_max = -1
 
+    val_results = {}
+
     # main
     for j in range(settings['num_starts']):
         optimizer = torch.optim.Adam(solver.model_params(), settings['lr'])
@@ -86,12 +91,14 @@ def main(settings):
 
         for e in range(settings['epochs']):
             solver.new_epoch(e)
-            for batch in train_loader:
+            for b, batch in enumerate(train_loader):
+                tick = time.time()
                 batch = utils.dict_to_cuda(batch)
 
                 optimizer.zero_grad()
-                solver.step(batch)
+                loss = solver.step(batch)
                 optimizer.step()
+                print("Epoch {:03d}, batch {:03d}, execution_time {:.4f}, train_loss {:.4f}".format(e, b, time.time() - tick, loss))
             
             if use_scheduler:
                 scheduler.step()
@@ -120,12 +127,23 @@ def main(settings):
                     volume_max = volume
                     epoch_max = e
                 
-                pareto_front.points = []
-                pareto_front.append(score_values)
-                pareto_front.plot()
+                try:
+                    pareto_front.points = []
+                    pareto_front.append(score_values)
+                    pareto_front.plot()
+                except:
+                    pass
+
                 print("Epoch {}, hv={}".format(e, volume))
-                print('score values', score_values[:, 0])
-                print()
+                val_results["epoch_{}".format(e)] = {
+                    "scores": score_values.tolist(),
+                    "hv": volume,
+                    "max_epoch_so_far": epoch_max,
+                    "max_volume_so_far": volume_max
+                }
+
+                with open(pathlib.Path(logdir) / "val_results.json", "w") as file:
+                    json.dump(val_results, file)
 
     print("epoch_max={}, volume_max={}".format(epoch_max, volume_max))
     score_values = np.array([])

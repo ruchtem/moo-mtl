@@ -36,7 +36,8 @@ def model_from_dataset(dataset, **kwargs):
     elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist':
         return simple.MultiLeNet(**kwargs)
     elif dataset == 'celeba':
-        return efficient_net.EfficientNetWrapper.from_pretrained('efficientnet-b0', **kwargs)
+        # return efficient_net.EfficientNetWrapper.from_pretrained(**kwargs)
+        return efficient_net.EfficientNetWrapper.from_name(**kwargs)
     else:
         raise ValueError("Unknown model name {}".format(dataset))
 
