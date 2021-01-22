@@ -13,7 +13,7 @@ def from_name(names, task_names):
     }
 
     if task_names is not None:
-        return [objectives[n]("label_{}".format(t), "logits_{}".format(t)) for n, t in zip(names, task_names)]
+        return [objectives[n]("labels_{}".format(t), "logits_{}".format(t)) for n, t in zip(names, task_names)]
     else:
         return [objectives[n]() for n in names]
     
@@ -42,7 +42,7 @@ class BinaryCrossEntropyLoss(torch.nn.BCEWithLogitsLoss):
     
 
     def __call__(self, **kwargs):
-        logits = kwargs['logits']
+        logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
         if logits.ndim == 2:
             logits = torch.squeeze(logits)

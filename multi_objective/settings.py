@@ -38,7 +38,7 @@ multi_fashion_mnist = dict(
 celeba = dict(
     dataset='celeba',
     dim=(3, 64, 64),
-    task_ids=[22, 39],   # [] for all tasks
+    task_ids=[22, 39],   # list(range(40)) for all tasks
     objectives=['BinaryCrossEntropyLoss', 'BinaryCrossEntropyLoss'],
     reference_point=[2, 2],
 )
@@ -87,6 +87,7 @@ hyperSolver = dict(
 
 generic = dict(
     logdir='results',
-    num_workers=0,  # dataloader worker threads
+    num_workers=4,  # dataloader worker threads
     n_test_rays=25,
+    eval_every=10,
 )

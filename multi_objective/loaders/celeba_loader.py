@@ -10,7 +10,7 @@ from torch.utils import data
 
 
 class CelebA(data.Dataset):
-    def __init__(self, split, task_ids=[], root='data/celeba', img_size=64, augmentations=None):
+    def __init__(self, split, task_ids=[], root='data/celeba', dim=64, augmentations=None, **kwargs):
         """__init__
 
         :param root:
@@ -27,9 +27,11 @@ class CelebA(data.Dataset):
         self.files = {}
         self.labels = {}
 
+        assert dim[-1] == dim[-2]
+
         self.transform=transforms.Compose([
-            transforms.Resize(img_size),
-            transforms.CenterCrop(img_size),
+            transforms.Resize(dim[-1]),
+            transforms.CenterCrop(dim[-1]),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])

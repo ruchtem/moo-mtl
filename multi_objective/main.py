@@ -60,9 +60,9 @@ def main(settings):
 
 
     # prepare
-    train_set = utils.dataset_from_name(settings['dataset'], split='train')
-    val_set = utils.dataset_from_name(settings['dataset'], split='val')
-    test_set = utils.dataset_from_name(settings['dataset'], split='test')
+    train_set = utils.dataset_from_name(split='train', **settings)
+    val_set = utils.dataset_from_name(split='val', **settings)
+    test_set = utils.dataset_from_name(split='test', **settings)
 
     train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
     val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
@@ -97,34 +97,35 @@ def main(settings):
                 scheduler.step()
                 print(scheduler.get_last_lr())
 
-            score_values = np.array([])
-            for batch in val_loader:
-                batch = utils.dict_to_cuda(batch)
+            if (e+1) % settings['eval_every'] == 0:
+                score_values = np.array([])
+                for batch in val_loader:
+                    batch = utils.dict_to_cuda(batch)
+                    
+                    # more than one for some solvers
+                    s = []
+                    for l in solver.eval_step(batch):
+                        batch.update(l)
+                        s.append([s(**batch) for s in scores])
+                    if score_values.size == 0:
+                        score_values = np.array(s)
+                    else:
+                        score_values += np.array(s)
                 
-                # more than one for some solvers
-                s = []
-                for l in solver.eval_step(batch):
-                    batch.update(l)
-                    s.append([s(**batch) for s in scores])
-                if score_values.size == 0:
-                    score_values = np.array(s)
-                else:
-                    score_values += np.array(s)
-            
-            score_values /= len(val_loader)
-            hv = HyperVolume(settings['reference_point'])
-            volume = hv.compute(score_values)
+                score_values /= len(val_loader)
+                hv = HyperVolume(settings['reference_point'])
+                volume = hv.compute(score_values)
 
-            if volume > volume_max:
-                volume_max = volume
-                epoch_max = e
-            
-            pareto_front.points = []
-            pareto_front.append(score_values)
-            pareto_front.plot()
-            print("Epoch {}, hv={}".format(e, volume))
-            print('score values', score_values[:, 0])
-            print()
+                if volume > volume_max:
+                    volume_max = volume
+                    epoch_max = e
+                
+                pareto_front.points = []
+                pareto_front.append(score_values)
+                pareto_front.plot()
+                print("Epoch {}, hv={}".format(e, volume))
+                print('score values', score_values[:, 0])
+                print()
 
     print("epoch_max={}, volume_max={}".format(epoch_max, volume_max))
     score_values = np.array([])
@@ -155,8 +156,8 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='mm')
-    parser.add_argument('--method', '-m', default='hyper')
+    parser.add_argument('--dataset', '-d', default='celeba')
+    parser.add_argument('--method', '-m', default='afeature')
     args = parser.parse_args()
 
     settings = s.generic

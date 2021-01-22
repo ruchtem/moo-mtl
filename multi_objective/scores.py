@@ -9,7 +9,7 @@ import objectives as obj
 def from_objectives(objectives):
     scores = {
         obj.CrossEntropyLoss: CrossEntropy,
-        obj.BinaryCrossEntropyLoss: mcr,
+        obj.BinaryCrossEntropyLoss: BinaryCrossEntropy,
         obj.DDPHyperbolicTangentRelaxation: DDP,
         obj.DEOHyperbolicTangentRelaxation: DEO,
         obj.MSELoss: L2Distance,
@@ -32,11 +32,20 @@ class BaseScore():
 class CrossEntropy(BaseScore):
 
     def __call__(self, **kwargs):
-        # missclassification rate
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
         with torch.no_grad():
             return torch.nn.functional.cross_entropy(logits, labels.long(), reduction='mean').item()
+
+
+class BinaryCrossEntropy(BaseScore):
+    
+    def __call__(self, **kwargs):
+        logits = kwargs[self.logits_name]
+        labels = kwargs[self.label_name]
+        with torch.no_grad():
+            return torch.nn.functional.binary_cross_entropy_with_logits(logits, labels.float(), reduction='mean').item()
+
 
 
 class L2Distance(BaseScore):
