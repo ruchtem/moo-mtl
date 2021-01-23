@@ -103,22 +103,35 @@ class AFeaturesSolver(BaseSolver):
         else:
             batch['alpha'] = uniform_sample_alpha(self.K)
 
-        # calulate the gradient and update the parameters
-        gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
+        self.model.zero_grad()
+        loss_total = None
+        for a, objective in zip(batch['alpha'], self.objectives):
+            logits = self.model(batch)
+            batch.update(logits)
+            task_loss = objective(**batch)
+
+            loss_total = a * task_loss if not loss_total else loss_total + a * task_loss
+            
+        loss_total.backward()
+        return loss_total.item()
+
+
+        # # calulate the gradient and update the parameters
+        # gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
         
-        private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
-        for name, param in self.model.named_parameters():
-            if name not in private_params:
-                param.grad.data.zero_()
-                grad = None
-                for a, grads in zip(batch['alpha'], gradients):
-                    if name in grads:
-                        if grad is None:
-                            grad = a * grads[name]
-                        else:
-                            grad += a * grads[name]
-                param.grad = grad
-                # param.grad = sum(a * grads[name] for a, grads in zip(batch['alpha'], gradients))
+        # private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
+        # for name, param in self.model.named_parameters():
+        #     if name not in private_params:
+        #         param.grad.data.zero_()
+        #         grad = None
+        #         for a, grads in zip(batch['alpha'], gradients):
+        #             if name in grads:
+        #                 if grad is None:
+        #                     grad = a * grads[name]
+        #                 else:
+        #                     grad += a * grads[name]
+        #         param.grad = grad
+        #         # param.grad = sum(a * grads[name] for a, grads in zip(batch['alpha'], gradients))
 
 
     def eval_step(self, batch):

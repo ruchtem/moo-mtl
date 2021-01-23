@@ -58,7 +58,7 @@ def main(settings):
 
     # create the experiment folders
     slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ else None
-    logdir = os.path.join(settings['logdir'], settings['dataset'], settings['method'], slurm_job_id if slurm_job_id else datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
+    logdir = os.path.join(settings['logdir'], settings['dataset'], settings['method'], slurm_job_id if slurm_job_id else datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
 
@@ -98,7 +98,7 @@ def main(settings):
                 optimizer.zero_grad()
                 loss = solver.step(batch)
                 optimizer.step()
-                print("Epoch {:03d}, batch {:03d}, execution_time {:.4f}, train_loss {:.4f}".format(e, b, time.time() - tick, loss))
+                print("Epoch {:03d}, batch {:03d}, execution_time {:.4f}, train_loss {:.4f}".format(e, b, time.time() - tick, loss), end='\r')
             
             if use_scheduler:
                 scheduler.step()
@@ -134,7 +134,7 @@ def main(settings):
                 except:
                     pass
 
-                print("Epoch {}, hv={}".format(e, volume))
+                print("Epoch {:03d}, hv={:.4f}                        ".format(e, volume))
                 val_results["epoch_{}".format(e)] = {
                     "scores": score_values.tolist(),
                     "hv": volume,
@@ -144,6 +144,9 @@ def main(settings):
 
                 with open(pathlib.Path(logdir) / "val_results.json", "w") as file:
                     json.dump(val_results, file)
+
+                pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
+                torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{:03d}.pth'.format(e)))
 
     print("epoch_max={}, volume_max={}".format(epoch_max, volume_max))
     score_values = np.array([])
@@ -174,7 +177,7 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='celeba')
+    parser.add_argument('--dataset', '-d', default='mm')
     parser.add_argument('--method', '-m', default='afeature')
     args = parser.parse_args()
 

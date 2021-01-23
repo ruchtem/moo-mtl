@@ -10,7 +10,7 @@ class MultiMNIST(torch.utils.data.Dataset):
     The datasets from ParetoMTL
     """
 
-    def __init__(self, dataset, split, root='data/multi'):
+    def __init__(self, dataset, split, root='data/multi', **kwargs):
         assert dataset in ['mnist', 'fashion', 'fashion_and_mnist']
         assert split in ['train', 'val', 'test']
 
@@ -96,7 +96,7 @@ class MultiMNIST(torch.utils.data.Dataset):
 
     
     def __getitem__(self, index):
-        return dict(data=self.X[index], label_l=self.y[index, 0], label_r=self.y[index, 1])
+        return dict(data=self.X[index], labels_l=self.y[index, 0], labels_r=self.y[index, 1])
     
 
     def __len__(self):
