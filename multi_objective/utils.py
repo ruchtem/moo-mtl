@@ -44,14 +44,21 @@ def model_from_dataset(dataset, **kwargs):
         raise ValueError("Unknown model name {}".format(dataset))
 
 
-def circle_points(K, min_angle=0.1, max_angle=np.pi / 2 - 0.1):
+def circle_points(n, min_angle=0.1, max_angle=np.pi / 2 - 0.1, dim=2):
     # generate evenly distributed preference vector
-    ang0 = 1e-6 if min_angle is None else min_angle
-    ang1 = np.pi / 2 - ang0 if max_angle is None else max_angle
-    angles = np.linspace(ang0, ang1, K, endpoint=True)
-    x = np.cos(angles)
-    y = np.sin(angles)
-    return np.c_[x, y]
+    if dim <= 2:
+        ang0 = 1e-6 if min_angle is None else min_angle
+        ang1 = np.pi / 2 - ang0 if max_angle is None else max_angle
+        angles = np.linspace(ang0, ang1, n, endpoint=True)
+        x = np.cos(angles)
+        y = np.sin(angles)
+        return np.c_[x, y]
+    else:
+        # this is an unsolved problem for more than 3 dimensions
+        # we just generate random points
+        points = np.random.rand(n, dim)
+        points /= points.sum(axis=1).reshape(n, 1)
+        return points
 
 
 def calc_devisor(train_loader, model, objectives):

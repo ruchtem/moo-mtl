@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from torch import nn
 
 
-# LeNet hyper version
 class PHNHyper(nn.Module):
     """Hypernetwork
     """
@@ -124,18 +123,3 @@ class PHNTarget(nn.Module):
             )
         return logits
 
-
-# Wrappers
-class LeNetPHNHyper(PHNHyper):
-    pass
-
-
-class LeNetPHNTargetWrapper(PHNTarget):
-
-    def forward(self, x, weights=None):
-        logits = super().forward(x, weights)
-        return dict(logits_l=logits[0], logits_r=logits[1])
-
-
-# fully connected hyper version
-# this is unfortunately not published, therefore I implemented it myself

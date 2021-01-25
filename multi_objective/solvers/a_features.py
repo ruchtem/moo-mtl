@@ -103,7 +103,6 @@ class AFeaturesSolver(BaseSolver):
         dim[0] = dim[0] if not early_fusion else dim[0] + alpha_generator_dim
 
         model = model_from_dataset(method='afeature', dim=dim, late_fusion=late_fusion, **kwargs)
-
         self.model = AlphaGenerator(self.K, model, dim, alpha_generator_dim).cuda()
 
         print("Number of parameters: {}".format(num_parameters(self.model)))
@@ -129,30 +128,12 @@ class AFeaturesSolver(BaseSolver):
         return loss_total.item()
 
 
-        # # calulate the gradient and update the parameters
-        # gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
-        
-        # private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
-        # for name, param in self.model.named_parameters():
-        #     if name not in private_params:
-        #         param.grad.data.zero_()
-        #         grad = None
-        #         for a, grads in zip(batch['alpha'], gradients):
-        #             if name in grads:
-        #                 if grad is None:
-        #                     grad = a * grads[name]
-        #                 else:
-        #                     grad += a * grads[name]
-        #         param.grad = grad
-        #         # param.grad = sum(a * grads[name] for a, grads in zip(batch['alpha'], gradients))
-
-
     def eval_step(self, batch):
         assert self.K <= 2
         self.model.eval()
         logits = []
         with torch.no_grad():
-            test_rays = circle_points(self.n_test_rays)
+            test_rays = circle_points(self.n_test_rays, dim=self.K)
 
             for ray in test_rays:
                 ray = torch.from_numpy(ray.astype(np.float32)).cuda()
