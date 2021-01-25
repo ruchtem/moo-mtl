@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from itertools import chain, combinations
 
 from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
-from models import simple, efficient_net
+from models import FullyConnected, MultiLeNet, EfficientNet
 
 
 def dataset_from_name(dataset, **kwargs):
@@ -30,16 +30,16 @@ def dataset_from_name(dataset, **kwargs):
 
 def model_from_dataset(dataset, **kwargs):
     if dataset == 'adult':
-        return simple.FullyConnected(**kwargs)
+        return FullyConnected(**kwargs)
     elif dataset == 'credit':
-        return simple.FullyConnected(**kwargs)
+        return FullyConnected(**kwargs)
     elif dataset == 'compas':
-        return simple.FullyConnected(**kwargs)
+        return FullyConnected(**kwargs)
     elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist' or dataset == 'multi_fashion':
-        return simple.MultiLeNet(**kwargs)
+        return MultiLeNet(**kwargs)
     elif dataset == 'celeba':
-        # return efficient_net.EfficientNetWrapper.from_pretrained(**kwargs)
-        return efficient_net.EfficientNetWrapper.from_name(**kwargs)
+        # return EfficientNet.from_pretrained(**kwargs)
+        return EfficientNet.from_name(**kwargs)
     else:
         raise ValueError("Unknown model name {}".format(dataset))
 

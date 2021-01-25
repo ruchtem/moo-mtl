@@ -1,0 +1,1 @@
+from solvers.pareto_hypernet.wrapper import HypernetSolver

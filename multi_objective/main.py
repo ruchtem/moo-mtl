@@ -37,7 +37,7 @@ from hv import HyperVolume
 from solvers.a_features import AFeaturesSolver
 from solvers.pareto_mtl import ParetoMTLSolver
 from solvers.base import BaseSolver
-from solvers.hypernetwork import HypernetSolver
+from solvers import HypernetSolver
 from scores import mcr, DDP, from_objectives
 
 
@@ -208,7 +208,7 @@ def main(settings):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='mm')
-    parser.add_argument('--method', '-m', default='afeature')
+    parser.add_argument('--method', '-m', default='hyper')
     args = parser.parse_args()
 
     settings = s.generic
