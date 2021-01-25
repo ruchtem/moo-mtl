@@ -18,6 +18,8 @@ def dataset_from_name(dataset, **kwargs):
         return compas_loader.Compas(**kwargs)
     elif dataset == 'multi_mnist':
         return multi_mnist_loader.MultiMNIST(dataset='mnist', **kwargs)
+    elif dataset == 'multi_fashion':
+        return multi_mnist_loader.MultiMNIST(dataset='fashion', **kwargs)
     elif dataset == 'multi_fashion_mnist':
         return multi_mnist_loader.MultiMNIST(dataset='fashion_and_mnist', **kwargs)
     elif dataset == 'celeba':
@@ -33,7 +35,7 @@ def model_from_dataset(dataset, **kwargs):
         return simple.FullyConnected(**kwargs)
     elif dataset == 'compas':
         return simple.FullyConnected(**kwargs)
-    elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist':
+    elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist' or dataset == 'multi_fashion':
         return simple.MultiLeNet(**kwargs)
     elif dataset == 'celeba':
         # return efficient_net.EfficientNetWrapper.from_pretrained(**kwargs)

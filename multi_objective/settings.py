@@ -35,6 +35,14 @@ multi_mnist = dict(
 )
 
 
+multi_fashion = dict(
+    dataset='multi_fashion',
+    dim=(1, 36, 36),
+    objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
+    reference_point=[2, 2],
+    scheduler_milestones=[15,30,45,60,75,90],
+)
+
 multi_fashion_mnist = dict(
     dataset='multi_fashion_mnist',
     dim=(1, 36, 36),

@@ -135,7 +135,7 @@ def main(settings):
             
             if settings['use_scheduler']:
                 scheduler.step()
-                print("Current lr:", scheduler.get_last_lr())
+                print("Next lr:", scheduler.get_last_lr())
             
             tock = time.time()
             elapsed_time += (tock - tick)
@@ -201,7 +201,7 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='mm')
+    parser.add_argument('--dataset', '-d', default='fm')
     parser.add_argument('--method', '-m', default='afeature')
     args = parser.parse_args()
 
@@ -221,6 +221,8 @@ if __name__ == "__main__":
         settings.update(s.adult)
     elif args.dataset == 'mfm':
         settings.update(s.multi_fashion_mnist)
+    elif args.dataset == 'fm':
+        settings.update(s.multi_fashion)
     elif args.dataset == 'credit':
         settings.update(s.credit)
     elif args.dataset == 'compas':
