@@ -65,7 +65,7 @@ paretoMTL = dict(
     method='ParetoMTL',
     lr=1e-3,
     batch_size=256,
-    epochs=5,
+    epochs=100,
     num_starts=5,
 )
 
@@ -79,6 +79,7 @@ afeature = dict(
     late_fusion=False,
     alpha_generator_dim=2,
     alpha_dir=None,   # dirichlet sampling, None=Uniform sampling
+    train_eval_every=1,
 )
 
 SingleTaskSolver = dict(
@@ -104,6 +105,6 @@ generic = dict(
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
     eval_every=1,
-    train_eval_every=1, # 0 for not evaluating on the train set
+    train_eval_every=0, # 0 for not evaluating on the train set
     use_scheduler=True,
 )

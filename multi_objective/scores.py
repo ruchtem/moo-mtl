@@ -91,7 +91,7 @@ class DDP(BaseScore):
             logits_s_negative = logits[sensible_attribute.bool()]
             logits_s_positive = logits[~sensible_attribute.bool()]
 
-            return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0)).cpu().item()
+            return (1/n * torch.abs(torch.sum(logits_s_negative > 0) - torch.sum(logits_s_positive > 0))).cpu().item()
 
 
 class DEO(BaseScore):
@@ -107,4 +107,4 @@ class DEO(BaseScore):
             logits_s_negative = logits[(sensible_attribute.bool()) & (labels == 1)]
             logits_s_positive = logits[(~sensible_attribute.bool()) & (labels == 1)]
 
-            return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0)).cpu().item()        
+            return (1/n * torch.abs(torch.sum(logits_s_negative > 0) - torch.sum(logits_s_positive > 0))).cpu().item()        

@@ -1,1 +1,2 @@
 from solvers.pareto_hypernet.wrapper import HypernetSolver
+from solvers.pareto_mtl.pareto_mtl import ParetoMTLSolver

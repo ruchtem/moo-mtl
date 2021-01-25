@@ -35,9 +35,8 @@ from hv import HyperVolume
 
 
 from solvers.a_features import AFeaturesSolver
-from solvers.pareto_mtl import ParetoMTLSolver
 from solvers.base import BaseSolver
-from solvers import HypernetSolver
+from solvers import HypernetSolver, ParetoMTLSolver
 from scores import mcr, DDP, from_objectives
 
 
@@ -79,10 +78,12 @@ def evaluate(solver, scores, data_loader, logdir, reference_point, prefix):
         pareto_front.append(score_values)
         pareto_front.plot()
 
-    return {
+    result = {
         "scores": score_values.tolist(),
         "hv": volume,
     }
+    result.update(solver.log())
+    return result
 
 
 
@@ -119,6 +120,10 @@ def main(settings):
 
     # main
     for j in range(settings['num_starts']):
+        train_results[f"start_{j}"] = {}
+        val_results[f"start_{j}"] = {}
+        test_results[f"start_{j}"] = {}
+
         optimizer = torch.optim.Adam(solver.model_params(), settings['lr'])
         if settings['use_scheduler']:
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, settings['scheduler_milestones'])
@@ -143,7 +148,7 @@ def main(settings):
 
             # run eval on train set (mainly for debugging)
             if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
-                train_results[f"epoch_{e}"] = evaluate(solver, scores, 
+                train_results[f"start_{j}"][f"epoch_{e}"] = evaluate(solver, scores, 
                     data_loader=train_loader,
                     logdir=logdir,
                     reference_point=settings['reference_point'],
@@ -174,7 +179,7 @@ def main(settings):
                 })
 
                 print("Validation: Epoch {:03d}, hv={:.4f}                        ".format(e, result['hv']))
-                val_results["epoch_{}".format(e)] = result
+                val_results[f"start_{j}"]["epoch_{}".format(e)] = result
 
                 with open(pathlib.Path(logdir) / "val_results.json", "w") as file:
                     json.dump(val_results, file)
@@ -191,7 +196,7 @@ def main(settings):
                     "training_time_so_far": elapsed_time,
                 })
 
-                test_results["epoch_{}".format(e)] = result
+                test_results[f"start_{j}"]["epoch_{}".format(e)] = result
 
                 with open(pathlib.Path(logdir) / "test_results.json", "w") as file:
                                 json.dump(test_results, file)
@@ -200,15 +205,15 @@ def main(settings):
                 pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
                 torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{:03d}.pth'.format(e)))
 
-    print("epoch_max={}, val_volume_max={}".format(epoch_max, volume_max))
+        print("epoch_max={}, val_volume_max={}".format(epoch_max, volume_max))
     
     
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='mm')
-    parser.add_argument('--method', '-m', default='hyper')
+    parser.add_argument('--dataset', '-d', default='adult')
+    parser.add_argument('--method', '-m', default='pmtl')
     args = parser.parse_args()
 
     settings = s.generic
@@ -219,6 +224,8 @@ if __name__ == "__main__":
         settings.update(s.afeature)
     elif args.method == 'hyper':
         settings.update(s.hyperSolver)
+    elif args.method == 'pmtl':
+        settings.update(s.paretoMTL)
     
 
     if args.dataset == 'mm':

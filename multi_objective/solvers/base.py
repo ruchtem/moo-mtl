@@ -25,6 +25,10 @@ class BaseSolver():
         loss.backward()
     
 
+    def log(self):
+        return {}
+
+
     def eval_step(self, batch):
         with torch.no_grad():
             return[self.model(batch)]
