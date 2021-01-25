@@ -80,30 +80,36 @@ def main(settings):
 
     epoch_max = -1
     volume_max = -1
+    elapsed_time = 0
 
-    val_results = {}
+    val_results = dict(settings=settings)
 
     # main
     for j in range(settings['num_starts']):
         optimizer = torch.optim.Adam(solver.model_params(), settings['lr'])
         # optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[8, ])
-
+        
         for e in range(settings['epochs']):
+            
+            tick = time.time()
             solver.new_epoch(e)
             for b, batch in enumerate(train_loader):
-                tick = time.time()
+                
                 batch = utils.dict_to_cuda(batch)
 
                 optimizer.zero_grad()
                 loss = solver.step(batch)
                 optimizer.step()
-                print("Epoch {:03d}, batch {:03d}, execution_time {:.4f}, train_loss {:.4f}".format(e, b, time.time() - tick, loss), end='\r')
+                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}".format(e, b, loss), end='\r')
             
             if use_scheduler:
                 scheduler.step()
                 print(scheduler.get_last_lr())
-
+            tock = time.time()
+            elapsed_time += (tock - tick)
+            
+            # Validation
             if (e+1) % settings['eval_every'] == 0:
                 score_values = np.array([])
                 for batch in val_loader:
@@ -139,7 +145,8 @@ def main(settings):
                     "scores": score_values.tolist(),
                     "hv": volume,
                     "max_epoch_so_far": epoch_max,
-                    "max_volume_so_far": volume_max
+                    "max_volume_so_far": volume_max,
+                    "training_time_so_far": elapsed_time,
                 }
 
                 with open(pathlib.Path(logdir) / "val_results.json", "w") as file:
