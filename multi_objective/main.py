@@ -182,6 +182,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     settings = s.generic
+    
+    if args.method == 'single_task':
+        settings.update(s.SingleTaskSolver)
+    elif args.method == 'afeature':
+        settings.update(s.afeature)
+    elif args.method == 'hyper':
+        settings.update(s.hyperSolver)
+    
 
     if args.dataset == 'mm':
         settings.update(s.multi_mnist)
@@ -195,12 +203,5 @@ if __name__ == "__main__":
         settings.update(s.compas)
     elif args.dataset == 'celeba':
         settings.update(s.celeba)
-    
-    if args.method == 'single_task':
-        settings.update(s.SingleTaskSolver)
-    elif args.method == 'afeature':
-        settings.update(s.afeature)
-    elif args.method == 'hyper':
-        settings.update(s.hyperSolver)
 
     main(settings)
