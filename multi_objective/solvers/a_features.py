@@ -51,26 +51,38 @@ def alpha_as_feature(batch, early_fusion=True, append=False, overwrite=False):
 
 
 class AlphaGenerator(nn.Module):
-    def __init__(self, K, child_model, hidden_dim=2, target_size=(36, 36)):
+    def __init__(self, K, child_model, input_dim, hidden_dim=2):
         super().__init__()
-        self.main = nn.Sequential(
-            nn.ConvTranspose2d(K, hidden_dim, kernel_size=4, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(hidden_dim, hidden_dim, kernel_size=6, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.Upsample(target_size)
-        )
+
+        if len(input_dim) == 1:
+            # tabular data
+            self.tabular = True
+        elif len(input_dim) == 3:
+            # image data
+            self.tabular = False
+            self.main = nn.Sequential(
+                nn.ConvTranspose2d(K, hidden_dim, kernel_size=4, stride=1, padding=0, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(hidden_dim, hidden_dim, kernel_size=6, stride=2, padding=1, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU(inplace=True),
+                nn.Upsample(dim[-2:])
+            )
+        else:
+            raise ValueError(f"Unknown dataset structure, expected 1 or 3 dimensions, got {dim}")
+
         self.child_model = child_model
 
     def forward(self, batch):
         b = batch['data'].shape[0]
         a = batch['alpha'].repeat(b, 1)
-        a = a.reshape(b, len(batch['alpha']), 1, 1)
 
-        a = self.main(a)
-
+        if not self.tabular:
+            # use transposed convolution
+            a = a.reshape(b, len(batch['alpha']), 1, 1)
+            a = self.main(a)
+        
         x = torch.cat((batch['data'], a), dim=1)
 
         return self.child_model(dict(data=x))
@@ -91,7 +103,7 @@ class AFeaturesSolver(BaseSolver):
 
         model = model_from_dataset(method='afeature', dim=dim, late_fusion=late_fusion, **kwargs)
 
-        self.model = AlphaGenerator(self.K, model, alpha_generator_dim, target_size=dim[-2:]).cuda()
+        self.model = AlphaGenerator(self.K, model, dim, alpha_generator_dim).cuda()
 
         print("Number of parameters: {}".format(num_parameters(self.model)))
 

@@ -143,11 +143,28 @@ def is_pareto_efficient(costs, return_mask=True):
             return is_efficient
 
 
+class AverageMeter(object):
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.avg = 0
+        self.sum = 0
+        self.cnt = 0
+
+    def update(self, val, n=1):
+        self.sum += val * n
+        self.cnt += n
+        self.avg = self.sum / self.cnt
+
+
 class ParetoFront():
 
-    def __init__(self, labels, logdir='tmp'):
+    def __init__(self, labels, logdir='tmp', prefix=""):
         self.labels = labels
         self.logdir = os.path.join(logdir, 'pf')
+        self.prefix = prefix
         self.points = np.array([])
         self.e = 0
 
@@ -179,7 +196,6 @@ class ParetoFront():
         plt.xlabel(self.labels[0])
         plt.ylabel(self.labels[1])
         # plt.legend()
-        plt.savefig(os.path.join(self.logdir, "x_e{:03d}.png".format(self.e)))
-        plt.savefig(os.path.join(self.logdir, 'latest.png'))
+        plt.savefig(os.path.join(self.logdir, "x_{}.png".format(self.prefix)))
         plt.close()
         self.e += 1

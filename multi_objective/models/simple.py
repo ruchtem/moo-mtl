@@ -61,7 +61,7 @@ class FullyConnected(nn.Module):
     def __init__(self, dim, **kwargs):
         super().__init__()
         self.f = nn.Sequential(
-            nn.Linear(dim, 60),
+            nn.Linear(dim[0], 60),
             nn.ReLU(),
             #nn.Dropout(p=0.2),
             nn.Linear(60, 25),
