@@ -53,7 +53,7 @@ def load_dataset(root, s_label):
 
 class Compas(torch.utils.data.Dataset):
 
-    def __init__(self, split, root='data/compas', sensible_attribute='sex'):
+    def __init__(self, split, root='data/compas', sensible_attribute='sex', **kwargs):
         assert split in ['train', 'val', 'test']
         
         x, y, s = load_dataset(root, sensible_attribute)

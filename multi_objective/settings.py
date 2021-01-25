@@ -2,22 +2,28 @@
 adult = dict(
     dataset='adult',
     dim=(88,),
-    objectives=['BinaryCrossEntropyLoss', 'ddp'],
+    objectives=['BinaryCrossEntropyLoss', 'deo'],
     reference_point=[1, 1],
+    epochs=50,
+    use_scheduler=False,
 )
 
 credit = dict(
     dataset='credit',
     dim=(90,),
-    objectives=['BinaryCrossEntropyLoss', 'ddp'],
+    objectives=['BinaryCrossEntropyLoss', 'deo'],
     reference_point=[1, 1],
+    epochs=50,
+    use_scheduler=False,
 )
 
 compas = dict(
     dataset='compas',
     dim=(20,),
-    objectives=['BinaryCrossEntropyLoss', 'ddp'],
+    objectives=['BinaryCrossEntropyLoss', 'deo'],
     reference_point=[1, 1],
+    epochs=50,
+    use_scheduler=False,
 )
 
 multi_mnist = dict(
@@ -25,6 +31,7 @@ multi_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
+    scheduler_milestones=[15,30,45,60,75,90],
 )
 
 
@@ -33,6 +40,7 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
+    scheduler_milestones=[15,30,45,60,75,90],
 )
 
 celeba = dict(
@@ -51,16 +59,14 @@ paretoMTL = dict(
     batch_size=256,
     epochs=5,
     num_starts=5,
-    warmstart=False
 )
 
 afeature = dict(
     method='afeature',
-    lr=1e-4,
+    lr=1e-3,
     batch_size=256,
     epochs=150,
     num_starts=1,
-    warmstart=True,
     early_fusion=True,
     late_fusion=False,
     alpha_generator_dim=2,
@@ -73,7 +79,6 @@ SingleTaskSolver = dict(
     batch_size=256,
     epochs=100,
     num_starts=1,
-    warmstart=False,
     task=0,
 )
 
@@ -83,7 +88,6 @@ hyperSolver = dict(
     batch_size=256,
     epochs=100,     # 100 for multi_mnist
     num_starts=1,
-    warmstart=False,
     alpha_dir=.2,   # dirichlet sampling
 )
 
@@ -92,4 +96,6 @@ generic = dict(
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
     eval_every=1,
+    train_eval_every=1, # 0 for not evaluating on the train set
+    use_scheduler=True,
 )

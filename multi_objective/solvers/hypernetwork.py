@@ -7,7 +7,7 @@ import numpy as np
 from typing import List
 from abc import abstractmethod
 
-from utils import num_parameters
+from utils import num_parameters, circle_points
 from solvers.base import BaseSolver
 
 """
@@ -160,16 +160,6 @@ class LinearScalarizationSolver(Solver):
 
     def get_weighted_loss(self, losses, ray, parameters=None, **kwargs):
         return (losses * ray).sum()
-
-
-def circle_points(K, min_angle=0.1, max_angle=np.pi / 2 - 0.1):
-    # generate evenly distributed preference vector
-    ang0 = 1e-6 if min_angle is None else min_angle
-    ang1 = np.pi / 2 - ang0 if max_angle is None else max_angle
-    angles = np.linspace(ang0, ang1, K, endpoint=True)
-    x = np.cos(angles)
-    y = np.sin(angles)
-    return np.c_[x, y]
 
 
 class HypernetSolver(BaseSolver):

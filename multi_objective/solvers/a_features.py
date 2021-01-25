@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils import calc_gradients, flatten_grads, num_parameters, model_from_dataset
+from utils import calc_gradients, flatten_grads, num_parameters, model_from_dataset, circle_points
 from solvers.base import BaseSolver
 
 def uniform_sample_alpha(size):
@@ -67,7 +67,7 @@ class AlphaGenerator(nn.Module):
                 nn.ConvTranspose2d(hidden_dim, hidden_dim, kernel_size=6, stride=2, padding=1, bias=False),
                 nn.BatchNorm2d(hidden_dim),
                 nn.ReLU(inplace=True),
-                nn.Upsample(dim[-2:])
+                nn.Upsample(input_dim[-2:])
             )
         else:
             raise ValueError(f"Unknown dataset structure, expected 1 or 3 dimensions, got {dim}")
@@ -91,12 +91,13 @@ class AlphaGenerator(nn.Module):
 
 class AFeaturesSolver(BaseSolver):
 
-    def __init__(self, objectives, alpha_dir, dim, early_fusion, late_fusion, alpha_generator_dim, **kwargs):
+    def __init__(self, objectives, alpha_dir, dim, early_fusion, late_fusion, alpha_generator_dim, n_test_rays, **kwargs):
         self.objectives = objectives
         self.K = len(objectives)
         self.early_fusion = early_fusion
         self.late_fusion = late_fusion
         self.alpha_dir = alpha_dir
+        self.n_test_rays = n_test_rays
 
         dim = list(dim)
         dim[0] = dim[0] if not early_fusion else dim[0] + alpha_generator_dim
@@ -151,8 +152,13 @@ class AFeaturesSolver(BaseSolver):
         self.model.eval()
         logits = []
         with torch.no_grad():
-            for i, a in enumerate(np.linspace(.001, .999, 20)):
-                batch['alpha'] = torch.Tensor([a, 1-a]).cuda()
+            test_rays = circle_points(self.n_test_rays)
+
+            for ray in test_rays:
+                ray = torch.from_numpy(ray.astype(np.float32)).cuda()
+                ray /= ray.sum()
+
+                batch['alpha'] = ray
                 logits.append(self.model(batch))
         return logits
 

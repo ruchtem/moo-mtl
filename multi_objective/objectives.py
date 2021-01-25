@@ -89,7 +89,7 @@ class DDPHyperbolicTangentRelaxation():
         self.c = c
 
     def __call__(self, **kwargs):
-        logits = kwargs['logits']
+        logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
         sensible_attribute = kwargs[self.s_name]
 
@@ -103,20 +103,21 @@ class DDPHyperbolicTangentRelaxation():
 
 class DEOHyperbolicTangentRelaxation():
 
-    def __init__(self, label_name='labels', s_name='sensible_attribute', c=1):
+    def __init__(self, label_name='labels', logits_name='logits', s_name='sensible_attribute', c=1):
         self.label_name = label_name
+        self.logits_name = logits_name
         self.s_name = s_name
         self.c = c
 
     def __call__(self, **kwargs):
-        logits = kwargs['logits']
+        logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
         sensible_attribute = kwargs[self.s_name]
 
         n = logits.shape[0]
         logits = torch.sigmoid(logits)
-        s_negative = logits[(sensible_attribute.bool()) & (targets == 1)]
-        s_positive = logits[(~sensible_attribute.bool()) & (targets == 1)]
+        s_negative = logits[(sensible_attribute.bool()) & (labels == 1)]
+        s_positive = logits[(~sensible_attribute.bool()) & (labels == 1)]
 
         return 1/n * torch.abs(torch.sum(torch.tanh(self.c * torch.relu(s_positive))) - torch.sum(torch.tanh(self.c * torch.relu(s_negative))))
 

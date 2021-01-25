@@ -43,6 +43,10 @@ class BinaryCrossEntropy(BaseScore):
     def __call__(self, **kwargs):
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
+
+        if logits.shape[1] == 1:
+            logits = torch.squeeze(logits)
+
         with torch.no_grad():
             return torch.nn.functional.binary_cross_entropy_with_logits(logits, labels.float(), reduction='mean').item()
 
@@ -87,7 +91,7 @@ class DDP(BaseScore):
             logits_s_negative = logits[sensible_attribute.bool()]
             logits_s_positive = logits[~sensible_attribute.bool()]
 
-            return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0).item()).cpu().item()
+            return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0)).cpu().item()
 
 
 class DEO(BaseScore):
@@ -103,4 +107,4 @@ class DEO(BaseScore):
             logits_s_negative = logits[(sensible_attribute.bool()) & (labels == 1)]
             logits_s_positive = logits[(~sensible_attribute.bool()) & (labels == 1)]
 
-            return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0).item()).cpu().item()        
+            return torch.abs(1/n*sum(logits_s_negative > 0) - 1/n*sum(logits_s_positive > 0)).cpu().item()        

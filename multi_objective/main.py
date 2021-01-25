@@ -1,16 +1,6 @@
-import argparse
 import torch
-import os
-import pathlib
 import random
-import time
-import json
 import numpy as np
-import matplotlib.pyplot as plt
-from torch.utils import data
-from collections import deque
-from copy import deepcopy
-from datetime import datetime
 
 seed = 42
 
@@ -25,6 +15,18 @@ if torch.cuda.is_available():
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
+
+import argparse
+import os
+import pathlib
+import time
+import json
+import matplotlib.pyplot as plt
+from torch.utils import data
+from collections import deque
+from copy import deepcopy
+from datetime import datetime
+
 
 import utils
 import settings as s
@@ -52,9 +54,40 @@ def solver_from_name(method, **kwargs):
         raise ValueError("Unkown method {}".format(method))
 
 
+def evaluate(solver, scores, data_loader, logdir, reference_point, prefix):
+
+    score_values = np.array([])
+    for batch in data_loader:
+        batch = utils.dict_to_cuda(batch)
+        
+        # more than one for some solvers
+        s = []
+        for l in solver.eval_step(batch):
+            batch.update(l)
+            s.append([s(**batch) for s in scores])
+        if score_values.size == 0:
+            score_values = np.array(s)
+        else:
+            score_values += np.array(s)
+    
+    score_values /= len(data_loader)
+    hv = HyperVolume(reference_point)
+    volume = hv.compute(score_values)
+    
+    if len(scores) == 2:
+        pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir, prefix)
+        pareto_front.append(score_values)
+        pareto_front.plot()
+
+    return {
+        "scores": score_values.tolist(),
+        "hv": volume,
+    }
+
+
+
 def main(settings):
     print("start processig with settings", settings)
-    use_scheduler = False
 
     # create the experiment folders
     slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ else None
@@ -74,8 +107,6 @@ def main(settings):
     objectives = from_name(settings.pop('objectives'), train_set.task_names())
     scores = from_objectives(objectives)
 
-    pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir)
-
     solver = solver_from_name(objectives=objectives, **settings)
 
     epoch_max = -1
@@ -83,103 +114,89 @@ def main(settings):
     elapsed_time = 0
 
     val_results = dict(settings=settings)
+    train_results = dict(settings=settings)
 
     # main
     for j in range(settings['num_starts']):
         optimizer = torch.optim.Adam(solver.model_params(), settings['lr'])
-        # optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[8, ])
+        if settings['use_scheduler']:
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, settings['scheduler_milestones'])
         
         for e in range(settings['epochs']):
-            
             tick = time.time()
             solver.new_epoch(e)
-            for b, batch in enumerate(train_loader):
-                
-                batch = utils.dict_to_cuda(batch)
 
+            for b, batch in enumerate(train_loader):
+                batch = utils.dict_to_cuda(batch)
                 optimizer.zero_grad()
                 loss = solver.step(batch)
                 optimizer.step()
                 print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}".format(e, b, loss), end='\r')
             
-            if use_scheduler:
+            if settings['use_scheduler']:
                 scheduler.step()
-                print(scheduler.get_last_lr())
+                print("Current lr:", scheduler.get_last_lr())
+            
             tock = time.time()
             elapsed_time += (tock - tick)
-            
-            # Validation
-            if (e+1) % settings['eval_every'] == 0:
-                score_values = np.array([])
-                for batch in val_loader:
-                    batch = utils.dict_to_cuda(batch)
-                    
-                    # more than one for some solvers
-                    s = []
-                    for l in solver.eval_step(batch):
-                        batch.update(l)
-                        s.append([s(**batch) for s in scores])
-                    if score_values.size == 0:
-                        score_values = np.array(s)
-                    else:
-                        score_values += np.array(s)
-                
-                score_values /= len(val_loader)
-                hv = HyperVolume(settings['reference_point'])
-                volume = hv.compute(score_values)
 
-                if volume > volume_max:
-                    volume_max = volume
+            # run eval on train set (mainly for debugging)
+            if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
+                train_results[f"epoch_{e}"] = evaluate(solver, scores, 
+                    data_loader=train_loader,
+                    logdir=logdir,
+                    reference_point=settings['reference_point'],
+                    prefix=f"train_{e}",
+                )
+
+                with open(pathlib.Path(logdir) / "train_results.json", "w") as file:
+                    json.dump(train_results, file)
+
+            
+            
+            if (e+1) % settings['eval_every'] == 0:
+                # Validation results
+                result = evaluate(solver, scores, 
+                    data_loader=val_loader,
+                    logdir=logdir,
+                    reference_point=settings['reference_point'],
+                    prefix=f"val_{e}",
+                )
+
+                if result['hv'] > volume_max:
+                    volume_max = result['hv']
                     epoch_max = e
                 
-                try:
-                    pareto_front.points = []
-                    pareto_front.append(score_values)
-                    pareto_front.plot()
-                except:
-                    pass
-
-                print("Epoch {:03d}, hv={:.4f}                        ".format(e, volume))
-                val_results["epoch_{}".format(e)] = {
-                    "scores": score_values.tolist(),
-                    "hv": volume,
+                result.update({
                     "max_epoch_so_far": epoch_max,
                     "max_volume_so_far": volume_max,
                     "training_time_so_far": elapsed_time,
-                }
+                })
+
+                print("Validation: Epoch {:03d}, hv={:.4f}                        ".format(e, result['hv']))
+                val_results["epoch_{}".format(e)] = result
 
                 with open(pathlib.Path(logdir) / "val_results.json", "w") as file:
                     json.dump(val_results, file)
 
+                # test results
+                test_results = evaluate(solver, scores, 
+                    data_loader=test_loader,
+                    logdir=logdir,
+                    reference_point=settings['reference_point'],
+                    prefix=f"test_{e}",
+                )
+
+                with open(pathlib.Path(logdir) / "test_results.json", "w") as file:
+                                json.dump(test_results, file)
+
+                # Checkpoints
                 pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
                 torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{:03d}.pth'.format(e)))
 
-    print("epoch_max={}, volume_max={}".format(epoch_max, volume_max))
-    score_values = np.array([])
-    for batch in test_loader:
-        batch = utils.dict_to_cuda(batch)
-        
-        # more than one for some solvers
-        s = []
-        for l in solver.eval_step(batch):
-            batch.update(l)
-            s.append([s(**batch) for s in scores])
-        if score_values.size == 0:
-            score_values = np.array(s)
-        else:
-            score_values += np.array(s)
-
-    score_values /= len(test_loader)
-
-    pareto_front.points = []
-    pareto_front.append(score_values)
-    pareto_front.plot()
-
-    hv = HyperVolume(settings['reference_point'])
-    volume = hv.compute(score_values)
-
-    print("test hv={}, scores={}".format(volume, score_values))
+    print("epoch_max={}, val_volume_max={}".format(epoch_max, volume_max))
+    
+    
 
 
 if __name__ == "__main__":
