@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from itertools import chain, combinations
 
-from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader
+from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
 from models import simple, efficient_net
 
 

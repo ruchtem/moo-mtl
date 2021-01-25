@@ -33,7 +33,7 @@ def load_dataset(root, s_label):
 
 class Credit(torch.utils.data.Dataset):
 
-    def __init__(self, split, root='data/credit', sensible_attribute='SEX'):
+    def __init__(self, split, root='data/credit', sensible_attribute='SEX', **kwargs):
         assert split in ['train', 'val', 'test']
         
         x, y, s = load_dataset(root, sensible_attribute)
