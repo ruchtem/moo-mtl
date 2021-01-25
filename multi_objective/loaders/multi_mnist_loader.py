@@ -59,7 +59,13 @@ class MultiMNIST(torch.utils.data.Dataset):
         
         # self.X = torch.unsqueeze(self.X, dim=1)
 
-        self.path = 'data/multi/multi_mnist.pickle'
+        if dataset == 'mnist':
+            self.path = 'data/multi/multi_mnist.pickle'
+        elif dataset == 'fashion':
+            self.path = 'data/multi/multi_fashion.pickle'
+        elif dataset == 'fashion_and_mnist':
+            self.path = 'data/multi/multi_fashion_and_mnist.pickle'
+        
         self.val_size = .1
         with open(self.path, 'rb') as f:
             trainX, trainLabel, testX, testLabel = pickle.load(f)
