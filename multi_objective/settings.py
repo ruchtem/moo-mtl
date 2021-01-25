@@ -88,8 +88,7 @@ SingleTaskSolver = dict(
     lr=1e-3,
     batch_size=256,
     epochs=150,
-    num_starts=1,
-    task=0,
+    num_starts=2,
 )
 
 hyperSolver = dict(

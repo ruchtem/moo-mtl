@@ -34,9 +34,7 @@ from objectives import from_name
 from hv import HyperVolume
 
 
-from solvers.a_features import AFeaturesSolver
-from solvers.base import BaseSolver
-from solvers import HypernetSolver, ParetoMTLSolver
+from solvers import HypernetSolver, ParetoMTLSolver, SingleTaskSolver, AFeaturesSolver
 from scores import mcr, DDP, from_objectives
 
 
@@ -46,7 +44,7 @@ def solver_from_name(method, **kwargs):
     elif method == 'afeature':
         return AFeaturesSolver(**kwargs)
     elif method == 'SingleTask':
-        return BaseSolver(**kwargs)
+        return SingleTaskSolver(**kwargs)
     elif method == 'hyper':
         return HypernetSolver(**kwargs)
     else:
@@ -213,7 +211,7 @@ def main(settings):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='adult')
-    parser.add_argument('--method', '-m', default='pmtl')
+    parser.add_argument('--method', '-m', default='single_task')
     args = parser.parse_args()
 
     settings = s.generic
