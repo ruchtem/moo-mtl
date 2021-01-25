@@ -60,6 +60,7 @@ celeba = dict(
     objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
     reference_point=[1 for _ in range(40)],
     n_test_rays=100,
+    use_scheduler=False,
 )
 
 paretoMTL = dict(

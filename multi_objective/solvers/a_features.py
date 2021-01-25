@@ -129,7 +129,6 @@ class AFeaturesSolver(BaseSolver):
 
 
     def eval_step(self, batch):
-        assert self.K <= 2
         self.model.eval()
         logits = []
         with torch.no_grad():

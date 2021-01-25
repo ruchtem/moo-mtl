@@ -44,7 +44,7 @@ class BinaryCrossEntropy(BaseScore):
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
 
-        if logits.shape[1] == 1:
+        if len(logits.shape) > 1 and logits.shape[1] == 1:
             logits = torch.squeeze(logits)
 
         with torch.no_grad():
