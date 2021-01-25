@@ -113,8 +113,9 @@ def main(settings):
     volume_max = -1
     elapsed_time = 0
 
-    val_results = dict(settings=settings)
     train_results = dict(settings=settings)
+    val_results = dict(settings=settings)
+    test_results = dict(settings=settings)
 
     # main
     for j in range(settings['num_starts']):
@@ -153,7 +154,6 @@ def main(settings):
                     json.dump(train_results, file)
 
             
-            
             if (e+1) % settings['eval_every'] == 0:
                 # Validation results
                 result = evaluate(solver, scores, 
@@ -180,12 +180,18 @@ def main(settings):
                     json.dump(val_results, file)
 
                 # test results
-                test_results = evaluate(solver, scores, 
+                result = evaluate(solver, scores, 
                     data_loader=test_loader,
                     logdir=logdir,
                     reference_point=settings['reference_point'],
                     prefix=f"test_{e}",
                 )
+
+                result.update({
+                    "training_time_so_far": elapsed_time,
+                })
+
+                test_results["epoch_{}".format(e)] = result
 
                 with open(pathlib.Path(logdir) / "test_results.json", "w") as file:
                                 json.dump(test_results, file)
@@ -201,7 +207,7 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='fm')
+    parser.add_argument('--dataset', '-d', default='mm')
     parser.add_argument('--method', '-m', default='afeature')
     args = parser.parse_args()
 
