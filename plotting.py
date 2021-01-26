@@ -13,9 +13,24 @@ def natural_sort(l):
     return sorted(l, key = alphanum_key)
 
 
-def get_early_stop(epoch_data):
-    last_epoch = epoch_data[natural_sort(epoch_data.keys())[-1]]
-    return last_epoch['max_epoch_so_far']
+def get_early_stop(epoch_data, key='hv'):
+    assert key in ['hv', 'score']
+    if key == 'hv':
+        last_epoch = epoch_data[natural_sort(epoch_data.keys())[-1]]
+        return last_epoch['max_epoch_so_far']
+    else:
+        min_score = 1e15
+        min_epoch = -1
+        for e in natural_sort(epoch_data.keys()):
+
+            s = epoch_data[e]['scores'][0]
+            s = s[epoch_data[e]['task']]
+
+            if s < min_score:
+                min_score = s
+                min_epoch = e
+
+        return int(min_epoch.replace('epoch_', ''))
 
 
 def fix_scores_dim(scores):
@@ -85,14 +100,14 @@ for dataset in datasets:
             result_i['early_stop_epoch'] = []
             for s in sorted(data_val.keys()):
                 if 'start_' in s:
-                    e = "epoch_{}".format(get_early_stop(data_val[s]))
+                    e = "epoch_{}".format(get_early_stop(data_val[s], key='score' if method=='SingleTask' else 'hv'))
                     val_results = data_val[s][e]
                     test_results = data_test[s][e]
 
                     # the last training time is the correct one, so just override
                     result_i['training_time'] = test_results['training_time_so_far']
 
-                    result_i['early_stop_epoch'].append(get_early_stop(data_val[s]))
+                    result_i['early_stop_epoch'].append(int(e.replace('epoch_', '')))
 
                     if method == 'SingleTask':
                         # we have the task id for the score
