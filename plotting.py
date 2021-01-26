@@ -56,6 +56,16 @@ reference_points = {
     'celeba': [1 for _ in range(40)]
 }
 
+ignore_runs = [
+    2063228, 2063268, 2063270, 2063295, 2063324, 2063289,   # uniform sampling
+    2073329, 2073329, 2073329,                              # grid search last result
+    #2074353, 2074354, 2074355, 2074357, 2074358, 'a_dirichlet_0.2',  # alpha dirichlet = .2
+    2074379, 2074380, 2074381, 2074383, 2074384, 'a_dirichlet_0.3', # alpha dirichlet = .3          
+    2074385, 2074386, 2074387, 2074389, 2074390, 'a_dirichlet_0.1', # alpha dirichlet = .1
+]
+
+
+
 p = Path(dirname)
 all_files = list(p.glob('**/*.json'))
 
@@ -64,9 +74,14 @@ results = {}
 for dataset in datasets:
     results[dataset] = {}
     for method in methods:
-        val_file = list(p.glob(f'**/{dataset}/{method}/**/val*.json'))
-        test_file = list(p.glob(f'**/{dataset}/{method}/**/test*.json'))
-        train_file = list(p.glob(f'**/{dataset}/{method}/**/train*.json'))
+        # ignore folders that start with underscore
+        val_file = list(p.glob(f'**/{dataset}/{method}/[!_]*/val*.json'))
+        test_file = list(p.glob(f'**/{dataset}/{method}/[!_]*/test*.json'))
+        train_file = list(p.glob(f'**/{dataset}/{method}/[!_]*/train*.json'))
+
+        for r in ignore_runs:
+            val_file = [f for f in val_file if str(r) not in f.parts]
+            test_file = [f for f in test_file if str(r) not in f.parts]
 
         assert len(val_file) == 1
         assert len(test_file) == 1

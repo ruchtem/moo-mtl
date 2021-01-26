@@ -21,6 +21,7 @@ import os
 import pathlib
 import time
 import json
+import itertools
 import matplotlib.pyplot as plt
 from torch.utils import data
 from collections import deque
@@ -69,8 +70,18 @@ def evaluate(solver, scores, data_loader, logdir, reference_point, prefix):
     
     score_values /= len(data_loader)
     hv = HyperVolume(reference_point)
-    volume = hv.compute(score_values)
-    
+
+    if score_values.shape[1] > 2:
+        # computing hypervolume in high dimensions is expensive
+        # Do only pairwise hypervolume and report the average
+        n, m = score_values.shape
+        volume = 0
+        for columns in itertools.combinations(range(m), 2):
+            volume += hv.compute(score_values[:, columns])
+        volume /= len(list(itertools.combinations(range(m), 2)))
+    else:
+        volume = hv.compute(score_values)
+
     if len(scores) == 2:
         pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir, prefix)
         pareto_front.append(score_values)
@@ -207,13 +218,13 @@ def main(settings):
     return volume_max
 
     
-    
+
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='adult')
-    parser.add_argument('--method', '-m', default='pmtl')
+    parser.add_argument('--dataset', '-d', default='celeba')
+    parser.add_argument('--method', '-m', default='afeature')
     args = parser.parse_args()
 
     settings = s.generic
