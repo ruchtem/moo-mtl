@@ -204,6 +204,8 @@ def main(settings):
                 torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
 
         print("epoch_max={}, val_volume_max={}".format(epoch_max, volume_max))
+    return volume_max
+
     
     
 
@@ -211,7 +213,7 @@ def main(settings):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='adult')
-    parser.add_argument('--method', '-m', default='single_task')
+    parser.add_argument('--method', '-m', default='pmtl')
     args = parser.parse_args()
 
     settings = s.generic
