@@ -66,7 +66,7 @@ celeba = dict(
     reference_point=[1 for _ in range(40)],
     n_test_rays=100,
     scheduler_milestones=[15,30],
-    model_name='efficientnet-b0',
+    model_name='efficientnet-b3',
 )
 
 #
