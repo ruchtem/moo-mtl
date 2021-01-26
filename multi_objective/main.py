@@ -157,6 +157,7 @@ def main(settings):
 
             # run eval on train set (mainly for debugging)
             if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
+                print("train eval at: {}".format(datetime.now()))
                 train_results[f"start_{j}"][f"epoch_{e}"] = evaluate(solver, scores, 
                     data_loader=train_loader,
                     logdir=logdir,
@@ -170,6 +171,7 @@ def main(settings):
             
             if (e+1) % settings['eval_every'] == 0:
                 # Validation results
+                print("val eval at: {}".format(datetime.now()))
                 result = evaluate(solver, scores, 
                     data_loader=val_loader,
                     logdir=logdir,
@@ -187,13 +189,14 @@ def main(settings):
                     "training_time_so_far": elapsed_time,
                 })
 
-                print("Validation: Epoch {:03d}, hv={:.4f}                        ".format(e, result['hv']))
+                print("Validation: Epoch {:03d}, hv={:.4f}".format(e, result['hv']))
                 val_results[f"start_{j}"]["epoch_{}".format(e)] = result
 
                 with open(pathlib.Path(logdir) / "val_results.json", "w") as file:
                     json.dump(val_results, file)
 
                 # test results
+                print("test eval at: {}".format(datetime.now()))
                 result = evaluate(solver, scores, 
                     data_loader=test_loader,
                     logdir=logdir,

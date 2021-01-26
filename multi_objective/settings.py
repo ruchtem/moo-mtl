@@ -89,8 +89,8 @@ afeature = dict(
     early_fusion=True,
     late_fusion=False,
     alpha_generator_dim=2,
-    alpha_dir=None,   # dirichlet sampling, None=Uniform sampling
-    train_eval_every=1,
+    alpha_dir=0.2,   # dirichlet sampling, None=Uniform sampling
+    train_eval_every=2,
 )
 
 SingleTaskSolver = dict(
