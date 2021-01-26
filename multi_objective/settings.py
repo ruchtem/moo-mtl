@@ -1,4 +1,8 @@
+# datsets override methods override generic
 
+#
+# datasets
+#
 adult = dict(
     dataset='adult',
     dim=(88,),
@@ -56,13 +60,18 @@ celeba = dict(
     dim=(3, 64, 64),
     # task_ids=[22, 39],   # list(range(40)) for all tasks
     # objectives=['BinaryCrossEntropyLoss', 'BinaryCrossEntropyLoss'],
+    # reference_point=[1, 1],
     task_ids=list(range(40)),
     objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
     reference_point=[1 for _ in range(40)],
     n_test_rays=100,
-    use_scheduler=False,
+    scheduler_milestones=[15,30],
+    model_name='efficientnet-b0',
 )
 
+#
+# methods
+#
 paretoMTL = dict(
     method='ParetoMTL',
     lr=1e-3,
@@ -102,6 +111,9 @@ hyperSolver = dict(
     use_scheduler=False,
 )
 
+#
+# Common settings
+#
 generic = dict(
     logdir='results',
     num_workers=4,  # dataloader worker threads
