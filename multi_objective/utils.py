@@ -95,7 +95,7 @@ def flatten_grads(grads):
 
 
 def reset_weights(model):
-    for layer in model.children():
+    for layer in model.modules():
         if isinstance(layer, torch.nn.Conv2d) or isinstance(layer, torch.nn.Linear):
             layer.reset_parameters()
 
