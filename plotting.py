@@ -140,7 +140,8 @@ for dataset in datasets:
     for method in methods:
         r = results[dataset][method]
         s = np.array(r['test_scores'])
-        plt.plot(s[:, 0], s[:, 1], '.', label="{}, hv={:.4f}, e={}".format(method, r['test_hv'], r['early_stop_epoch']))
+        plt.plot(s[:, 0], s[:, 1], '.', label="{}, hv={:.4f}, e={}, t={:.0f}".format(
+            method, r['test_hv'], r['early_stop_epoch'], r['training_time']))
     
     plt.title(dataset)
     plt.legend()

@@ -112,6 +112,8 @@ class ParetoMTLSolver(BaseSolver):
 
         self.model = model_from_dataset(method='paretoMTL', **kwargs).cuda()
         self.pref_idx = -1
+        # the original ref_vec can be obtained by circle_points(self.num_pareto_points, min_angle=0.0, max_angle=0.5 * np.pi)
+        # we use the same min angle / max angle as for the other methods for comparison.
         self.ref_vec = torch.Tensor(circle_points(self.num_pareto_points)).cuda().float()
 
 
