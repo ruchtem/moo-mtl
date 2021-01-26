@@ -4,6 +4,9 @@ saved_models/
 .vscode/
 tmp/
 results/
+cluster_results/
+
+*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -201,7 +201,7 @@ def main(settings):
 
                 # Checkpoints
                 pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
-                torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{:03d}.pth'.format(e)))
+                torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
 
         print("epoch_max={}, val_volume_max={}".format(epoch_max, volume_max))
     
