@@ -87,7 +87,7 @@ class COSMOSSolver(BaseSolver):
             # calulate the gradient and update the parameters
             gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
             epo_lp = EPO_LP(m=self.K, n=self.n_params, r=batch['alpha'].cpu().numpy())
-            batch['alpha'] = alpha_from_epo(epo_lp, gradients, obj_values, batch['alpha'])
+            batch['alpha'] = alpha_from_epo(epo_lp, gradients, obj_values, batch['alpha'].cpu().numpy())
         
             private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
             for name, param in self.model.named_parameters():
