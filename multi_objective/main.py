@@ -100,7 +100,7 @@ def main(settings):
     print("start processig with settings", settings)
 
     # create the experiment folders
-    slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ else None
+    slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ and 'hpo' not in settings['logdir'] else None
     logdir = os.path.join(settings['logdir'], settings['dataset'], settings['method'], slurm_job_id if slurm_job_id else datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
@@ -147,6 +147,7 @@ def main(settings):
                 loss = solver.step(batch)
                 optimizer.step()
                 print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}".format(e, b, loss), end='\r')
+                break
             
             if settings['use_scheduler']:
                 scheduler.step()

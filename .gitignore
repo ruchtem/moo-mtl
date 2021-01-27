@@ -5,6 +5,7 @@ saved_models/
 tmp/
 results/
 cluster_results/
+hpo_results/
 
 *.png
 *.json
@@ -148,3 +149,4 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+.gitignore
