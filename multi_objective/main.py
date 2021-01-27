@@ -147,7 +147,6 @@ def main(settings):
                 loss = solver.step(batch)
                 optimizer.step()
                 print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}".format(e, b, loss), end='\r')
-                break
             
             if settings['use_scheduler']:
                 scheduler.step()
@@ -227,7 +226,7 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='mm')
+    parser.add_argument('--dataset', '-d', default='adult')
     parser.add_argument('--method', '-m', default='cosmos')
     args = parser.parse_args()
 

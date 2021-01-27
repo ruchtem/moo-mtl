@@ -20,8 +20,8 @@ class MultiLeNet(nn.Module):
             nn.Linear(722 if late_fusion else 720 , 50),
             nn.ReLU(),
         )
-        self.left = nn.Linear(50, 10)
-        self.right = nn.Linear(50, 10)
+        self.private_left = nn.Linear(50, 10)
+        self.private_right = nn.Linear(50, 10)
     
     def forward(self, batch):
         x = batch['data']
@@ -29,11 +29,11 @@ class MultiLeNet(nn.Module):
         if self.late_fusion:
             x = torch.hstack((x, batch['alpha_features']))
         x = self.f2(x)
-        return dict(logits_l=self.left(x), logits_r=self.right(x))
+        return dict(logits_l=self.private_left(x), logits_r=self.private_right(x))
 
 
     def private_params(self):
-        return ['left.weight', 'left.bias', 'right.weight', 'right.bias']
+        return ['private_left.weight', 'private_left.bias', 'private_right.weight', 'private_right.bias']
 
 
 class LeNet(nn.Module):

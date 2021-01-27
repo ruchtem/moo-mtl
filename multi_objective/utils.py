@@ -134,7 +134,8 @@ def calc_gradients(batch, model, objectives):
         
         private_params = model.private_params() if hasattr(model, 'private_params') else []
         for name, param in model.named_parameters():
-            if name not in private_params and param.requires_grad and param.grad is not None:
+            not_private = all([p not in name for p in private_params])
+            if not_private and param.requires_grad and param.grad is not None:
                 gradients[i][name] = param.grad.data.detach().clone()
     
     return gradients, obj_values

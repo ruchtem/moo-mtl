@@ -42,6 +42,12 @@ class AlphaGenerator(nn.Module):
             a = self.main(a)
         x = torch.cat((batch['data'], a), dim=1)
         return self.child_model(dict(data=x))
+    
+    def private_params(self):
+        if hasattr(self.child_model, 'private_params'):
+            return self.child_model.private_params()
+        else:
+            return []
 
 
 
@@ -85,7 +91,8 @@ class COSMOSSolver(BaseSolver):
         
             private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
             for name, param in self.model.named_parameters():
-                if name not in private_params:
+                not_private = all([p not in name for p in private_params])
+                if not_private:
                     param.grad.data.zero_()
                     grad = None
                     for a, grads in zip(batch['alpha'], gradients):
@@ -94,6 +101,7 @@ class COSMOSSolver(BaseSolver):
                                 grad = a * grads[name]
                             else:
                                 grad += a * grads[name]
+                    assert grad is not None
                     param.grad = grad
                     # param.grad = sum(a * grads[name] for a, grads in zip(batch['alpha'], gradients))
             return sum(obj_values)
