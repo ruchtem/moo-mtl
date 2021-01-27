@@ -169,7 +169,7 @@ def main(settings):
                     json.dump(train_results, file)
 
             
-            if (e+1) % settings['eval_every'] == 0:
+            if settings['eval_every'] > 0 and (e+1) % settings['eval_every'] == 0:
                 # Validation results
                 print("val eval at: {}".format(datetime.now()))
                 result = evaluate(solver, scores, 
