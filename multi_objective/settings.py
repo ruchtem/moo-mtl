@@ -62,10 +62,10 @@ celeba = dict(
     objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
     reference_point=[2, 2],
     n_test_rays=100,
-    scheduler_milestones=[15,30],
+    scheduler_milestones=[10,20],
     train_eval_every=0,     # do it in parallel manually
     eval_every=0,
-    model_name='efficientnet-b3',   #'resnet18', 
+    model_name='resnet18',   #'resnet18', 'efficientnet-b3'
 )
 
 #
