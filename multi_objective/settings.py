@@ -7,7 +7,7 @@ adult = dict(
     dataset='adult',
     dim=(88,),
     objectives=['BinaryCrossEntropyLoss', 'deo'],
-    reference_point=[1, 1],
+    reference_point=[2, 2],
     epochs=50,
     use_scheduler=False,
 )
@@ -16,7 +16,7 @@ credit = dict(
     dataset='credit',
     dim=(90,),
     objectives=['BinaryCrossEntropyLoss', 'deo'],
-    reference_point=[1, 1],
+    reference_point=[2, 2],
     epochs=50,
     use_scheduler=False,
 )
@@ -25,7 +25,7 @@ compas = dict(
     dataset='compas',
     dim=(20,),
     objectives=['BinaryCrossEntropyLoss', 'deo'],
-    reference_point=[1, 1],
+    reference_point=[2, 2],
     epochs=50,
     use_scheduler=False,
 )
@@ -58,15 +58,12 @@ multi_fashion_mnist = dict(
 celeba = dict(
     dataset='celeba',
     dim=(3, 64, 64),
-    # task_ids=[22, 39],   # list(range(40)) for all tasks
-    # objectives=['BinaryCrossEntropyLoss', 'BinaryCrossEntropyLoss'],
-    # reference_point=[1, 1],
     task_ids=list(range(40)),
     objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
-    reference_point=[1, 1],
+    reference_point=[2, 2],
     n_test_rays=100,
     scheduler_milestones=[15,30],
-    model_name='efficientnet-b3',
+    model_name='resnet18' #'efficientnet-b3',
 )
 
 #

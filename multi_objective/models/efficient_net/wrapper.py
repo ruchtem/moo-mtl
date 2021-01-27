@@ -1,4 +1,3 @@
-# effitientnet code taken from here: https://github.com/lukemelas/EfficientNet-PyTorch/tree/master/efficientnet_pytorch
 from models.efficient_net.model import EfficientNet
 
 # small wrapper
