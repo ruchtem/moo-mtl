@@ -35,15 +35,15 @@ from objectives import from_name
 from hv import HyperVolume
 
 
-from solvers import HypernetSolver, ParetoMTLSolver, SingleTaskSolver, AFeaturesSolver
+from solvers import HypernetSolver, ParetoMTLSolver, SingleTaskSolver, COSMOSSolver
 from scores import mcr, DDP, from_objectives
 
 
 def solver_from_name(method, **kwargs):
     if method == 'ParetoMTL':
         return ParetoMTLSolver(**kwargs)
-    elif method == 'afeature':
-        return AFeaturesSolver(**kwargs)
+    elif method == 'cosmos':
+        return COSMOSSolver(**kwargs)
     elif method == 'SingleTask':
         return SingleTaskSolver(**kwargs)
     elif method == 'hyper':
@@ -123,9 +123,9 @@ def main(settings):
     volume_max = -1
     elapsed_time = 0
 
-    train_results = dict(settings=settings)
-    val_results = dict(settings=settings)
-    test_results = dict(settings=settings)
+    train_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
+    val_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
+    test_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
 
     # main
     for j in range(settings['num_starts']):
@@ -226,16 +226,16 @@ def main(settings):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='celeba')
-    parser.add_argument('--method', '-m', default='afeature')
+    parser.add_argument('--dataset', '-d', default='mm')
+    parser.add_argument('--method', '-m', default='cosmos')
     args = parser.parse_args()
 
     settings = s.generic
     
     if args.method == 'single_task':
         settings.update(s.SingleTaskSolver)
-    elif args.method == 'afeature':
-        settings.update(s.afeature)
+    elif args.method == 'cosmos':
+        settings.update(s.cosmos)
     elif args.method == 'hyper':
         settings.update(s.hyperSolver)
     elif args.method == 'pmtl':

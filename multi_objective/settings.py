@@ -63,7 +63,9 @@ celeba = dict(
     reference_point=[2, 2],
     n_test_rays=100,
     scheduler_milestones=[15,30],
-    model_name='resnet18' #'efficientnet-b3',
+    train_eval_every=0,     # do it in parallel manually
+    eval_every=0,
+    model_name='efficientnet-b3',   #'resnet18', 
 )
 
 #
@@ -77,8 +79,8 @@ paretoMTL = dict(
     num_starts=5,
 )
 
-afeature = dict(
-    method='afeature',
+cosmos = dict(
+    method='cosmos',
     lr=1e-3,
     batch_size=256,
     epochs=150,
@@ -88,6 +90,7 @@ afeature = dict(
     alpha_generator_dim=2,
     alpha_dir=0.2,   # dirichlet sampling, None=Uniform sampling
     train_eval_every=2,
+    internal_solver='linear', # 'epo' or 'linear'
 )
 
 SingleTaskSolver = dict(
@@ -106,6 +109,7 @@ hyperSolver = dict(
     num_starts=1,
     alpha_dir=.2,   # dirichlet sampling
     use_scheduler=False,
+    internal_solver='epo', # 'epo' or 'linear'
 )
 
 #

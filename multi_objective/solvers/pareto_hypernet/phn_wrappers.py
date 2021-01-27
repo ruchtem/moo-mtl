@@ -1,4 +1,3 @@
-# code taken from https://github.com/AvivNavon/pareto-hypernetworks/
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -87,7 +86,7 @@ class FCPHNTarget(nn.Module):
 
 class HypernetSolver(BaseSolver):
 
-    def __init__(self, objectives, dim, n_test_rays, **kwargs):
+    def __init__(self, objectives, dim, n_test_rays, internal_solver, **kwargs):
         self.objectives = objectives
         self.n_test_rays = n_test_rays
         self.alpha = kwargs['alpha_dir']
@@ -109,7 +108,10 @@ class HypernetSolver(BaseSolver):
         self.model = hnet.cuda()
         self.net = net.cuda()
 
-        self.solver = LinearScalarizationSolver(n_tasks=len(objectives))
+        if internal_solver == 'linear':
+            self.solver = LinearScalarizationSolver(n_tasks=len(objectives))
+        elif internal_solver == 'epo':
+            self.solver = EPOSolver(n_tasks=len(objectives), n_params=num_parameters(hnet))
 
 
     def step(self, batch):

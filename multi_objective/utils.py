@@ -79,9 +79,11 @@ def calc_devisor(train_loader, model, objectives):
     return divisor
 
 
-def num_parameters(m):
-    model_parameters = filter(lambda p: p.requires_grad, m.parameters())
-    return sum([np.prod(p.size()) for p in model_parameters])
+def num_parameters(params):
+    if isinstance(params, torch.nn.Module):
+        params = params.parameters()
+    model_parameters = filter(lambda p: p.requires_grad, params)
+    return int(sum([np.prod(p.size()) for p in model_parameters]))
 
 
 def angle(grads):
