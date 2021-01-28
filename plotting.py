@@ -373,3 +373,18 @@ plot_row(datasets2, methods1, limits_baselines, prefix='baselines')
 
 # plot_row(datasets1, methods2, prefix='cosmos')
 plot_row(datasets2, methods2, limits_single, prefix='cosmos')
+
+
+datasets = ['adult', 'compas', 'credit']
+# generating the tables
+header = """
+\\begin{center}
+\\begin{table*}[ht]
+\\caption{Results on title}
+\\begin{tabular}{l cc cc cc c}
+\\toprule"""
+
+column_titles1 = f"        & \multicolumn{{2}}{{c}}{{{datasets[0]}}} & \multicolumn{{2}}{{c}}{{{datasets[1]}}} & \multicolumn{{2}}{{c}}{{{datasets[2]}}} & \multirow{{2}}{{2.5cm}}{{Factor params over base model}} \\\\"
+column_titles2 = """        & hv               & train time & hv               & train time & hv               & train time &     \\\\ \\midrule"""
+
+print()
