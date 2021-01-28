@@ -112,6 +112,8 @@ SingleTaskSolver = dict(
     batch_size=256,
     epochs=150,
     num_starts=2,
+    scheduler_gamma=0.1,
+    scheduler_milestones=[20,40,80,90],
 )
 
 hyperSolver_ln = dict(

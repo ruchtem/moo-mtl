@@ -3,13 +3,12 @@ runs/
 saved_models/
 .vscode/
 tmp/
-results/
-cluster_results/
-hpo_results/
+results*/
 
 *.png
 *.json
 *.tar.gz
+*.pth
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
