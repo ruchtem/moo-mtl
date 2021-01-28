@@ -50,6 +50,7 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
+    penalty_weight = .3
 )
 
 celeba = dict(
@@ -91,6 +92,7 @@ cosmos_ln = dict(
     internal_solver='linear',
     scheduler_gamma=0.1,
     scheduler_milestones=[20,40,80,90],
+    penalty_weight = .25
 )
 
 cosmos_epo = dict(

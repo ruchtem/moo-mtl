@@ -53,7 +53,7 @@ class AlphaGenerator(nn.Module):
 
 class COSMOSSolver(BaseSolver):
 
-    def __init__(self, objectives, alpha_dir, dim, early_fusion, late_fusion, alpha_generator_dim, n_test_rays, internal_solver, **kwargs):
+    def __init__(self, objectives, alpha_dir, dim, early_fusion, late_fusion, alpha_generator_dim, n_test_rays, internal_solver, penalty_weight, **kwargs):
         self.objectives = objectives
         self.K = len(objectives)
         self.early_fusion = early_fusion
@@ -61,6 +61,7 @@ class COSMOSSolver(BaseSolver):
         self.alpha_dir = alpha_dir
         self.n_test_rays = n_test_rays
         self.internal_solver = internal_solver
+        self.penalty_weight = penalty_weight
 
         dim = list(dim)
         dim[0] = dim[0] if not early_fusion else dim[0] + alpha_generator_dim
@@ -117,7 +118,7 @@ class COSMOSSolver(BaseSolver):
                 loss_total = a * task_loss if not loss_total else loss_total + a * task_loss
                 task_losses.append(task_loss)
             
-            loss_total += .25 * torch.nn.functional.cosine_similarity(torch.stack(task_losses), batch['alpha'], dim=0)
+            loss_total += self.penalty_weight * torch.nn.functional.cosine_similarity(torch.stack(task_losses), batch['alpha'], dim=0)
                 
             loss_total.backward()
             return loss_total.item()
