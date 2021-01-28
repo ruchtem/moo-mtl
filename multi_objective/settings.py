@@ -97,7 +97,7 @@ cosmos_epo = dict(
     method='cosmos_epo',
     lr=1e-3,
     batch_size=256,
-    epochs=150,
+    epochs=100,
     num_starts=1,
     early_fusion=True,
     late_fusion=False,
@@ -110,7 +110,7 @@ SingleTaskSolver = dict(
     method='SingleTask',
     lr=1e-3,
     batch_size=256,
-    epochs=150,
+    epochs=100,
     num_starts=2,
     scheduler_gamma=0.1,
     scheduler_milestones=[20,40,80,90],
@@ -142,7 +142,7 @@ hyperSolver_epo = dict(
 # Common settings
 #
 generic = dict(
-    logdir='results',
+    logdir='results_paper',
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
     eval_every=5,
