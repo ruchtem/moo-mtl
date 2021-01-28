@@ -2,6 +2,8 @@ import argparse
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from pathlib import Path
 import re
 from multi_objective.hv import HyperVolume
@@ -66,7 +68,7 @@ def compare_settings(data):
 dirname = 'results_plot/results_paper'
 
 datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']#, 'celeba']
-methods = ['SingleTask', 'hyper_epo', 'hyper_ln', 'cosmos_ln']#, 'ParetoMTL']
+methods = ['SingleTask', 'hyper_epo', 'hyper_ln', 'cosmos_ln', 'ParetoMTL']
 
 generating_pareto_front = ['cosmos_ln', 'hyper_ln', 'hyper_epo']
 
@@ -89,10 +91,6 @@ reference_points = {
 ignore_runs = [
 
 ]
-
-colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
-        '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
-        '#bcbd22', '#17becf']
 
 
 def load_files(paths):
@@ -262,7 +260,91 @@ with open('results.json', 'w') as outfile:
 
 # Generate the plots and tables
 
-limits = {
+markers = {
+    'hyper_epo': '.', 
+    'hyper_ln': 'x', 
+    'cosmos_ln': 'd', 
+    'ParetoMTL': '*'
+}
+
+colors = {
+    'SingleTask': '#1f77b4', 
+    'hyper_epo': '#ff7f0e', 
+    'hyper_ln': '#2ca02c',
+    'cosmos_ln': '#d62728',
+    'ParetoMTL': '#9467bd', 
+    #'#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+}
+
+def plot_row(datasets, methods, limits, prefix):
+    assert len(datasets) == 3
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    for j, dataset in enumerate(datasets):
+        if dataset not in results:
+            continue
+        ax = axes[j]
+        for method in methods:
+            if method not in results[dataset]:
+                continue
+            r = results[dataset][method]
+            # we take the mean only
+            s = np.array(r['test_scores'][0]) if isinstance(r['test_scores'], tuple) else np.array(r['test_scores'])
+            if method == 'SingleTask':
+                s = np.squeeze(s)
+                ax.axvline(x=s[0], color=colors[method], linestyle='-.')
+                ax.axhline(y=s[1], color=colors[method], linestyle='-.', label="{}".format(method))
+            else:
+                ax.plot(
+                    s[:, 0], 
+                    s[:, 1], 
+                    color=colors[method],
+                    marker=markers[method],
+                    linestyle='--' if method != 'ParetoMTL' else ' ',
+                    label="{}".format(method)
+                )
+
+                if dataset == 'multi_mnist' and method == 'cosmos_ln' and prefix == 'cosmos':
+                    axins = zoomed_inset_axes(ax, 4, loc='upper right') # zoom = 6
+                    axins.plot(
+                        s[:, 0], 
+                        s[:, 1], 
+                        color=colors[method],
+                        marker=markers[method],
+                        linestyle='--' if method != 'ParetoMTL' else '',
+                        label="{}".format(method)
+                    )
+                    axins.set_xlim(.26, .28)
+                    axins.set_ylim(.315, .33)
+                    axins.set_yticklabels([])
+                    axins.set_xticklabels([])
+                    mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+                
+                if dataset == 'multi_fashion' and method == 'cosmos_ln' and prefix == 'cosmos':
+                    axins = zoomed_inset_axes(ax, 6, loc='upper right') # zoom = 6
+                    axins.plot(
+                        s[:, 0], 
+                        s[:, 1], 
+                        color=colors[method],
+                        marker=markers[method],
+                        linestyle='--' if method != 'ParetoMTL' else '',
+                        label="{}".format(method)
+                    )
+                    axins.set_xlim(.4652, .477)
+                    axins.set_ylim(.503, .514)
+                    axins.set_yticklabels([])
+                    axins.set_xticklabels([])
+                    mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+        
+        ax.set_xlim(right=limits[dataset][0])
+        ax.set_ylim(top=limits[dataset][1])
+        ax.set_title(dataset)
+        if j==2:
+            ax.legend(loc='upper right')
+    fig.savefig(prefix + '_' + '_'.join(datasets), bbox_inches='tight')
+    plt.close(fig)
+
+
+limits_baselines = {
     'adult': [.6, .14],
     'compas': [1.5, .35],
     'credit': [.6, .015],
@@ -271,27 +353,23 @@ limits = {
     'multi_fashion_mnist': [.6, .6],
 }
 
-
-for dataset in datasets:
-    if dataset not in results:
-        continue
-    for i, method in enumerate(methods):
-        if method not in results[dataset]:
-            continue
-        r = results[dataset][method]
-        if isinstance(r['test_scores'], tuple):
-            s = np.array(r['test_scores'][0])   # we take the mean only
-        else:
-            s = np.array(r['test_scores'])
-
-        plt.plot(s[:, 0], s[:, 1], '.', color=colors[i], label="{}".format(method))
-    
-    plt.xlim(right=limits[dataset][0])
-    plt.ylim(top=limits[dataset][1])
-    plt.title(dataset)
-    plt.legend()
-    plt.savefig(dataset)
-    plt.close()
+limits_single = {
+    'adult': [.6, .14],
+    'compas': [1.5, .35],
+    'credit': [.6, .015],
+    'multi_mnist': [.4, .4], 
+    'multi_fashion': [.6, .6], 
+    'multi_fashion_mnist': [.4, .52],
+}
 
 
-        
+datasets1 = ['adult', 'compas', 'credit']
+methods1 = ['hyper_epo', 'hyper_ln', 'cosmos_ln', 'ParetoMTL']
+datasets2 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
+methods2 = ['SingleTask', 'cosmos_ln']
+
+plot_row(datasets1, methods1 + ['SingleTask'], limits_baselines, prefix='baselines')
+plot_row(datasets2, methods1, limits_baselines, prefix='baselines')
+
+# plot_row(datasets1, methods2, prefix='cosmos')
+plot_row(datasets2, methods2, limits_single, prefix='cosmos')

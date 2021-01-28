@@ -50,7 +50,7 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    penalty_weight = .3
+    penalty_weight = .5
 )
 
 celeba = dict(
