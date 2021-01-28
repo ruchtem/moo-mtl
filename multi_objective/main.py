@@ -2,20 +2,6 @@ import torch
 import random
 import numpy as np
 
-seed = 42
-
-np.random.seed(seed)
-random.seed(seed)
-
-torch.manual_seed(seed)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-torch.backends.cudnn.enabled = True
-torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.deterministic = True
-
 import argparse
 import os
 import pathlib
@@ -39,20 +25,44 @@ from solvers import HypernetSolver, ParetoMTLSolver, SingleTaskSolver, COSMOSSol
 from scores import mcr, DDP, from_objectives
 
 
+def set_seed(seed):
+
+    np.random.seed(seed)
+    random.seed(seed)
+
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+
+
 def solver_from_name(method, **kwargs):
     if method == 'ParetoMTL':
         return ParetoMTLSolver(**kwargs)
-    elif method == 'cosmos':
+    elif 'cosmos' in method:
         return COSMOSSolver(**kwargs)
     elif method == 'SingleTask':
         return SingleTaskSolver(**kwargs)
-    elif method == 'hyper':
+    elif 'hyper' in method:
         return HypernetSolver(**kwargs)
     else:
         raise ValueError("Unkown method {}".format(method))
 
 
-def evaluate(solver, scores, data_loader, logdir, reference_point, prefix):
+epoch_max = -1
+volume_max = -1
+elapsed_time = 0
+
+
+def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, result_dict):
+    assert split in ['train', 'val', 'test']
+    global volume_max
+    global epoch_max
 
     score_values = np.array([])
     for batch in data_loader:
@@ -83,7 +93,7 @@ def evaluate(solver, scores, data_loader, logdir, reference_point, prefix):
         volume = hv.compute(score_values)
 
     if len(scores) == 2:
-        pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir, prefix)
+        pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir, "{}_{:03d}".format(split, e))
         pareto_front.append(score_values)
         pareto_front.plot()
 
@@ -91,17 +101,44 @@ def evaluate(solver, scores, data_loader, logdir, reference_point, prefix):
         "scores": score_values.tolist(),
         "hv": volume,
     }
-    result.update(solver.log())
-    return result
 
+    if split == 'val':
+        if volume > volume_max:
+            volume_max = volume
+            epoch_max = e
+                    
+        result.update({
+            "max_epoch_so_far": epoch_max,
+            "max_volume_so_far": volume_max,
+            "training_time_so_far": elapsed_time,
+        })
+    elif split == 'test':
+        result.update({
+            "training_time_so_far": elapsed_time,
+        })
+
+    result.update(solver.log())
+
+    if f"epoch_{e}" in result_dict[f"start_{j}"]:
+        result_dict[f"start_{j}"][f"epoch_{e}"].update(result)
+    else:
+        result_dict[f"start_{j}"][f"epoch_{e}"] = result
+
+    with open(pathlib.Path(logdir) / f"{split}_results.json", "w") as file:
+        json.dump(result_dict, file)
+    
+    return result_dict
 
 
 def main(settings):
     print("start processig with settings", settings)
+    set_seed(settings['seed'])
+
+    global elapsed_time
 
     # create the experiment folders
     slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ and 'hpo' not in settings['logdir'] else None
-    logdir = os.path.join(settings['logdir'], settings['dataset'], settings['method'], slurm_job_id if slurm_job_id else datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], slurm_job_id if slurm_job_id else datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
 
@@ -119,10 +156,6 @@ def main(settings):
 
     solver = solver_from_name(objectives=objectives, **settings)
 
-    epoch_max = -1
-    volume_max = -1
-    elapsed_time = 0
-
     train_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
     val_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
     test_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
@@ -135,9 +168,10 @@ def main(settings):
 
         optimizer = torch.optim.Adam(solver.model_params(), settings['lr'])
         if settings['use_scheduler']:
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, settings['scheduler_milestones'])
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, settings['scheduler_milestones'], gamma=settings['scheduler_gamma'])
         
         for e in range(settings['epochs']):
+            print(f"Epoch {e}")
             tick = time.time()
             solver.new_epoch(e)
 
@@ -146,72 +180,36 @@ def main(settings):
                 optimizer.zero_grad()
                 loss = solver.step(batch)
                 optimizer.step()
-                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}".format(e, b, loss), end='\r')
-            
-            if settings['use_scheduler']:
-                scheduler.step()
-                print("Next lr:", scheduler.get_last_lr())
+                #print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}".format(e, b, loss), end='', flush=True)
             
             tock = time.time()
             elapsed_time += (tock - tick)
 
+            if settings['use_scheduler']:
+                val_results[f"start_{j}"][f"epoch_{e}"] = {'lr': scheduler.get_last_lr()[0]}
+                scheduler.step()
+
+
             # run eval on train set (mainly for debugging)
             if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
-                print("train eval at: {}".format(datetime.now()))
-                train_results[f"start_{j}"][f"epoch_{e}"] = evaluate(solver, scores, 
-                    data_loader=train_loader,
-                    logdir=logdir,
+                train_results = evaluate(j, e, solver, scores, train_loader, logdir, 
                     reference_point=settings['reference_point'],
-                    prefix=f"train_{e}",
-                )
-
-                with open(pathlib.Path(logdir) / "train_results.json", "w") as file:
-                    json.dump(train_results, file)
+                    split='train',
+                    result_dict=train_results)
 
             
             if settings['eval_every'] > 0 and (e+1) % settings['eval_every'] == 0:
                 # Validation results
-                print("val eval at: {}".format(datetime.now()))
-                result = evaluate(solver, scores, 
-                    data_loader=val_loader,
-                    logdir=logdir,
+                val_results = evaluate(j, e, solver, scores, val_loader, logdir, 
                     reference_point=settings['reference_point'],
-                    prefix=f"val_{e}",
-                )
+                    split='val',
+                    result_dict=val_results)
 
-                if result['hv'] > volume_max:
-                    volume_max = result['hv']
-                    epoch_max = e
-                
-                result.update({
-                    "max_epoch_so_far": epoch_max,
-                    "max_volume_so_far": volume_max,
-                    "training_time_so_far": elapsed_time,
-                })
-
-                print("Validation: Epoch {:03d}, hv={:.4f}".format(e, result['hv']))
-                val_results[f"start_{j}"]["epoch_{}".format(e)] = result
-
-                with open(pathlib.Path(logdir) / "val_results.json", "w") as file:
-                    json.dump(val_results, file)
-
-                # test results
-                print("test eval at: {}".format(datetime.now()))
-                result = evaluate(solver, scores, 
-                    data_loader=test_loader,
-                    logdir=logdir,
+                # Test results
+                test_results = evaluate(j, e, solver, scores, test_loader, logdir, 
                     reference_point=settings['reference_point'],
-                    prefix=f"test_{e}",
-                )
-
-                result.update({
-                    "training_time_so_far": elapsed_time,
-                })
-
-                test_results[f"start_{j}"]["epoch_{}".format(e)] = result
-
-                with open(pathlib.Path(logdir) / "test_results.json", "w") as file:
-                                json.dump(test_results, file)
+                    split='test',
+                    result_dict=test_results)
 
             # Checkpoints
             pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
@@ -220,28 +218,28 @@ def main(settings):
         print("epoch_max={}, val_volume_max={}".format(epoch_max, volume_max))
     return volume_max
 
-    
 
-
-
-if __name__ == "__main__":
+def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='adult')
-    parser.add_argument('--method', '-m', default='cosmos')
+    parser.add_argument('--dataset', '-d', default='mm')
+    parser.add_argument('--method', '-m', default='cosmos_ln')
     args = parser.parse_args()
 
     settings = s.generic
     
     if args.method == 'single_task':
         settings.update(s.SingleTaskSolver)
-    elif args.method == 'cosmos':
-        settings.update(s.cosmos)
-    elif args.method == 'hyper':
-        settings.update(s.hyperSolver)
+    elif args.method == 'cosmos_ln':
+        settings.update(s.cosmos_ln)
+    elif args.method == 'cosmos_epo':
+        settings.update(s.cosmos_ln)
+    elif args.method == 'hyper_ln':
+        settings.update(s.hyperSolver_ln)
+    elif args.method == 'hyper_epo':
+        settings.update(s.hyperSolver_epo)
     elif args.method == 'pmtl':
         settings.update(s.paretoMTL)
     
-
     if args.dataset == 'mm':
         settings.update(s.multi_mnist)
     elif args.dataset == 'adult':
@@ -257,4 +255,11 @@ if __name__ == "__main__":
     elif args.dataset == 'celeba':
         settings.update(s.celeba)
 
+    return settings
+
+
+
+if __name__ == "__main__":
+    
+    settings = parse_args()
     main(settings)

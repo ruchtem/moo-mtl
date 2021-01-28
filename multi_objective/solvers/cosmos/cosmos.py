@@ -111,9 +111,13 @@ class COSMOSSolver(BaseSolver):
             logits = self.model(batch)
             batch.update(logits)
             loss_total = None
+            task_losses = []
             for a, objective in zip(batch['alpha'], self.objectives):
                 task_loss = objective(**batch)
                 loss_total = a * task_loss if not loss_total else loss_total + a * task_loss
+                task_losses.append(task_loss)
+            
+            loss_total += .25 * torch.nn.functional.cosine_similarity(torch.stack(task_losses), batch['alpha'], dim=0)
                 
             loss_total.backward()
             return loss_total.item()

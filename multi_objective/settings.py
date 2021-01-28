@@ -35,7 +35,6 @@ multi_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    scheduler_milestones=[15,30,45,60,75,90],
 )
 
 
@@ -44,7 +43,6 @@ multi_fashion = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    scheduler_milestones=[15,30,45,60,75,90],
 )
 
 multi_fashion_mnist = dict(
@@ -52,7 +50,6 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    scheduler_milestones=[15,30,45,60,75,90],
 )
 
 celeba = dict(
@@ -77,10 +74,27 @@ paretoMTL = dict(
     batch_size=256,
     epochs=100,
     num_starts=5,
+    scheduler_gamma=0.5,
+    scheduler_milestones=[15,30,45,60,75,90],
 )
 
-cosmos = dict(
-    method='cosmos',
+cosmos_ln = dict(
+    method='cosmos_ln',
+    lr=1e-3,
+    batch_size=256,
+    epochs=100,
+    num_starts=1,
+    early_fusion=True,
+    late_fusion=False,
+    alpha_generator_dim=2,
+    alpha_dir=1,   # dirichlet sampling, None=Uniform sampling
+    internal_solver='linear',
+    scheduler_gamma=0.1,
+    scheduler_milestones=[20,40,80,90],
+)
+
+cosmos_epo = dict(
+    method='cosmos_epo',
     lr=1e-3,
     batch_size=256,
     epochs=150,
@@ -89,8 +103,7 @@ cosmos = dict(
     late_fusion=False,
     alpha_generator_dim=2,
     alpha_dir=0.2,   # dirichlet sampling, None=Uniform sampling
-    train_eval_every=2,
-    internal_solver='linear', # 'epo' or 'linear'
+    internal_solver='epo',
 )
 
 SingleTaskSolver = dict(
@@ -101,15 +114,26 @@ SingleTaskSolver = dict(
     num_starts=2,
 )
 
-hyperSolver = dict(
-    method='hyper',
+hyperSolver_ln = dict(
+    method='hyper_ln',
     lr=1e-4,
     batch_size=256,
-    epochs=150,     # 100 for multi_mnist
+    epochs=150,
     num_starts=1,
     alpha_dir=.2,   # dirichlet sampling
     use_scheduler=False,
-    internal_solver='epo', # 'epo' or 'linear'
+    internal_solver='linear', # 'epo' or 'linear'
+)
+
+hyperSolver_epo = dict(
+    method='hyper_epo',
+    lr=1e-4,
+    batch_size=256,
+    epochs=150,
+    num_starts=1,
+    alpha_dir=.2,   # dirichlet sampling
+    use_scheduler=False,
+    internal_solver='epo',
 )
 
 #
@@ -119,7 +143,9 @@ generic = dict(
     logdir='results',
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
-    eval_every=1,
+    eval_every=5,
     train_eval_every=0, # 0 for not evaluating on the train set
     use_scheduler=True,
+    scheduler_gamma=0.1,
+    seed=1,
 )
