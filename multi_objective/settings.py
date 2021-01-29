@@ -49,7 +49,7 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    penalty_weight = .5
+    alpha_dir=.3,
 )
 
 celeba = dict(
@@ -146,7 +146,7 @@ hyperSolver_epo = dict(
 # Common settings
 #
 generic = dict(
-    logdir='results_celeba',
+    logdir='results_alpha_try',
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
     eval_every=5,
@@ -155,3 +155,7 @@ generic = dict(
     scheduler_gamma=0.1,
     seed=1,
 )
+
+
+from main import set_seed
+set_seed(generic['seed'])

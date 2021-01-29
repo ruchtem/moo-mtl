@@ -13,7 +13,7 @@ source /home/ruchtem/dev/venvs/base/bin/activate
 IFS='-'; arrIN=($SLURM_JOB_NAME); unset IFS;
 
 
-COMMAND="python -u multi_objective/main.py -m ${arrIN[0]} -d ${arrIN[1]}";
+COMMAND="python -u multi_objective/main.py -m ${arrIN[0]} -d ${arrIN[1]} -s ${arrIN[2]}";
 echo "Workingdir: $PWD";
 echo "Started at $(date) on host $SLURMD_NODENAME";
 echo "Executing $COMMAND";

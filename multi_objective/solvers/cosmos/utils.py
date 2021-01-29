@@ -8,7 +8,7 @@ def uniform_sample_alpha(size):
     alpha = torch.rand(size)
     # unlikely but to be save:
     while sum(alpha) == 0.0:
-        alpha = torch.rand(len(self.objectives))
+        alpha = torch.rand(size)
     
     if torch.cuda.is_available():
         alpha = alpha.cuda()

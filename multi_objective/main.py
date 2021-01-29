@@ -14,9 +14,8 @@ from collections import deque
 from copy import deepcopy
 from datetime import datetime
 
-
-import utils
 import settings as s
+import utils
 from objectives import from_name
 from hv import HyperVolume
 
@@ -226,6 +225,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='celeba')
     parser.add_argument('--method', '-m', default='cosmos_ln')
+    parser.add_argument('--seed', '-s', default=1, type=int)
     args = parser.parse_args()
 
     settings = s.generic
@@ -257,6 +257,8 @@ def parse_args():
         settings.update(s.compas)
     elif args.dataset == 'celeba':
         settings.update(s.celeba)
+    
+    settings['seed'] = args.seed
 
     return settings
 
