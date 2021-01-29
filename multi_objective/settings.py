@@ -94,7 +94,7 @@ cosmos_ln = dict(
     internal_solver='linear',
     scheduler_gamma=0.1,
     scheduler_milestones=[20,40,80,90],
-    penalty_weight = .25
+    penalty_weight = .5
 )
 
 cosmos_epo = dict(
