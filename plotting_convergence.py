@@ -121,7 +121,7 @@ for dataset in datasets:
             results[dataset][method][int(e.replace('epoch_', ''))] = result_i
 
 
-with open('results_ablation.json', 'w') as outfile:
+with open('results_convergence.json', 'w') as outfile:
     json.dump(results, outfile)
 
 
@@ -129,7 +129,7 @@ with open('results_ablation.json', 'w') as outfile:
 plt.rcParams.update({'font.size': font_size})
 
 
-def plot_ablation(datasets, methods, kind, epochs=None):
+def plot_convergence(datasets, methods, epochs=None):
     fig, axes = plt.subplots(1, len(datasets), figsize=figsize)
     for j, dataset in enumerate(datasets):
         if dataset not in results:
@@ -139,19 +139,18 @@ def plot_ablation(datasets, methods, kind, epochs=None):
             if method not in results[dataset]:
                 continue
 
-            if kind=='convergence':
-                color_shades = np.linspace(1.7, .3, len(epochs)).tolist()
-                for i, e in enumerate(epochs):
-                    r = results[dataset][method][e]
-                    # we take the mean only
-                    s = np.array(r['test_scores'][0]) if isinstance(r['test_scores'], tuple) else np.array(r['test_scores'])
-                    ax.plot(
-                        s[:, 0], 
-                        s[:, 1], 
-                        color=adjust_lightness(colors[method], amount=color_shades[i]),
-                        marker=markers[method],
-                        linestyle='--' if method != 'ParetoMTL' else ' ',
-                        label="Epoch {}".format(e+1)
+            color_shades = np.linspace(1.7, .3, len(epochs)).tolist()
+            for i, e in enumerate(epochs):
+                r = results[dataset][method][e]
+                # we take the mean only
+                s = np.array(r['test_scores'][0]) if isinstance(r['test_scores'], tuple) else np.array(r['test_scores'])
+                ax.plot(
+                    s[:, 0], 
+                    s[:, 1], 
+                    color=adjust_lightness(colors[method], amount=color_shades[i]),
+                    marker=markers[method],
+                    linestyle='--' if method != 'ParetoMTL' else ' ',
+                    label="Epoch {}".format(e+1)
                     )
 
         ax.set_title(titles[dataset])
@@ -160,99 +159,11 @@ def plot_ablation(datasets, methods, kind, epochs=None):
             ax.set_ylabel(ax_lables[dataset][1])
         if j==2:
             ax.legend(loc='upper right')
-    fig.savefig(kind + '_' + '_'.join(datasets), bbox_inches='tight')
+    fig.savefig('convergence_' + '_'.join(datasets), bbox_inches='tight')
     plt.close(fig)
 
 datasets1 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
 methods1 = ['cosmos_ln']
 
 epochs = [9, 19, 29, 39, 49]
-plot_ablation(datasets1, methods1, 'convergence', epochs)
-                
-
-def plot_row(datasets, methods, limits, prefix):
-    assert len(datasets) == 3
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-    for j, dataset in enumerate(datasets):
-        if dataset not in results:
-            continue
-        ax = axes[j]
-        for method in methods:
-            if method not in results[dataset]:
-                continue
-            r = results[dataset][method]
-            # we take the mean only
-            s = np.array(r['test_scores'][0]) if isinstance(r['test_scores'], tuple) else np.array(r['test_scores'])
-            if method == 'SingleTask':
-                s = np.squeeze(s)
-                ax.axvline(x=s[0], color=colors[method], linestyle='-.')
-                ax.axhline(y=s[1], color=colors[method], linestyle='-.', label="{}".format(method))
-            else:
-                ax.plot(
-                    s[:, 0], 
-                    s[:, 1], 
-                    color=colors[method],
-                    marker=markers[method],
-                    linestyle='--' if method != 'ParetoMTL' else ' ',
-                    label="{}".format(method)
-                )
-
-                if dataset == 'multi_mnist' and method == 'cosmos_ln' and prefix == 'cosmos':
-                    axins = zoomed_inset_axes(ax, 5, loc='upper right') # zoom = 6
-                    axins.plot(
-                        s[:, 0], 
-                        s[:, 1], 
-                        color=colors[method],
-                        marker=markers[method],
-                        linestyle='--' if method != 'ParetoMTL' else '',
-                        label="{}".format(method)
-                    )
-                    axins.set_xlim(.26, .28)
-                    axins.set_ylim(.318, .33)
-                    axins.set_yticklabels([])
-                    axins.set_xticklabels([])
-                    mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
-                
-                if dataset == 'multi_fashion' and method == 'cosmos_ln' and prefix == 'cosmos':
-                    axins = zoomed_inset_axes(ax, 7, loc='upper right') # zoom = 6
-                    axins.plot(
-                        s[:, 0], 
-                        s[:, 1], 
-                        color=colors[method],
-                        marker=markers[method],
-                        linestyle='--' if method != 'ParetoMTL' else '',
-                        label="{}".format(method)
-                    )
-                    axins.set_xlim(.4658, .4765)
-                    axins.set_ylim(.503, .513)
-                    axins.set_yticklabels([])
-                    axins.set_xticklabels([])
-                    mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
-        
-        ax.set_xlim(right=limits[dataset][0])
-        ax.set_ylim(top=limits[dataset][1])
-        ax.set_title(dataset)
-        if j==2:
-            ax.legend(loc='upper right')
-    fig.savefig(prefix + '_' + '_'.join(datasets), bbox_inches='tight')
-    plt.close(fig)
-
-
-
-
-
-
-
-datasets = ['adult', 'compas', 'credit']
-# generating the tables
-header = """
-\\begin{center}
-\\begin{table*}[ht]
-\\caption{Results on title}
-\\begin{tabular}{l cc cc cc c}
-\\toprule"""
-
-column_titles1 = f"        & \multicolumn{{2}}{{c}}{{{datasets[0]}}} & \multicolumn{{2}}{{c}}{{{datasets[1]}}} & \multicolumn{{2}}{{c}}{{{datasets[2]}}} & \multirow{{2}}{{2.5cm}}{{Factor params over base model}} \\\\"
-column_titles2 = """        & hv               & train time & hv               & train time & hv               & train time &     \\\\ \\midrule"""
-
-print()
+plot_convergence(datasets1, methods1, epochs)
