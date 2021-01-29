@@ -138,11 +138,12 @@ class COSMOSSolver(BaseSolver):
             return loss_total.item()
 
 
-    def eval_step(self, batch):
+    def eval_step(self, batch, test_rays=None):
         self.model.eval()
         logits = []
         with torch.no_grad():
-            test_rays = circle_points(self.n_test_rays, dim=self.K)
+            if test_rays is None:
+                test_rays = circle_points(self.n_test_rays, dim=self.K)
 
             for ray in test_rays:
                 ray = torch.from_numpy(ray.astype(np.float32)).cuda()

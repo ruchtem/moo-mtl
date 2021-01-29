@@ -37,7 +37,6 @@ multi_mnist = dict(
     reference_point=[2, 2],
 )
 
-
 multi_fashion = dict(
     dataset='multi_fashion',
     dim=(1, 36, 36),
@@ -60,11 +59,13 @@ celeba = dict(
     objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
     reference_point=[2, 2],
     n_test_rays=100,
-    scheduler_milestones=[10,20],
+    epochs=100,
+    use_scheduler=False,
     train_eval_every=0,     # do it in parallel manually
     eval_every=0,
-    model_name='resnet18',   #'resnet18', 'efficientnet-b3'
+    model_name='efficientnet-b3',   #'resnet18', 'efficientnet-b3'
     alpha_generator_dim=4,
+    lr=0.0005,   # taken from mtl as moo
 )
 
 #
@@ -145,7 +146,7 @@ hyperSolver_epo = dict(
 # Common settings
 #
 generic = dict(
-    logdir='results_paper',
+    logdir='results_celeba',
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
     eval_every=5,

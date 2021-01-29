@@ -180,7 +180,7 @@ def main(settings):
                 optimizer.zero_grad()
                 loss = solver.step(batch)
                 optimizer.step()
-                #print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}".format(e, b, loss), end='', flush=True)
+                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}".format(e, b, loss))
             
             tock = time.time()
             elapsed_time += (tock - tick)
@@ -212,16 +212,19 @@ def main(settings):
                     result_dict=test_results)
 
             # Checkpoints
-            pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
-            torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
+            if (e+1) % 5 == 0:
+                pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
+                torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
 
         print("epoch_max={}, val_volume_max={}".format(epoch_max, volume_max))
+        pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
+        torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, 999999)))
     return volume_max
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='mm')
+    parser.add_argument('--dataset', '-d', default='celeba')
     parser.add_argument('--method', '-m', default='cosmos_ln')
     args = parser.parse_args()
 
