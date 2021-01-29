@@ -64,6 +64,7 @@ celeba = dict(
     train_eval_every=0,     # do it in parallel manually
     eval_every=0,
     model_name='resnet18',   #'resnet18', 'efficientnet-b3'
+    alpha_generator_dim=4,
 )
 
 #

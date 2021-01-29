@@ -19,14 +19,28 @@ class AlphaGenerator(nn.Module):
         elif len(input_dim) == 3:
             # image data
             self.tabular = False
-            self.main = nn.Sequential(
-                nn.ConvTranspose2d(K, hidden_dim, kernel_size=4, stride=1, padding=0, bias=False),
-                nn.BatchNorm2d(hidden_dim),
-                nn.ReLU(inplace=True),
-                nn.ConvTranspose2d(hidden_dim, hidden_dim, kernel_size=6, stride=2, padding=1, bias=False),
-                nn.BatchNorm2d(hidden_dim),
-                nn.ReLU(inplace=True),
-                nn.Upsample(input_dim[-2:])
+            if K <= 3:
+                self.main = nn.Sequential(
+                    nn.ConvTranspose2d(K, K, kernel_size=4, stride=1, padding=0, bias=False),
+                    nn.BatchNorm2d(K),
+                    nn.ReLU(inplace=True),
+                    nn.ConvTranspose2d(K, hidden_dim, kernel_size=6, stride=2, padding=1, bias=False),
+                    nn.BatchNorm2d(K),
+                    nn.ReLU(inplace=True),
+                    nn.Upsample(input_dim[-2:])
+                )
+            else:
+                self.main = nn.Sequential(
+                    nn.ConvTranspose2d(K, K, kernel_size=4, stride=1, padding=0, bias=False),
+                    nn.BatchNorm2d(K),
+                    nn.ReLU(inplace=True),
+                    nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
+                    nn.BatchNorm2d(K),
+                    nn.ReLU(inplace=True),
+                    nn.ConvTranspose2d(K, hidden_dim, kernel_size=6, stride=2, padding=1, bias=False),
+                    nn.BatchNorm2d(hidden_dim),
+                    nn.ReLU(inplace=True),
+                    nn.Upsample(input_dim[-2:])
             )
         else:
             raise ValueError(f"Unknown dataset structure, expected 1 or 3 dimensions, got {dim}")
