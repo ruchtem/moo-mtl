@@ -70,7 +70,7 @@ figsize=(14, 3.5)
 dirname = 'results_plot/results_paper'
 
 datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']#, 'celeba']
-methods = ['SingleTask', 'hyper_epo', 'hyper_ln', 'cosmos_ln', 'ParetoMTL']
+methods = ['SingleTask', 'hyper_epo', 'hyper_ln', 'ParetoMTL',  'cosmos_ln']
 
 generating_pareto_front = ['cosmos_ln', 'hyper_ln', 'hyper_epo']
 
@@ -185,6 +185,7 @@ for dataset in datasets:
             
             s = 'start_0'
             if isinstance(data_val, list):
+                result_i['num_parameters'] = data_val[0]['num_parameters']
                 # we have multiple runs of the same method
                 early_stop_epoch = []
                 val_scores = []
@@ -213,6 +214,7 @@ for dataset in datasets:
             else:
                 # we have just a single run of the method
                 assert len([True for k in data_val.keys() if 'start_' in k]) == 1
+                result_i['num_parameters'] = data_val['num_parameters']
                 e = "epoch_{}".format(get_early_stop(data_val[s], key=stop_key[method]))
                 val_results = data_val[s][e]
                 test_results = data_test[s][e]
@@ -242,6 +244,7 @@ for dataset in datasets:
                     test_hv.append(result_i['test_hv'])
                     training_time.append(result_i['training_time'])
                 
+                result_i['num_parameters'] = data_val[0]['num_parameters']
                 result_i['early_stop_epoch'] = mean_and_std(early_stop_epoch)
                 result_i['val_scores'] = mean_and_std(val_scores)
                 result_i['test_scores'] = mean_and_std(test_scores)
@@ -249,6 +252,7 @@ for dataset in datasets:
                 result_i['test_hv'] = mean_and_std(test_hv)
                 result_i['training_time'] = mean_and_std(training_time)
             else:
+                result_i['num_parameters'] = data_val['num_parameters']
                 result_i = process_non_pareto_front(data_val, data_test)
 
 
@@ -285,7 +289,7 @@ titles = {
     'compas': 'Compass',
     'credit': 'Default', 
     'multi_mnist': "Multi-MNIST", 
-    'multi_fashion': 'Multi_Fashion',
+    'multi_fashion': 'Multi-Fashion',
     'multi_fashion_mnist': 'Multi-Fashion+MNIST'
 }
 
@@ -296,6 +300,14 @@ ax_lables = {
     'multi_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
     'multi_fashion': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
     'multi_fashion_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
+}
+
+method_names = {
+    'SingleTask': 'Single Task', 
+    'hyper_epo': 'PHN-EPO', 
+    'hyper_ln': 'PHN-LS',
+    'cosmos_ln': 'COSMOS',
+    'ParetoMTL': 'ParetoMTL', 
 }
 
 def plot_row(datasets, methods, limits, prefix):
@@ -314,7 +326,7 @@ def plot_row(datasets, methods, limits, prefix):
             if method == 'SingleTask':
                 s = np.squeeze(s)
                 ax.axvline(x=s[0], color=colors[method], linestyle='-.')
-                ax.axhline(y=s[1], color=colors[method], linestyle='-.', label="{}".format(method))
+                ax.axhline(y=s[1], color=colors[method], linestyle='-.', label="{}".format(method_names[method]))
             else:
                 ax.plot(
                     s[:, 0], 
@@ -322,7 +334,7 @@ def plot_row(datasets, methods, limits, prefix):
                     color=colors[method],
                     marker=markers[method],
                     linestyle='--' if method != 'ParetoMTL' else ' ',
-                    label="{}".format(method)
+                    label="{}".format(method_names[method])
                 )
 
                 if dataset == 'multi_mnist' and method == 'cosmos_ln' and prefix == 'cosmos':
@@ -333,7 +345,7 @@ def plot_row(datasets, methods, limits, prefix):
                         color=colors[method],
                         marker=markers[method],
                         linestyle='--' if method != 'ParetoMTL' else '',
-                        label="{}".format(method)
+                        label="{}".format(method_names[method])
                     )
                     axins.set_xlim(.26, .28)
                     axins.set_ylim(.318, .33)
@@ -349,7 +361,7 @@ def plot_row(datasets, methods, limits, prefix):
                         color=colors[method],
                         marker=markers[method],
                         linestyle='--' if method != 'ParetoMTL' else '',
-                        label="{}".format(method)
+                        label="{}".format(method_names[method])
                     )
                     axins.set_xlim(.4658, .4765)
                     axins.set_ylim(.503, .513)
@@ -391,7 +403,7 @@ limits_single = {
 
 
 datasets1 = ['adult', 'compas', 'credit']
-methods1 = ['hyper_epo', 'hyper_ln', 'cosmos_ln', 'ParetoMTL']
+methods1 = ['hyper_epo', 'hyper_ln', 'ParetoMTL', 'cosmos_ln']
 datasets2 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
 methods2 = ['SingleTask', 'cosmos_ln']
 
@@ -404,16 +416,46 @@ plot_row(datasets2, methods2, limits_single, prefix='cosmos')
 
 
 
-datasets = ['adult', 'compas', 'credit']
 # generating the tables
-header = """
-\\begin{center}
-\\begin{table*}[ht]
-\\caption{Results on title}
-\\begin{tabular}{l cc cc cc c}
-\\toprule"""
+def generate_table(datasets, methods, name):
+    text = f"""
+\\toprule
+                & Hyper Vol. & Time (Sec) & Factor Params. \\\\ \\midrule"""
+    for dataset in datasets:
+        text += f"""
+                & \\multicolumn{{3}}{{c}}{{\\bf {titles[dataset]}}} \\\\ \cmidrule{{2-4}}"""
+        for method in methods:
+            r = results[dataset][method]
+            text += f"""
+{method_names[method]}    & {r['test_hv'][0]:.2f} $\pm$ {r['test_hv'][1]:.2f}        & {r['training_time'][0]:.0f}          &  {r['num_parameters']} \\\\ """
 
-column_titles1 = f"        & \multicolumn{{2}}{{c}}{{{datasets[0]}}} & \multicolumn{{2}}{{c}}{{{datasets[1]}}} & \multicolumn{{2}}{{c}}{{{datasets[2]}}} & \multirow{{2}}{{2.5cm}}{{Factor params over base model}} \\\\"
-column_titles2 = """        & hv               & train time & hv               & train time & hv               & train time &     \\\\ \\midrule"""
+    text += f"""
+\\bottomrule"""
+    
+    with open(f'results_{name}.txt', 'w') as f:
+        f.writelines(text)
 
+
+
+
+datasets1 = ['adult', 'compas', 'credit']
+generate_table(datasets1, methods, name='fairness')
+
+datasets2 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
+generate_table(datasets2, methods, name='mnist')
+
+# PHN-LS  & 1 $\pm$ 1        & 1          &  1 \\
+# PHN-EPO & 1 $\pm$ 1        & 1          &  1 \\
+# COSMOS  & 1 $\pm$ 1        & 1          &  1 \\ 
+# \multicolumn{4}{c}{\bf Compass} \\ \cmidrule{2-4}
+# PMTL    & 1 $\pm$ 1        & 1          &  1 \\
+# PHN-LS  & 1 $\pm$ 1        & 1          &  1 \\
+# PHN-EPO & 1 $\pm$ 1        & 1          &  1 \\
+# COSMOS  & 1 $\pm$ 1        & 1          &  1 \\ 
+# \multicolumn{4}{c}{\bf Credit} \\ \cmidrule{2-4}
+# PMTL    & 1 $\pm$ 1        & 1          &  1 \\
+# PHN-LS  & 1 $\pm$ 1        & 1          &  1 \\
+# PHN-EPO & 1 $\pm$ 1        & 1          &  1 \\
+# COSMOS  & 1 $\pm$ 1        & 1          &  1 \\
+# \bottomrule
 print()
