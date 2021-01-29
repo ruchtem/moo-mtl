@@ -420,14 +420,14 @@ plot_row(datasets2, methods2, limits_single, prefix='cosmos')
 def generate_table(datasets, methods, name):
     text = f"""
 \\toprule
-                & Hyper Vol. & Time (Sec) & Factor Params. \\\\ \\midrule"""
+                & Hyper Vol. & Time (Sec) & \\# Params. \\\\ \\midrule"""
     for dataset in datasets:
         text += f"""
                 & \\multicolumn{{3}}{{c}}{{\\bf {titles[dataset]}}} \\\\ \cmidrule{{2-4}}"""
         for method in methods:
             r = results[dataset][method]
             text += f"""
-{method_names[method]}    & {r['test_hv'][0]:.2f} $\pm$ {r['test_hv'][1]:.2f}        & {r['training_time'][0]:.0f}          &  {r['num_parameters']} \\\\ """
+{method_names[method]}    & {r['test_hv'][0]:.2f} $\pm$ {r['test_hv'][1]:.2f}        & {r['training_time'][0]:,.0f}          &  {r['num_parameters']//1000:,d}k \\\\ """
 
     text += f"""
 \\bottomrule"""
