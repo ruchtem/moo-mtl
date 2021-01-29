@@ -64,6 +64,8 @@ def compare_settings(data):
     assert len(diff) == 1, f"Runs or not similar apart from seed! {diff}"
     assert 'seed' in dict(diff)
 
+font_size = 15
+figsize=(14, 3.5)
 
 dirname = 'results_plot/results_paper'
 
@@ -259,6 +261,8 @@ with open('results.json', 'w') as outfile:
 
 
 # Generate the plots and tables
+plt.rcParams.update({'font.size': font_size})
+plt.tight_layout()
 
 markers = {
     'hyper_epo': '.', 
@@ -276,9 +280,27 @@ colors = {
     #'#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
 }
 
+titles = {
+    'adult': 'Adult',
+    'compas': 'Compass',
+    'credit': 'Default', 
+    'multi_mnist': "Multi-MNIST", 
+    'multi_fashion': 'Multi_Fashion',
+    'multi_fashion_mnist': 'Multi-Fashion+MNIST'
+}
+
+ax_lables = {
+    'adult': ('Binary Cross-Entropy Loss', 'DEO'),
+    'compas': ('Binary Cross-Entropy Loss', 'DEO'),
+    'credit': ('Binary Cross-Entropy Loss', 'DEO'), 
+    'multi_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
+    'multi_fashion': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
+    'multi_fashion_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
+}
+
 def plot_row(datasets, methods, limits, prefix):
     assert len(datasets) == 3
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
     for j, dataset in enumerate(datasets):
         if dataset not in results:
             continue
@@ -304,7 +326,7 @@ def plot_row(datasets, methods, limits, prefix):
                 )
 
                 if dataset == 'multi_mnist' and method == 'cosmos_ln' and prefix == 'cosmos':
-                    axins = zoomed_inset_axes(ax, 4, loc='upper right') # zoom = 6
+                    axins = zoomed_inset_axes(ax, 5, loc='upper right') # zoom = 6
                     axins.plot(
                         s[:, 0], 
                         s[:, 1], 
@@ -314,13 +336,13 @@ def plot_row(datasets, methods, limits, prefix):
                         label="{}".format(method)
                     )
                     axins.set_xlim(.26, .28)
-                    axins.set_ylim(.315, .33)
+                    axins.set_ylim(.318, .33)
                     axins.set_yticklabels([])
                     axins.set_xticklabels([])
                     mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
                 
                 if dataset == 'multi_fashion' and method == 'cosmos_ln' and prefix == 'cosmos':
-                    axins = zoomed_inset_axes(ax, 6, loc='upper right') # zoom = 6
+                    axins = zoomed_inset_axes(ax, 7, loc='upper right') # zoom = 6
                     axins.plot(
                         s[:, 0], 
                         s[:, 1], 
@@ -329,15 +351,20 @@ def plot_row(datasets, methods, limits, prefix):
                         linestyle='--' if method != 'ParetoMTL' else '',
                         label="{}".format(method)
                     )
-                    axins.set_xlim(.4652, .477)
-                    axins.set_ylim(.503, .514)
+                    axins.set_xlim(.4658, .4765)
+                    axins.set_ylim(.503, .513)
                     axins.set_yticklabels([])
                     axins.set_xticklabels([])
                     mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
         
         ax.set_xlim(right=limits[dataset][0])
         ax.set_ylim(top=limits[dataset][1])
-        ax.set_title(dataset)
+        ax.set_title(titles[dataset])
+        ax.set_xlabel(ax_lables[dataset][0])
+        if j==0:
+            ax.set_ylabel(ax_lables[dataset][1])
+
+
         if j==2:
             ax.legend(loc='upper right')
     fig.savefig(prefix + '_' + '_'.join(datasets), bbox_inches='tight')
@@ -368,11 +395,13 @@ methods1 = ['hyper_epo', 'hyper_ln', 'cosmos_ln', 'ParetoMTL']
 datasets2 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
 methods2 = ['SingleTask', 'cosmos_ln']
 
-plot_row(datasets1, methods1 + ['SingleTask'], limits_baselines, prefix='baselines')
+plot_row(datasets1, methods1, limits_baselines, prefix='baselines')
 plot_row(datasets2, methods1, limits_baselines, prefix='baselines')
 
-# plot_row(datasets1, methods2, prefix='cosmos')
+plot_row(datasets1, methods2, limits_single, prefix='cosmos')
 plot_row(datasets2, methods2, limits_single, prefix='cosmos')
+
+
 
 
 datasets = ['adult', 'compas', 'credit']
