@@ -49,7 +49,7 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    alpha_dir=.3,
+    alpha_dir=.3,  # turned off for ablation
 )
 
 celeba = dict(
@@ -146,7 +146,7 @@ hyperSolver_epo = dict(
 # Common settings
 #
 generic = dict(
-    logdir='results_alpha_try',
+    logdir='results_tmp',
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
     eval_every=5,

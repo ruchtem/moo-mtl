@@ -137,6 +137,8 @@ def main(settings):
 
     # create the experiment folders
     slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ and 'hpo' not in settings['logdir'] else None
+    if slurm_job_id and 'ablation' in settings['logdir']:
+        slurm_job_id = f"{slurm_job_id}_{settings['penalty_weight']}_{settings['alpha_dir']}"
     logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], slurm_job_id if slurm_job_id else datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
