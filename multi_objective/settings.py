@@ -97,17 +97,15 @@ cosmos_ln = dict(
     penalty_weight = .5
 )
 
-cosmos_epo = dict(
-    method='cosmos_epo',
-    lr=1e-3,
+mgda = dict(
+    method='mgda',
+    lr=1e-4,
     batch_size=256,
     epochs=100,
     num_starts=1,
-    early_fusion=True,
-    late_fusion=False,
-    alpha_generator_dim=2,
-    alpha_dir=0.2,   # dirichlet sampling, None=Uniform sampling
-    internal_solver='epo',
+    approximate_norm_solution=True,
+    normalization_type='loss+',
+    use_scheduler=False,
 )
 
 SingleTaskSolver = dict(

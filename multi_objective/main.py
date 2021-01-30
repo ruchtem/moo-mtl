@@ -25,7 +25,7 @@ from objectives import from_name
 from hv import HyperVolume
 
 
-from solvers import HypernetSolver, ParetoMTLSolver, SingleTaskSolver, COSMOSSolver
+from solvers import HypernetSolver, ParetoMTLSolver, SingleTaskSolver, COSMOSSolver, MGDASolver
 from scores import mcr, DDP, from_objectives
 
 
@@ -38,6 +38,8 @@ def solver_from_name(method, **kwargs):
         return SingleTaskSolver(**kwargs)
     elif 'hyper' in method:
         return HypernetSolver(**kwargs)
+    elif method == 'mgda':
+        return MGDASolver(**kwargs)
     else:
         raise ValueError("Unkown method {}".format(method))
 
@@ -214,8 +216,8 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='celeba')
-    parser.add_argument('--method', '-m', default='single_task')
+    parser.add_argument('--dataset', '-d', default='mm')
+    parser.add_argument('--method', '-m', default='mgda')
     parser.add_argument('--seed', '-s', default=1, type=int)
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()
@@ -237,6 +239,8 @@ def parse_args():
         settings.update(s.hyperSolver_epo)
     elif args.method == 'pmtl':
         settings.update(s.paretoMTL)
+    elif args.method == 'mgda':
+        settings.update(s.mgda)
     
     if args.dataset == 'mm':
         settings.update(s.multi_mnist)

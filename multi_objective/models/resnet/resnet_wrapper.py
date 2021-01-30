@@ -1,9 +1,33 @@
+import torch
 from .resnet import ResNet, BasicBlock, Bottleneck, model_urls
 from .utils import load_state_dict_from_url
 from typing import Type, Any, Callable, Union, List, Optional
 
 
 class ResNetWrapper(ResNet):
+
+    # this is required for approximate mgda
+    def forward_feature_extraction(self, batch):
+        x = batch['data']
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        return x
+    
+        
+    def forward_linear(self, x):
+        x = self.fc(x)
+        result = {'logits_{}'.format(t): x[:, i] for i, t in enumerate(self.task_ids)}
+        return result
 
     
     def forward(self, batch):
