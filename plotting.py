@@ -380,7 +380,7 @@ def plot_row(datasets, methods, limits, prefix):
         if j==2:
             ax.legend(loc='upper right')
     plt.subplots_adjust(wspace=.25)
-    fig.savefig(prefix + '_' + '_'.join(datasets), bbox_inches='tight')
+    fig.savefig(prefix + '_' + '_'.join(datasets) + '.pdf', bbox_inches='tight')
     plt.close(fig)
 
 

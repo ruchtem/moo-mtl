@@ -193,7 +193,7 @@ def plot_ablation(datasets, methods, lambdas, alphas):
                 ax.set_ylabel(ax_lables[dataset][1])
             ax.legend(loc='upper right')
         fig.suptitle(titles[dataset], y=1.09)
-        fig.savefig(f'ablation_{dataset}' , bbox_inches='tight')
+        fig.savefig(f'ablation_{dataset}.pdf' , bbox_inches='tight')
         plt.close(fig)
 
 datasets1 = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']

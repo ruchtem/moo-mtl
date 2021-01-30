@@ -159,7 +159,7 @@ def plot_convergence(datasets, methods, epochs=None):
             ax.set_ylabel(ax_lables[dataset][1])
         if j==2:
             ax.legend(loc='upper right')
-    fig.savefig('convergence_' + '_'.join(datasets), bbox_inches='tight')
+    fig.savefig('convergence_' + '_'.join(datasets) + '.pdf', bbox_inches='tight')
     plt.close(fig)
 
 datasets1 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
