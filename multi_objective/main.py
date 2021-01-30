@@ -17,11 +17,7 @@ import pathlib
 import time
 import json
 import itertools
-import matplotlib.pyplot as plt
 from torch.utils import data
-from collections import deque
-from copy import deepcopy
-from datetime import datetime
 
 import settings as s
 import utils
@@ -31,22 +27,6 @@ from hv import HyperVolume
 
 from solvers import HypernetSolver, ParetoMTLSolver, SingleTaskSolver, COSMOSSolver
 from scores import mcr, DDP, from_objectives
-
-
-def set_seed(seed):
-
-    np.random.seed(seed)
-    random.seed(seed)
-
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-
-    torch.backends.cudnn.enabled = True
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-
 
 
 def solver_from_name(method, **kwargs):
@@ -140,15 +120,12 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
 
 def main(settings):
     print("start processig with settings", settings)
-    set_seed(settings['seed'])
+    utils.set_seed(settings['seed'])
 
     global elapsed_time
 
     # create the experiment folders
-    slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ and 'hpo' not in settings['logdir'] else None
-    if slurm_job_id and 'ablation' in settings['logdir']:
-        slurm_job_id = f"{slurm_job_id}_{settings['penalty_weight']}_{settings['alpha_dir']}"
-    logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], slurm_job_id if slurm_job_id else datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], utils.get_runname(settings))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
 
@@ -169,6 +146,9 @@ def main(settings):
     train_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
     val_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
     test_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
+
+    with open(pathlib.Path(logdir) / "settings.json", "w") as file:
+        json.dump(train_results, file)
 
     # main
     for j in range(settings['num_starts']):
@@ -222,7 +202,7 @@ def main(settings):
                     result_dict=test_results)
 
             # Checkpoints
-            if (e+1) % 5 == 0:
+            if settings['checkpoint_every'] > 0 and (e+1) % settings['checkpoint_every'] == 0:
                 pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
                 torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
 
@@ -235,14 +215,18 @@ def main(settings):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='celeba')
-    parser.add_argument('--method', '-m', default='cosmos_ln')
+    parser.add_argument('--method', '-m', default='single_task')
     parser.add_argument('--seed', '-s', default=1, type=int)
+    parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()
 
     settings = s.generic
     
     if args.method == 'single_task':
         settings.update(s.SingleTaskSolver)
+        if args.task_id is not None:
+            settings['num_starts'] = 1
+            settings['task_id'] = args.task_id
     elif args.method == 'cosmos_ln':
         settings.update(s.cosmos_ln)
     elif args.method == 'cosmos_epo':

@@ -1,8 +1,10 @@
 import torch
 import os
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 
+from datetime import datetime
 from itertools import chain, combinations
 
 from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
@@ -107,6 +109,35 @@ def reset_weights(model):
 
 def dict_to_cuda(d):
     return {k: v.cuda() if isinstance(v, torch.Tensor) else v for k, v in d.items()}
+
+
+def set_seed(seed):
+
+    np.random.seed(seed)
+    random.seed(seed)
+
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+
+def get_runname(settings):
+    slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ and 'hpo' not in settings['logdir'] else None
+    if slurm_job_id:
+        runname = f"{slurm_job_id}"
+        if 'ablation' in settings['logdir']:
+            runname += f"_{settings['penalty_weight']}_{settings['alpha_dir']}"
+    else:
+        runname = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    if 'task_id' in settings:
+        runname += f"_{settings['task_id']:03d}"
+    return runname
+
 
 
 def powerset(s):

@@ -63,7 +63,7 @@ celeba = dict(
     use_scheduler=False,
     train_eval_every=0,     # do it in parallel manually
     eval_every=0,
-    model_name='efficientnet-b3',   #'resnet18', 'efficientnet-b3'
+    model_name='resnet18',   #'resnet18', 'efficientnet-b4'
     alpha_generator_dim=4,
     lr=0.0005,   # taken from mtl as moo
 )
@@ -154,4 +154,5 @@ generic = dict(
     use_scheduler=True,
     scheduler_gamma=0.1,
     seed=1,
+    checkpoint_every=10,
 )

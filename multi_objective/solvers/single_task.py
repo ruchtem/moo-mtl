@@ -6,9 +6,15 @@ from .base import BaseSolver
 
 class SingleTaskSolver(BaseSolver):
 
-    def __init__(self, objectives, **kwargs):
+    def __init__(self, objectives, num_starts, **kwargs):
         self.objectives = objectives
-        self.task = -1
+        if num_starts > 1:
+            # we are doing it sequentially
+            self.task = -1
+            assert 'task_id' not in kwargs
+        else:
+            assert num_starts == 1
+            self.task = kwargs['task_id'] - 1
         self.model = model_from_dataset(method='single_task', **kwargs).cuda()
 
 
