@@ -2,6 +2,15 @@ import torch
 import random
 import numpy as np
 
+# seed now to be save and overwrite later
+np.random.seed(1)
+random.seed(1)
+
+torch.manual_seed(1)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(1)
+    torch.cuda.manual_seed_all(1)
+
 import argparse
 import os
 import pathlib

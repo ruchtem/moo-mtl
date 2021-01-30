@@ -49,7 +49,7 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    alpha_dir=.3,  # turned off for ablation
+    alpha_dir=.5,  # turned off for ablation
 )
 
 celeba = dict(
@@ -155,7 +155,3 @@ generic = dict(
     scheduler_gamma=0.1,
     seed=1,
 )
-
-
-from main import set_seed
-set_seed(generic['seed'])
