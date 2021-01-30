@@ -338,7 +338,7 @@ def plot_row(datasets, methods, limits, prefix):
                 )
 
                 if dataset == 'multi_mnist' and method == 'cosmos_ln' and prefix == 'cosmos':
-                    axins = zoomed_inset_axes(ax, 5, loc='upper right') # zoom = 6
+                    axins = zoomed_inset_axes(ax, 4, loc='upper right') # zoom = 6
                     axins.plot(
                         s[:, 0], 
                         s[:, 1], 
@@ -347,8 +347,8 @@ def plot_row(datasets, methods, limits, prefix):
                         linestyle='--' if method != 'ParetoMTL' else '',
                         label="{}".format(method_names[method])
                     )
-                    axins.set_xlim(.26, .28)
-                    axins.set_ylim(.318, .33)
+                    axins.set_xlim(.25, .29)
+                    axins.set_ylim(.318, .35)
                     axins.set_yticklabels([])
                     axins.set_xticklabels([])
                     mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
@@ -363,14 +363,14 @@ def plot_row(datasets, methods, limits, prefix):
                         linestyle='--' if method != 'ParetoMTL' else '',
                         label="{}".format(method_names[method])
                     )
-                    axins.set_xlim(.4658, .4765)
-                    axins.set_ylim(.503, .513)
+                    axins.set_xlim(.4658, .492)
+                    axins.set_ylim(.488, .513)
                     axins.set_yticklabels([])
                     axins.set_xticklabels([])
                     mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
-        
-        ax.set_xlim(right=limits[dataset][0])
-        ax.set_ylim(top=limits[dataset][1])
+        lim = limits[dataset]
+        ax.set_xlim(left=lim[0], right=lim[1])
+        ax.set_ylim(bottom=lim[2], top=lim[3])
         ax.set_title(titles[dataset])
         ax.set_xlabel(ax_lables[dataset][0])
         if j==0:
@@ -379,26 +379,19 @@ def plot_row(datasets, methods, limits, prefix):
 
         if j==2:
             ax.legend(loc='upper right')
+    plt.subplots_adjust(wspace=.25)
     fig.savefig(prefix + '_' + '_'.join(datasets), bbox_inches='tight')
     plt.close(fig)
 
 
 limits_baselines = {
-    'adult': [.6, .14],
-    'compas': [1.5, .35],
-    'credit': [.6, .015],
-    'multi_mnist': [.5, .5], 
-    'multi_fashion': [.75, .75], 
-    'multi_fashion_mnist': [.6, .6],
-}
-
-limits_single = {
-    'adult': [.6, .14],
-    'compas': [1.5, .35],
-    'credit': [.6, .015],
-    'multi_mnist': [.4, .4], 
-    'multi_fashion': [.6, .6], 
-    'multi_fashion_mnist': [.4, .52],
+    # dataset: [left, right, bottom, top]
+    'adult': [.3, .6, -0.01, .14],
+    'compas': [0, 1.5, -.01, .35],
+    'credit': [.42, .6, -0.001, .017],
+    'multi_mnist': [.24, .5, .3, .5], 
+    'multi_fashion': [.45, .75, .47, .75], 
+    'multi_fashion_mnist': [.18, .6, .43, .6],
 }
 
 
@@ -410,8 +403,8 @@ methods2 = ['SingleTask', 'cosmos_ln']
 plot_row(datasets1, methods1, limits_baselines, prefix='baselines')
 plot_row(datasets2, methods1, limits_baselines, prefix='baselines')
 
-plot_row(datasets1, methods2, limits_single, prefix='cosmos')
-plot_row(datasets2, methods2, limits_single, prefix='cosmos')
+plot_row(datasets1, methods2, limits_baselines, prefix='cosmos')
+plot_row(datasets2, methods2, limits_baselines, prefix='cosmos')
 
 
 

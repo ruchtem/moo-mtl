@@ -177,7 +177,8 @@ def plot_ablation(datasets, methods, lambdas, alphas):
                         s[:, 0], 
                         s[:, 1], 
                         #color=adjust_lightness(colors[method], amount=color_shades[i]),
-                        marker=markers[method],
+                        #marker=markers[method],
+                        marker='.',
                         linestyle='--' if method != 'ParetoMTL' else ' ',
                         label=r"$\alpha = $" + str(a)   # r"$\lambda = $" + str(l) + 
                     )
