@@ -65,7 +65,8 @@ celeba = dict(
     eval_every=0,
     model_name='resnet18',   #'resnet18', 'efficientnet-b4'
     alpha_generator_dim=4,
-    lr=0.0005,   # taken from mtl as moo
+    lr=0.0005,   # taken from mgda paper
+    logdir='results_celeba',
 )
 
 #
