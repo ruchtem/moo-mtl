@@ -138,17 +138,35 @@ with open('results_ablation.json', 'w') as outfile:
 # Generate the plots and tables
 plt.rcParams.update({'font.size': font_size})
 
+limits = {
+    # dataset: [left, right, bottom, top]
+    'multi_mnist': [.1, 2.5, 0.2, 3], 
+    'multi_fashion': [.35, 2.5, .35, 3], 
+    'multi_fashion_mnist': [.1, 2, .35, 2],
+}
+
+ax_lables = {
+    'adult': ('Loss', 'DEO'),
+    'compas': ('Loss', 'DEO'),
+    'credit': ('Loss', 'DEO'), 
+    'multi_mnist': ('Loss Task TL', 'Loss Task BR'), 
+    'multi_fashion': ('Loss Task TL', 'Loss Task BR'), 
+    'multi_fashion_mnist': ('Loss Task TL', 'Loss Task BR'), 
+}
+
+# change size cause of suptitle
+figsize = (figsize[0], figsize[1] * .88)
 
 def plot_ablation(datasets, methods, lambdas, alphas):
     for dataset in datasets:
-        fig, axes = plt.subplots(1, len(alphas), figsize=figsize)
-        for j, a in enumerate(alphas):
+        fig, axes = plt.subplots(1, len(lambdas), figsize=figsize, sharex=True, sharey=True)
+        for j, l in enumerate(lambdas):
             ax = axes[j]
             for method in methods:
                 if method not in results[dataset]:
                     continue
                 
-                for l in lambdas:
+                for a in alphas:
 
                 #color_shades = np.linspace(1.7, .3, len(epochs)).tolist()
 
@@ -161,14 +179,19 @@ def plot_ablation(datasets, methods, lambdas, alphas):
                         #color=adjust_lightness(colors[method], amount=color_shades[i]),
                         marker=markers[method],
                         linestyle='--' if method != 'ParetoMTL' else ' ',
-                        label="l={}, a={}".format(l, a)
+                        label=r"$\alpha = $" + str(a)   # r"$\lambda = $" + str(l) + 
                     )
+            if dataset in limits:
+                lim = limits[dataset]
+                ax.set_xlim(left=lim[0], right=lim[1])
+                ax.set_ylim(bottom=lim[2], top=lim[3])
 
-            ax.set_title(titles[dataset] + f" alpha={a}")
+            ax.set_title(r"$\lambda = $" + f"{l}")
             ax.set_xlabel(ax_lables[dataset][0])
             if j==0:
                 ax.set_ylabel(ax_lables[dataset][1])
             ax.legend(loc='upper right')
+        fig.suptitle(titles[dataset], y=1.09)
         fig.savefig(f'ablation_{dataset}' , bbox_inches='tight')
         plt.close(fig)
 
