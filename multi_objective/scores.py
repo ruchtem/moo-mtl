@@ -68,7 +68,9 @@ class mcr(BaseScore):
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
         with torch.no_grad():
-            if logits.shape[1] == 1:
+            if len(logits.shape) == 1:
+                y_hat = torch.round(torch.sigmoid(logits))
+            elif logits.shape[1] == 1:
                 # binary case
                 logits = torch.squeeze(logits)
                 y_hat = torch.round(torch.sigmoid(logits))
