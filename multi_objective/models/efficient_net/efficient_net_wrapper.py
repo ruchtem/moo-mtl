@@ -3,6 +3,23 @@ from models.efficient_net.model import EfficientNet
 # small wrapper
 class EfficientNetWrapper(EfficientNet):
 
+
+    # this is required for approximate mgda
+    def forward_feature_extraction(self, batch):
+        x = batch['data']
+        x = self.extract_features(x)
+        x = self._avg_pooling(x)
+        x = x.flatten(start_dim=1)
+        return x
+    
+        
+    def forward_linear(self, x):
+        x = self._dropout(x)
+        x = self._fc(x)
+        result = {'logits_{}'.format(t): x[:, i] for i, t in enumerate(self.task_ids)}
+        return result
+
+
     def forward(self, batch):
         x = batch['data']
         x = super().forward(x)
