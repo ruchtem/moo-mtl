@@ -1,5 +1,16 @@
 import torch
+import random
 import numpy as np
+
+# seed now to be save and overwrite later
+np.random.seed(1)
+random.seed(1)
+
+torch.manual_seed(1)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(1)
+    torch.cuda.manual_seed_all(1)
+
 import os
 import pathlib
 import itertools
@@ -9,7 +20,7 @@ import torch.utils.data as data
 from datetime import datetime
 
 import utils
-from main import parse_args, set_seed, solver_from_name
+from main import parse_args, solver_from_name
 from scores import from_objectives, mcr
 from objectives import from_name
 from hv import HyperVolume
@@ -19,7 +30,7 @@ from hv import HyperVolume
 
 def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, result_dict):
     assert split in ['train', 'val', 'test']
-
+    print("which to u[date", j)
     # n_test_rays = 25
     n_test_rays = 1
 
@@ -87,10 +98,15 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
 
     result.update(solver.log())
 
-    if f"epoch_{e}" in result_dict[f"start_{j}"]:
-        result_dict[f"start_{j}"][f"epoch_{e}"].update(result)
-    else:
-        result_dict[f"start_{j}"][f"epoch_{e}"] = result
+    # if f"epoch_{e}" in result_dict[f"start_{j}"]:
+    #     result_dict[f"start_{j}"][f"epoch_{e}"].update(result)
+    # else:
+    result.update({
+        "task": j,
+    })
+
+    print("which to u[date", j)
+    result_dict[f"start_{j}"][f"epoch_{e}"] = result
 
     with open(pathlib.Path(logdir) / f"{split}_results.json", "w") as file:
         json.dump(result_dict, file)
@@ -107,24 +123,24 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
 
 def eval(settings):
     settings['batch_size'] = 2048
+    settings['model_name'] = 'resnet18'
 
     print("start evaluation with settings", settings)
     #set_seed(settings['seed'])
 
     # create the experiment folders
-    slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ and 'hpo' not in settings['logdir'] else None
-    logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], slurm_job_id if slurm_job_id else datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], utils.get_runname(settings))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
 
     # prepare
     # train_set = utils.dataset_from_name(split='train', **settings)
     val_set = utils.dataset_from_name(split='val', **settings)
-    #test_set = utils.dataset_from_name(split='test', **settings)
+    test_set = utils.dataset_from_name(split='test', **settings)
 
     # train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
     val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
-    #test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
+    test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
 
     objectives = from_name(settings.pop('objectives'), val_set.task_names())
     scores1 = from_objectives(objectives)
@@ -136,43 +152,50 @@ def eval(settings):
     val_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
     test_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
 
-    j = 0
-    checkpoint_dir = 'results_celeba/cosmos_ln/celeba/2126915/checkpoints'
-    checkpoints = pathlib.Path(checkpoint_dir).glob('**/c_*.pth')
-    c = list(sorted(checkpoints))[-1]
-    print("cechlpoint", c)
+    checkpoint_dir = 'results_celeba/SingleTask_resnet/celeba'
+    task_ids = settings['task_ids'] if settings['method'] == 'SingleTask' else [0]
+    for j in task_ids:
+        if settings['method'] == 'SingleTask':
+            # we ran it in parallel
+            checkpoints = pathlib.Path(checkpoint_dir).glob(f'**/*_{j:03d}/*/c_*.pth')
+        else:
+            checkpoints = pathlib.Path(checkpoint_dir).glob('**/c_*.pth')
+
+        c = list(sorted(checkpoints))[-1]
+        print("cechlpoint", c)
         
-    solver.model.load_state_dict(torch.load(c))
+        solver.model.load_state_dict(torch.load(c))
 
-    j, e = c.stem.replace('c_', '').split('-')
-    j = int(j)
-    e = int(e)
+        _, e = c.stem.replace('c_', '').split('-')
 
-    val_results[f"start_{j}"] = {}
-    test_results[f"start_{j}"] = {}
+        j = int(j)
+        e = int(e)
 
-    # run eval on train set (mainly for debugging)
-    # if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
-    #     train_results = evaluate(j, e, solver, scores, train_loader, logdir, 
-    #         reference_point=settings['reference_point'],
-    #         split='train',
-    #         result_dict=train_results)
+        val_results[f"start_{j}"] = {}
+        test_results[f"start_{j}"] = {}
 
-    
-    # Validation results
-    val_results = evaluate(j, e, solver, scores2, val_loader, logdir, 
-        reference_point=settings['reference_point'],
-        split='val',
-        result_dict=val_results)
+        # run eval on train set (mainly for debugging)
+        # if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
+        #     train_results = evaluate(j, e, solver, scores, train_loader, logdir, 
+        #         reference_point=settings['reference_point'],
+        #         split='train',
+        #         result_dict=train_results)
 
-    # Test results
-    # test_results = evaluate(j, e, solver, scores, test_loader, logdir, 
-    #     reference_point=settings['reference_point'],
-    #     split='test',
-    #     result_dict=test_results)
+        
+        # Validation results
+        val_results = evaluate(j, e, solver, scores2, val_loader, logdir, 
+            reference_point=settings['reference_point'],
+            split='val',
+            result_dict=val_results)
+
+        # Test results
+        test_results = evaluate(j, e, solver, scores2, test_loader, logdir, 
+            reference_point=settings['reference_point'],
+            split='test',
+            result_dict=test_results)
 
 
-    print()
+        print()
 
 
 

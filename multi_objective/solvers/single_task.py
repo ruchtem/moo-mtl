@@ -39,7 +39,7 @@ class SingleTaskSolver(BaseSolver):
         return {"task": self.task}
 
 
-    def eval_step(self, batch):
+    def eval_step(self, batch, test_rays=None):
         self.model.eval()
         with torch.no_grad():
             return[self.model(batch)]
