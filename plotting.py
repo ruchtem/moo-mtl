@@ -386,29 +386,39 @@ limits_baselines = {
     'multi_fashion_mnist': [.18, .6, .43, .6],
 }
 
-def plot_celeba(methods):
-    for method in methods:
-        # r = results['celeba'][method]['test_scores']  # only final
-        r = np.array(results['celeba'][method]['test_scores'])
-        print(method, np.mean(r))
 
-        print()
-        plt.hist(r.ravel(),
-            bins=20,
-            histtype='bar',
-            linewidth=1.2,
-            alpha = 0.3,
-            color=colors[method],
-            label="{}".format(method_names[method])
-        )
-        # do histograms
+def plot_gain():
 
-    plt.legend()
+    st = np.array(results['celeba']['SingleTask']['test_scores'])
+    co = np.array(results['celeba']['cosmos_ln']['test_scores'])
+
+    gain = st/co
+
+    fig,ax = plt.subplots(1)
+
+    ax.hist(gain.ravel(), bins=50, histtype='stepfilled', alpha=.7)
+    
+    ylim = 7
+    ax.set_ylim(top=ylim)
+    mean = np.mean(gain)
+    std = np.std(gain)
+    height = ylim * .9
+    ax.vlines(mean, 0, ylim)
+    ax.arrow(mean, height, -std, 0, length_includes_head=True, head_length=0.01, head_width=0.1)
+    ax.arrow(mean, height, +std, 0, length_includes_head=True, head_length=0.01, head_width=0.1)
+    ax.text(mean-std/2, height + .1, "std", horizontalalignment='center')
+    ax.text(mean+std/2, height + .1, "std", horizontalalignment='center')
+
+    ax.set_xlabel("Gain to Single Task on Celeb-A")
+    ax.set_ylabel("Frequencies")
+
+    #plt.show()
     plt.savefig('hist')
+    plt.close()
+    
 
 
-plot_celeba(['SingleTask', 'cosmos_ln'])
-
+plot_gain()
 
 
 datasets1 = ['adult', 'compas', 'credit']
