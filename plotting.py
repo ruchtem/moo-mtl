@@ -67,9 +67,10 @@ def compare_settings(data):
 font_size = 12
 figsize=(14, 3.5)
 
-dirname = 'results_plot/results_paper'
+# dirname = 'results_plot/results_paper'
+dirname = 'results_plot/results_celeba/effnet'
 
-datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']#, 'celeba']
+datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist', 'celeba']
 methods = ['SingleTask', 'hyper_epo', 'hyper_ln', 'ParetoMTL',  'cosmos_ln']
 
 generating_pareto_front = ['cosmos_ln', 'hyper_ln', 'hyper_epo']
@@ -87,12 +88,7 @@ early_stop = ['hyper_ln', 'hyper_epo', 'SingleTask', 'ParetoMTL']
 reference_points = {
     'adult': [2, 2], 'compas': [2, 2], 'credit': [2, 2], 
     'multi_mnist': [2, 2], 'multi_fashion': [2, 2], 'multi_fashion_mnist': [2, 2],
-    'celeba': [1 for _ in range(40)]
 }
-
-ignore_runs = [
-
-]
 
 
 def load_files(paths):
@@ -116,7 +112,7 @@ def process_non_pareto_front(data_val, data_test):
     result_i['val_scores'] = []
     result_i['test_scores'] = []
     result_i['early_stop_epoch'] = []
-    for s in sorted(data_val.keys()):
+    for s in natural_sort(data_val.keys()):
         if 'start_' in s:
             e = "epoch_{}".format(get_early_stop(data_val[s], key=stop_key[method]))
             val_results = data_val[s][e]
@@ -142,9 +138,9 @@ def process_non_pareto_front(data_val, data_test):
     result_i['test_scores'] = fix_scores_dim(result_i['test_scores'])
 
     # compute hypervolume
-    hv = HyperVolume(reference_points[dataset])
-    result_i['val_hv'] = hv.compute(result_i['val_scores'])
-    result_i['test_hv'] = hv.compute(result_i['test_scores'])
+    # hv = HyperVolume(reference_points[dataset])
+    # result_i['val_hv'] = hv.compute(result_i['val_scores'])
+    # result_i['test_hv'] = hv.compute(result_i['test_scores'])
     return result_i
 
 
@@ -157,13 +153,9 @@ for dataset in datasets:
     results[dataset] = {}
     for method in methods:
         # ignore folders that start with underscore
-        val_file = list(sorted(p.glob(f'**/{method}/{dataset}/[!_]*/val*.json')))
-        test_file = list(sorted(p.glob(f'**/{method}/{dataset}/[!_]*/test*.json')))
-        train_file = list(sorted(p.glob(f'**/{method}/{dataset}/[!_]*/train*.json')))
-
-        for r in ignore_runs:
-            val_file = [f for f in val_file if str(r) not in f.parts]
-            test_file = [f for f in test_file if str(r) not in f.parts]
+        val_file = list(sorted(p.glob(f'**/{method}/{dataset}/**/val*.json')))
+        test_file = list(sorted(p.glob(f'**/{method}/{dataset}/**/test*.json')))
+        train_file = list(sorted(p.glob(f'**/{method}/{dataset}/**/train*.json')))
 
         assert len(val_file) == len(test_file)
 
@@ -394,6 +386,30 @@ limits_baselines = {
     'multi_fashion_mnist': [.18, .6, .43, .6],
 }
 
+def plot_celeba(methods):
+    for method in methods:
+        # r = results['celeba'][method]['test_scores']  # only final
+        r = np.array(results['celeba'][method]['test_scores'])
+        print(method, np.mean(r))
+
+        print()
+        plt.hist(r.ravel(),
+            bins=20,
+            histtype='bar',
+            linewidth=1.2,
+            alpha = 0.3,
+            color=colors[method],
+            label="{}".format(method_names[method])
+        )
+        # do histograms
+
+    plt.legend()
+    plt.savefig('hist')
+
+
+plot_celeba(['SingleTask', 'cosmos_ln'])
+
+
 
 datasets1 = ['adult', 'compas', 'credit']
 methods1 = ['hyper_epo', 'hyper_ln', 'ParetoMTL', 'cosmos_ln']
@@ -405,7 +421,6 @@ plot_row(datasets2, methods1, limits_baselines, prefix='baselines')
 
 plot_row(datasets1, methods2, limits_baselines, prefix='cosmos')
 plot_row(datasets2, methods2, limits_baselines, prefix='cosmos')
-
 
 
 
