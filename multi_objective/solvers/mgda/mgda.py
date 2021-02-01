@@ -60,7 +60,7 @@ class MGDASolver(BaseSolver):
                 # zero grad
                 self.model.zero_grad()
                 
-                logits = self.model.forward_linear(rep)
+                logits = self.model.forward_linear(rep, i)
                 batch.update(logits)
 
                 output = objective(**batch)
@@ -72,8 +72,9 @@ class MGDASolver(BaseSolver):
                 private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
                 for name, param in self.model.named_parameters():
                     not_private = all([p not in name for p in private_params])
-                    if not_private and param.requires_grad and param.grad is not None:
+                    if not_private and param.requires_grad and param.grad is not None and abs(param.grad).sum() != 0:
                         gradients[i][name] = param.grad.data.detach().clone()
+                        param.grad.zero_()
             
             grads = gradients
 
