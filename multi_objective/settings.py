@@ -119,6 +119,16 @@ SingleTaskSolver = dict(
     scheduler_milestones=[20,40,80,90],
 )
 
+uniform_scaling = dict(
+    method='uniform',
+    lr=1e-3,
+    batch_size=256,
+    epochs=100,
+    num_starts=1,
+    scheduler_gamma=0.1,
+    scheduler_milestones=[20,40,80,90],
+)
+
 hyperSolver_ln = dict(
     method='hyper_ln',
     lr=1e-4,
