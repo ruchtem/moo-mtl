@@ -42,7 +42,7 @@ def adjust_lightness(color, amount=0.5):
     c = colorsys.rgb_to_hls(*mc.to_rgb(c))
     return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
 
-dirname = "results_ablation/"
+dirname = "results_plot/results_ablation/"
 
 p = Path(dirname)
 all_files = list(p.glob('**/*.json'))
@@ -154,6 +154,14 @@ ax_lables = {
     'multi_fashion_mnist': ('Loss Task TL', 'Loss Task BR'), 
 }
 
+colors = {
+    #alpha, color
+    .2: '#8c564b',
+    .5: '#e377c2',
+    1: '#17becf', #'#7f7f7f',
+}
+# '#bcbd22', '#17becf'
+
 # change size cause of suptitle
 figsize = (figsize[0], figsize[1] * .88)
 
@@ -176,12 +184,28 @@ def plot_ablation(datasets, methods, lambdas, alphas):
                     ax.plot(
                         s[:, 0], 
                         s[:, 1], 
-                        #color=adjust_lightness(colors[method], amount=color_shades[i]),
+                        color=colors[a],
                         #marker=markers[method],
                         marker='.',
                         linestyle='--' if method != 'ParetoMTL' else ' ',
                         label=r"$\alpha = $" + str(a)   # r"$\lambda = $" + str(l) + 
                     )
+
+                    if dataset == 'multi_mnist' and l==0:
+                        axins = zoomed_inset_axes(ax, 300, loc='lower right') # zoom = 6
+                        axins.plot(
+                            s[:, 0], 
+                            s[:, 1], 
+                            color=colors[a],
+                            marker='.',
+                            linestyle='--' if method != 'ParetoMTL' else '',
+                        )
+                        axins.set_xlim(.265, .27)
+                        axins.set_ylim(.315, .32)
+                        axins.set_yticklabels([])
+                        axins.set_xticklabels([])
+                        mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+
             if dataset in limits:
                 lim = limits[dataset]
                 ax.set_xlim(left=lim[0], right=lim[1])
@@ -192,7 +216,7 @@ def plot_ablation(datasets, methods, lambdas, alphas):
             if j==0:
                 ax.set_ylabel(ax_lables[dataset][1])
             ax.legend(loc='upper right')
-        fig.suptitle(titles[dataset], y=1.09)
+        fig.suptitle(titles[dataset], y=1.05)
         fig.savefig(f'ablation_{dataset}.pdf' , bbox_inches='tight')
         plt.close(fig)
 

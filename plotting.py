@@ -64,7 +64,7 @@ def compare_settings(data):
     assert len(diff) == 1, f"Runs or not similar apart from seed! {diff}"
     assert 'seed' in dict(diff)
 
-font_size = 15
+font_size = 12
 figsize=(14, 3.5)
 
 dirname = 'results_plot/results_paper'
