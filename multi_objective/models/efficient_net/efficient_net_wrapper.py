@@ -27,6 +27,9 @@ class EfficientNetWrapper(EfficientNet):
         # x = self._fc(x)
         result = {f'logits_{i}': self.task_layers[f'task_fc_{i}'](x)}
         return result
+    
+    def private_params(self):
+        return [n for n, p in self.named_parameters() if "task_layers" not in n]
 
 
     def forward(self, batch):
