@@ -121,6 +121,17 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
     
     return result_dict
 
+import collections
+queue1 = collections.deque(maxlen=200)
+queue2 = collections.deque(maxlen=200)
+def rm1(x):
+    queue1.append(x)
+    return np.mean(list(queue1)).item()
+
+def rm2(x):
+    queue2.append(x)
+    return np.mean(list(queue2)).item()
+
 
 def main(settings):
     print("start processig with settings", settings)
@@ -174,7 +185,7 @@ def main(settings):
                 optimizer.zero_grad()
                 loss, sim = solver.step(batch)
                 optimizer.step()
-                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}, sim {:.4f}".format(e, b, loss, sim))
+                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}, sim {:.4f}, rm train_loss {:.3f}, rm sim {:.3f}".format(e, b, loss, sim, rm1(loss), rm2(sim)))
             
             tock = time.time()
             elapsed_time += (tock - tick)

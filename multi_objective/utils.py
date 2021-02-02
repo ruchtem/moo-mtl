@@ -131,7 +131,7 @@ def get_runname(settings):
     if slurm_job_id:
         runname = f"{slurm_job_id}"
         if 'ablation' in settings['logdir']:
-            runname += f"_{settings['penalty_weight']}_{settings['alpha_dir']}"
+            runname += f"_{settings['lamda']}_{settings['alpha']}"
     else:
         runname = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     if 'task_id' in settings:
