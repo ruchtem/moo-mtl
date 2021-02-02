@@ -54,6 +54,8 @@ class MGDASolver(BaseSolver):
             #     list_rep = False
 
             # Compute gradients of each loss function wrt z
+            
+
             gradients = []
             obj_values = []
             for i, objective in enumerate(self.objectives):
@@ -72,9 +74,10 @@ class MGDASolver(BaseSolver):
                 private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
                 for name, param in self.model.named_parameters():
                     not_private = all([p not in name for p in private_params])
-                    if not_private and param.requires_grad and param.grad is not None and abs(param.grad).sum() != 0:
+                    if not_private and param.requires_grad and param.grad is not None:
                         gradients[i][name] = param.grad.data.detach().clone()
-                        param.grad.zero_()
+                        param.grad = None
+                self.model.zero_grad()
             
             grads = gradients
 
