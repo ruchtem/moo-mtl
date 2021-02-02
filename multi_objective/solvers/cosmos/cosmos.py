@@ -10,7 +10,7 @@ from .utils import alpha_from_epo, uniform_sample_alpha
 
 
 class AlphaGenerator(nn.Module):
-    def __init__(self, K, child_model, input_dim, hidden_dim=2, late_fusion=False):
+    def __init__(self, K, child_model, input_dim, late_fusion=False):
         super().__init__()
         self.late_fusion = late_fusion
 
@@ -68,21 +68,21 @@ class AlphaGenerator(nn.Module):
 
 class COSMOSSolver(BaseSolver):
 
-    def __init__(self, objectives, alpha_dir, dim, early_fusion, late_fusion, alpha_generator_dim, n_test_rays, internal_solver, penalty_weight, **kwargs):
+    def __init__(self, objectives, alpha, dim, early_fusion, late_fusion, n_test_rays, internal_solver, lamda, **kwargs):
         self.objectives = objectives
         self.K = len(objectives)
         self.early_fusion = early_fusion
         self.late_fusion = late_fusion
-        self.alpha_dir = alpha_dir
+        self.alpha = alpha
         self.n_test_rays = n_test_rays
         self.internal_solver = internal_solver
-        self.penalty_weight = penalty_weight
+        self.lamda = lamda
 
         dim = list(dim)
         dim[0] = dim[0] if not early_fusion else dim[0] + self.K
 
         model = model_from_dataset(method='cosmos', dim=dim, late_fusion=late_fusion, **kwargs)
-        self.model = AlphaGenerator(self.K, model, dim, alpha_generator_dim, late_fusion).cuda()
+        self.model = AlphaGenerator(self.K, model, dim, late_fusion).cuda()
 
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
@@ -90,10 +90,13 @@ class COSMOSSolver(BaseSolver):
 
     def step(self, batch):
         # step 1: sample alphas
-        if self.alpha_dir > 0:
+        if isinstance(self.alpha, list):
             batch['alpha']  = torch.from_numpy(
-                np.random.dirichlet([self.alpha_dir for _ in range(self.K)], 1).astype(np.float32).flatten()
-                #np.random.dirichlet([.15, 1], 1).astype(np.float32).flatten()
+                np.random.dirichlet(self.alpha, 1).astype(np.float32).flatten()
+            ).cuda()
+        elif self.alpha > 0:
+            batch['alpha']  = torch.from_numpy(
+                np.random.dirichlet([self.alpha for _ in range(self.K)], 1).astype(np.float32).flatten()
             ).cuda()
         else:
             batch['alpha']  = uniform_sample_alpha(self.K)
@@ -135,7 +138,7 @@ class COSMOSSolver(BaseSolver):
                 task_losses.append(task_loss)
             
             cossim = torch.nn.functional.cosine_similarity(torch.stack(task_losses), batch['alpha'], dim=0)
-            loss_total += self.penalty_weight * cossim
+            loss_total -= self.lamda * cossim
                 
             loss_total.backward()
             return loss_total.item(), cossim.item()

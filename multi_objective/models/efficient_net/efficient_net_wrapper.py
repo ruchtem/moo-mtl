@@ -8,9 +8,10 @@ class EfficientNetWrapper(EfficientNet):
     def __init__(self, blocks_args=None, global_params=None):
         super().__init__(blocks_args, global_params)
 
-        self.task_layers = torch.nn.ModuleDict()
-        for t in self.task_ids:
-            self.task_layers[f"task_fc_{t}"] = torch.nn.Linear(1792 if not self.late_fusion else 1792 + len(self.task_ids), 1)
+        if self.late_fusion:
+            self.task_layers = torch.nn.ModuleDict()
+            for t in self.task_ids:
+                self.task_layers[f"task_fc_{t}"] = torch.nn.Linear(1792 if not self.late_fusion else 1792 + len(self.task_ids), 1)
 
 
     # this is required for approximate mgda
@@ -54,10 +55,6 @@ class EfficientNetWrapper(EfficientNet):
     def from_name(cls, dim, task_ids, model_name, late_fusion, **override_params):
         cls.task_ids = task_ids
         cls.late_fusion=late_fusion
-        
-        # speeds up mgda
-        
-        #cls.task_linear = {f'fc_{t}': torch.nn.Linear(1792, 1).cuda() for t in task_ids}
 
         return super().from_name(model_name, in_channels=dim[0], num_classes=len(task_ids))
 

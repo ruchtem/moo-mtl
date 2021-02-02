@@ -172,9 +172,9 @@ def main(settings):
             for b, batch in enumerate(train_loader):
                 batch = utils.dict_to_cuda(batch)
                 optimizer.zero_grad()
-                loss = solver.step(batch)
+                loss, sim = solver.step(batch)
                 optimizer.step()
-                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}".format(e, b, loss))
+                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}, sim {:.4f}".format(e, b, loss, sim))
             
             tock = time.time()
             elapsed_time += (tock - tick)
@@ -219,7 +219,7 @@ def main(settings):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='mm')
-    parser.add_argument('--method', '-m', default='uniform')
+    parser.add_argument('--method', '-m', default='cosmos_ln')
     parser.add_argument('--seed', '-s', default=1, type=int)
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()

@@ -136,7 +136,7 @@ class MGDASolver(BaseSolver):
             loss_total = a * task_loss if not loss_total else loss_total + a * task_loss
             
         loss_total.backward()
-        return loss_total.item()
+        return loss_total.item(), 0
 
         # rep, _ = model['rep'](images, mask)
         # for i, t in enumerate(tasks):

@@ -10,6 +10,8 @@ adult = dict(
     reference_point=[2, 2],
     epochs=50,
     use_scheduler=False,
+    lamda=.01,
+    alpha=.5,
 )
 
 credit = dict(
@@ -19,6 +21,8 @@ credit = dict(
     reference_point=[2, 2],
     epochs=50,
     use_scheduler=False,
+    lamda=.01,
+    alpha=[.1, .5],
 )
 
 compas = dict(
@@ -28,6 +32,8 @@ compas = dict(
     reference_point=[2, 2],
     epochs=50,
     use_scheduler=False,
+    lamda=.01,
+    alpha=.5,
 )
 
 multi_mnist = dict(
@@ -35,6 +41,8 @@ multi_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
+    lamda=3,
+    alpha=.75,
 )
 
 multi_fashion = dict(
@@ -42,6 +50,8 @@ multi_fashion = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
+    lamda=3,
+    alpha=.75,
 )
 
 multi_fashion_mnist = dict(
@@ -49,7 +59,8 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    alpha_dir=.5,  # turned off for ablation
+    lamda=3,
+    alpha=.75,
 )
 
 celeba = dict(
@@ -90,12 +101,9 @@ cosmos_ln = dict(
     num_starts=1,
     early_fusion=True,
     late_fusion=False,
-    alpha_generator_dim=2,
-    alpha_dir=1,   # dirichlet sampling, None=Uniform sampling
     internal_solver='linear',
     scheduler_gamma=0.1,
     scheduler_milestones=[20,40,80,90],
-    penalty_weight = .5
 )
 
 mgda = dict(
@@ -158,7 +166,7 @@ generic = dict(
     logdir='results_tmp',
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
-    eval_every=5,
+    eval_every=10,
     train_eval_every=0, # 0 for not evaluating on the train set
     use_scheduler=True,
     scheduler_gamma=0.1,
