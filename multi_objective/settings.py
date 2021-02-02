@@ -41,8 +41,8 @@ multi_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    lamda=3,
-    alpha=.75,
+    lamda=8,
+    alpha=1.2,
 )
 
 multi_fashion = dict(
@@ -50,8 +50,8 @@ multi_fashion = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    lamda=3,
-    alpha=.75,
+    lamda=2,
+    alpha=1.2,
 )
 
 multi_fashion_mnist = dict(
@@ -59,8 +59,8 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     reference_point=[2, 2],
-    lamda=3,
-    alpha=.75,
+    lamda=8,
+    alpha=1.2,
 )
 
 celeba = dict(
@@ -166,7 +166,7 @@ generic = dict(
     logdir='results_tmp',
     num_workers=4,  # dataloader worker threads
     n_test_rays=25,
-    eval_every=10,
+    eval_every=5,
     train_eval_every=0, # 0 for not evaluating on the train set
     use_scheduler=True,
     scheduler_gamma=0.1,
