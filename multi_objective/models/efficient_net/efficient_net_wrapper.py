@@ -10,7 +10,7 @@ class EfficientNetWrapper(EfficientNet):
 
         self.task_layers = torch.nn.ModuleDict()
         for t in self.task_ids:
-            self.task_layers[f"task_fc_{t}"] = torch.nn.Linear(1792, 1)
+            self.task_layers[f"task_fc_{t}"] = torch.nn.Linear(1792 if not self.late_fusion else 1792 + len(self.task_ids), 1)
 
 
     # this is required for approximate mgda
@@ -34,7 +34,13 @@ class EfficientNetWrapper(EfficientNet):
 
     def forward(self, batch):
         x = batch['data']
-        x = super().forward(x)
+        b = x.shape[0]
+        if self.late_fusion:
+            a = batch['alpha'].repeat(b, 1)
+            features = self.forward_feature_extraction(batch)
+            x = torch.cat((features, a), dim=1)
+        else:
+            x = super().forward(x)
         result = {'logits_{}'.format(t): x[:, i] for i, t in enumerate(self.task_ids)}
         return result
     
@@ -45,8 +51,9 @@ class EfficientNetWrapper(EfficientNet):
     
 
     @classmethod
-    def from_name(cls, dim, task_ids, model_name, **override_params):
+    def from_name(cls, dim, task_ids, model_name, late_fusion, **override_params):
         cls.task_ids = task_ids
+        cls.late_fusion=late_fusion
         
         # speeds up mgda
         

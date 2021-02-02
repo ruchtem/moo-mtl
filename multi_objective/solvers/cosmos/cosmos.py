@@ -10,8 +10,9 @@ from .utils import alpha_from_epo, uniform_sample_alpha
 
 
 class AlphaGenerator(nn.Module):
-    def __init__(self, K, child_model, input_dim, hidden_dim=2):
+    def __init__(self, K, child_model, input_dim, hidden_dim=2, late_fusion=False):
         super().__init__()
+        self.late_fusion = late_fusion
 
         if len(input_dim) == 1:
             # tabular data
@@ -24,7 +25,7 @@ class AlphaGenerator(nn.Module):
                     nn.ConvTranspose2d(K, K, kernel_size=4, stride=1, padding=0, bias=False),
                     nn.BatchNorm2d(K),
                     nn.ReLU(inplace=True),
-                    nn.ConvTranspose2d(K, hidden_dim, kernel_size=6, stride=2, padding=1, bias=False),
+                    nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
                     nn.BatchNorm2d(K),
                     nn.ReLU(inplace=True),
                     nn.Upsample(input_dim[-2:])
@@ -37,8 +38,8 @@ class AlphaGenerator(nn.Module):
                     nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
                     nn.BatchNorm2d(K),
                     nn.ReLU(inplace=True),
-                    nn.ConvTranspose2d(K, hidden_dim, kernel_size=6, stride=2, padding=1, bias=False),
-                    nn.BatchNorm2d(hidden_dim),
+                    nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
+                    nn.BatchNorm2d(K),
                     nn.ReLU(inplace=True),
                     nn.Upsample(input_dim[-2:])
             )
@@ -55,7 +56,7 @@ class AlphaGenerator(nn.Module):
             a = a.reshape(b, len(batch['alpha']), 1, 1)
             a = self.main(a)
         x = torch.cat((batch['data'], a), dim=1)
-        return self.child_model(dict(data=x))
+        return self.child_model(dict(data=x, late_fusion=self.late_fusion, alpha=batch['alpha']))
     
     def private_params(self):
         if hasattr(self.child_model, 'private_params'):
@@ -78,10 +79,10 @@ class COSMOSSolver(BaseSolver):
         self.penalty_weight = penalty_weight
 
         dim = list(dim)
-        dim[0] = dim[0] if not early_fusion else dim[0] + alpha_generator_dim
+        dim[0] = dim[0] if not early_fusion else dim[0] + self.K
 
         model = model_from_dataset(method='cosmos', dim=dim, late_fusion=late_fusion, **kwargs)
-        self.model = AlphaGenerator(self.K, model, dim, alpha_generator_dim).cuda()
+        self.model = AlphaGenerator(self.K, model, dim, alpha_generator_dim, late_fusion).cuda()
 
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
@@ -92,6 +93,7 @@ class COSMOSSolver(BaseSolver):
         if self.alpha_dir > 0:
             batch['alpha']  = torch.from_numpy(
                 np.random.dirichlet([self.alpha_dir for _ in range(self.K)], 1).astype(np.float32).flatten()
+                #np.random.dirichlet([.15, 1], 1).astype(np.float32).flatten()
             ).cuda()
         else:
             batch['alpha']  = uniform_sample_alpha(self.K)
@@ -132,10 +134,11 @@ class COSMOSSolver(BaseSolver):
                 loss_total = a * task_loss if not loss_total else loss_total + a * task_loss
                 task_losses.append(task_loss)
             
-            loss_total += self.penalty_weight * torch.nn.functional.cosine_similarity(torch.stack(task_losses), batch['alpha'], dim=0)
+            cossim = torch.nn.functional.cosine_similarity(torch.stack(task_losses), batch['alpha'], dim=0)
+            loss_total += self.penalty_weight * cossim
                 
             loss_total.backward()
-            return loss_total.item()
+            return loss_total.item(), cossim.item()
 
 
     def eval_step(self, batch, test_rays=None):
