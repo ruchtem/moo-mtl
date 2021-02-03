@@ -42,7 +42,7 @@ def model_from_dataset(dataset, **kwargs):
     elif dataset == 'celeba':
         if 'efficientnet' in kwargs['model_name']:
             # return EfficientNet.from_pretrained(**kwargs)
-            return EfficientNet.from_name(**kwargs)
+            return EfficientNet.from_pretrained(**kwargs)
         elif kwargs['model_name'] == 'resnet18':
             return ResNet.from_name(**kwargs)
     else:
