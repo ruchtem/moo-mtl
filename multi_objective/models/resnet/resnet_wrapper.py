@@ -41,10 +41,12 @@ class ResNetWrapper(ResNet):
     def from_name(cls, model_name, dim, task_ids, **override_params):
         cls.task_ids = task_ids
         return resnet18(
-            pretrained=False, 
+            pretrained=True, 
             progress=False,
             in_channels=dim[0],
-            num_classes=len(task_ids))
+            num_classes=1000,
+            # num_classes=len(task_ids),
+        )
 
 
 def _resnet(
@@ -59,6 +61,12 @@ def _resnet(
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch],
                                               progress=progress)
+        
+        # fix input dim
+        state_dict['conv1.weight'] = torch.nn.parameter.Parameter(torch.ones((64, 5, 7, 7)))
+        
+        # remove bn params
+        state_dict = {k:v for k, v in state_dict.items() if 'bn' not in k and 'downsample.1' not in k}
         model.load_state_dict(state_dict)
     return model
 
@@ -69,5 +77,5 @@ def resnet18(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> 
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress,
+    return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress, norm_layer=torch.nn.Identity,
                    **kwargs)

@@ -565,8 +565,8 @@ def load_pretrained_weights(model, model_name, weights_path=None, load_fc=True, 
         # AutoAugment or Advprop (different preprocessing)
         url_map_ = url_map_advprop if advprop else url_map
         state_dict = model_zoo.load_url(url_map_[model_name])
-
-    state_dict['_conv_stem.weight'] = torch.nn.Parameter(torch.ones(([48, 3 + len(model.task_ids), 3, 3])))
+    if model.my_in_channels > 3:
+        state_dict['_conv_stem.weight'] = torch.nn.Parameter(torch.ones(([model.stem_out_channels, model.my_in_channels, 3, 3])))
 
     if load_fc:
         ret = model.load_state_dict(state_dict, strict=False)

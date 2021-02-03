@@ -130,13 +130,13 @@ class EfficientNetWrapper(EfficientNet):
     @classmethod
     def from_pretrained(cls, dim, task_ids, model_name, **override_params):
         cls.task_ids = task_ids
-        return super().from_pretrained(model_name, in_channels=dim[0], task_ids=task_ids, dim=dim, num_classes=len(task_ids))
+        cls.my_in_channels=dim[0]
+        return super().from_pretrained(model_name, in_channels=dim[0], num_classes=len(task_ids))
     
 
-    @classmethod
-    def from_name(cls, dim, task_ids, model_name, **override_params):
-        cls.task_ids = task_ids
+    # @classmethod
+    # def from_name(cls, model_name, **override_params):
 
-        return super().from_name(model_name, in_channels=dim[0], **override_params)
+    #     return super().from_name(model_name, **override_params)
 
 
