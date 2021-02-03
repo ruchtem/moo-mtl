@@ -122,8 +122,8 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
     return result_dict
 
 import collections
-queue1 = collections.deque(maxlen=200)
-queue2 = collections.deque(maxlen=200)
+queue1 = collections.deque(maxlen=400)
+queue2 = collections.deque(maxlen=400)
 def rm1(x):
     queue1.append(x)
     return np.mean(list(queue1)).item()
@@ -229,7 +229,7 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='mm')
+    parser.add_argument('--dataset', '-d', default='celeba')
     parser.add_argument('--method', '-m', default='cosmos_ln')
     parser.add_argument('--seed', '-s', default=1, type=int)
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')

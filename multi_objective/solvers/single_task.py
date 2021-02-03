@@ -14,7 +14,11 @@ class SingleTaskSolver(BaseSolver):
             assert 'task_id' not in kwargs
         else:
             assert num_starts == 1
+            print(objectives)
             self.task = kwargs['task_id'] - 1
+            for obj in objectives:
+                if kwargs['task_id'] == int(obj.label_name.replace('labels_', '')):
+                    self.objectives = {kwargs['task_id']: obj}
         self.model = model_from_dataset(method='single_task', **kwargs).cuda()
 
 
@@ -32,7 +36,7 @@ class SingleTaskSolver(BaseSolver):
         batch.update(self.model(batch))
         loss = self.objectives[self.task](**batch)
         loss.backward()
-        return loss.item()
+        return loss.item(), 0
     
 
     def log(self):

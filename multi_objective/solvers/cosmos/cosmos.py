@@ -30,11 +30,11 @@ class AlphaGenerator(nn.Module):
                 )
             else:
                 self.main = nn.Sequential(
-                    nn.ConvTranspose2d(K, K, kernel_size=4, stride=1, padding=0, bias=False),
+                    nn.ConvTranspose2d(K, K, kernel_size=4, stride=1, padding=0, bias=True),
                     nn.ReLU(inplace=True),
-                    nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
+                    nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=True),
                     nn.ReLU(inplace=True),
-                    nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
+                    nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=True),
                     nn.ReLU(inplace=True),
                     nn.Upsample(input_dim[-2:])
             )
