@@ -17,7 +17,6 @@ from plotting import (
     compare_settings,
     dirname,
     methods,
-    ignore_runs,
     figsize,
     titles,
     ax_lables,
@@ -53,10 +52,6 @@ for dataset in datasets:
         val_file = list(sorted(p.glob(f'**/{method}/{dataset}/[!_]*/val*.json')))
         test_file = list(sorted(p.glob(f'**/{method}/{dataset}/[!_]*/test*.json')))
         train_file = list(sorted(p.glob(f'**/{method}/{dataset}/[!_]*/train*.json')))
-
-        for r in ignore_runs:
-            val_file = [f for f in val_file if str(r) not in f.parts]
-            test_file = [f for f in test_file if str(r) not in f.parts]
 
         assert len(val_file) == len(test_file)
 

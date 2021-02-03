@@ -67,8 +67,8 @@ def compare_settings(data):
 font_size = 12
 figsize=(14, 3.5)
 
-# dirname = 'results_plot/results_paper'
-dirname = 'results_plot/results_celeba/effnet'
+dirname = 'results_plot/results_final_paper'
+# dirname = 'results_plot/results_celeba/effnet'
 
 datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist', 'celeba']
 methods = ['SingleTask', 'hyper_epo', 'hyper_ln', 'ParetoMTL',  'cosmos_ln']
@@ -79,7 +79,7 @@ stop_key = {
     'SingleTask': 'score', 
     'hyper_epo': 'hv', 
     'hyper_ln': 'hv', 
-    'cosmos_ln': 'last', 
+    'cosmos_ln': 'hv', 
     'ParetoMTL': 'hv', 
 }
 
@@ -138,9 +138,9 @@ def process_non_pareto_front(data_val, data_test):
     result_i['test_scores'] = fix_scores_dim(result_i['test_scores'])
 
     # compute hypervolume
-    # hv = HyperVolume(reference_points[dataset])
-    # result_i['val_hv'] = hv.compute(result_i['val_scores'])
-    # result_i['test_hv'] = hv.compute(result_i['test_scores'])
+    hv = HyperVolume(reference_points[dataset])
+    result_i['val_hv'] = hv.compute(result_i['val_scores'])
+    result_i['test_hv'] = hv.compute(result_i['test_scores'])
     return result_i
 
 
@@ -329,21 +329,21 @@ def plot_row(datasets, methods, limits, prefix):
                     label="{}".format(method_names[method])
                 )
 
-                if dataset == 'multi_mnist' and method == 'cosmos_ln' and prefix == 'cosmos':
-                    axins = zoomed_inset_axes(ax, 4, loc='upper right') # zoom = 6
-                    axins.plot(
-                        s[:, 0], 
-                        s[:, 1], 
-                        color=colors[method],
-                        marker=markers[method],
-                        linestyle='--' if method != 'ParetoMTL' else '',
-                        label="{}".format(method_names[method])
-                    )
-                    axins.set_xlim(.25, .29)
-                    axins.set_ylim(.318, .35)
-                    axins.set_yticklabels([])
-                    axins.set_xticklabels([])
-                    mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+                # if dataset == 'multi_mnist' and method == 'cosmos_ln' and prefix == 'cosmos':
+                #     axins = zoomed_inset_axes(ax, 4, loc='upper right') # zoom = 6
+                #     axins.plot(
+                #         s[:, 0], 
+                #         s[:, 1], 
+                #         color=colors[method],
+                #         marker=markers[method],
+                #         linestyle='--' if method != 'ParetoMTL' else '',
+                #         label="{}".format(method_names[method])
+                #     )
+                #     axins.set_xlim(.25, .29)
+                #     axins.set_ylim(.318, .35)
+                #     axins.set_yticklabels([])
+                #     axins.set_xticklabels([])
+                #     mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
                 
                 if dataset == 'multi_fashion' and method == 'cosmos_ln' and prefix == 'cosmos':
                     axins = zoomed_inset_axes(ax, 7, loc='upper right') # zoom = 6
@@ -380,10 +380,10 @@ limits_baselines = {
     # dataset: [left, right, bottom, top]
     'adult': [.3, .6, -0.01, .14],
     'compas': [0, 1.5, -.01, .35],
-    'credit': [.42, .6, -0.001, .017],
+    'credit': [.42, .65, -0.001, .017],
     'multi_mnist': [.24, .5, .3, .5], 
     'multi_fashion': [.45, .75, .47, .75], 
-    'multi_fashion_mnist': [.18, .6, .43, .6],
+    'multi_fashion_mnist': [.18, .6, .4, .6],
 }
 
 
@@ -409,8 +409,9 @@ def plot_gain():
     ax.text(mean-std/2, height + .1, "std", horizontalalignment='center')
     ax.text(mean+std/2, height + .1, "std", horizontalalignment='center')
 
-    ax.set_xlabel("Gain to Single Task on Celeb-A")
+    ax.set_xlabel(r"$MCR^{(COSMOS)} / MCR^{(Single Task)}$")
     ax.set_ylabel("Frequencies")
+    #ax.set_title("MRC COSMOS / MRC Single Task = ")
 
     #plt.show()
     plt.savefig('hist')
@@ -418,7 +419,7 @@ def plot_gain():
     
 
 
-plot_gain()
+#plot_gain()
 
 
 datasets1 = ['adult', 'compas', 'credit']

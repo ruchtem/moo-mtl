@@ -19,7 +19,6 @@ from plotting import (
     get_early_stop,
     dirname,
     methods,
-    ignore_runs,
     figsize,
     titles,
     ax_lables,
@@ -28,7 +27,8 @@ from plotting import (
     mean_and_std,
 )
 
-datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
+# datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
+datasets = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
 methods = ['cosmos_ln']
 
 
@@ -49,8 +49,8 @@ all_files = list(p.glob('**/*.json'))
 
 results = {}
 
-lambdas = [0, .5, .75, 1]
-alphas = [.2, .5, 1]
+lambdas = [1, 3, 5]
+alphas = [.1, .7, 1.2]
 
 for dataset in datasets:
     results[dataset] = {}
@@ -63,10 +63,6 @@ for dataset in datasets:
                 val_file = list(sorted(p.glob(f'**/{method}/{dataset}/*_{l}_{a}/val*.json')))
                 test_file = list(sorted(p.glob(f'**/{method}/{dataset}/*_{l}_{a}/test*.json')))
                 train_file = list(sorted(p.glob(f'**/{method}/{dataset}/*_{l}_{a}/train*.json')))
-
-                for r in ignore_runs:
-                    val_file = [f for f in val_file if str(r) not in f.parts]
-                    test_file = [f for f in test_file if str(r) not in f.parts]
 
                 assert len(val_file) == len(test_file)
 
@@ -140,9 +136,9 @@ plt.rcParams.update({'font.size': font_size})
 
 limits = {
     # dataset: [left, right, bottom, top]
-    'multi_mnist': [.1, 2.5, 0.2, 3], 
-    'multi_fashion': [.35, 2.5, .35, 3], 
-    'multi_fashion_mnist': [.1, 2, .35, 2],
+    'multi_mnist': [.2, .7, .25, .7], 
+    'multi_fashion': [.45, 1, .45, 1], 
+    'multi_fashion_mnist': [.1, 1, .35, .6],
 }
 
 ax_lables = {
@@ -156,9 +152,9 @@ ax_lables = {
 
 colors = {
     #alpha, color
-    .2: '#8c564b',
-    .5: '#e377c2',
-    1: '#17becf', #'#7f7f7f',
+    alphas[0]: '#8c564b',
+    alphas[1]: '#e377c2',
+    alphas[2]: '#17becf', #'#7f7f7f',
 }
 # '#bcbd22', '#17becf'
 
@@ -191,17 +187,36 @@ def plot_ablation(datasets, methods, lambdas, alphas):
                         label=r"$\alpha = $" + str(a)   # r"$\lambda = $" + str(l) + 
                     )
 
-                    if dataset == 'multi_mnist' and l==0:
-                        axins = zoomed_inset_axes(ax, 300, loc='lower right') # zoom = 6
-                        axins.plot(
-                            s[:, 0], 
-                            s[:, 1], 
-                            color=colors[a],
-                            marker='.',
-                            linestyle='--' if method != 'ParetoMTL' else '',
-                        )
-                        axins.set_xlim(.265, .27)
-                        axins.set_ylim(.315, .32)
+                    if dataset == 'multi_mnist' and l==1 and a==1.2:
+                        axins = zoomed_inset_axes(ax, 6, loc='upper right') # zoom = 6
+                        for a_s in alphas:
+                            s = np.array(results[dataset][method][l][a_s]['test_scores'][0])
+                            axins.plot(
+                                s[:, 0], 
+                                s[:, 1], 
+                                color=colors[a_s],
+                                marker='.',
+                                linestyle='--' if method != 'ParetoMTL' else '',
+                            )
+                        axins.set_xlim(.25, .3)
+                        axins.set_ylim(.29, .35)
+                        axins.set_yticklabels([])
+                        axins.set_xticklabels([])
+                        mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+                    
+                    if dataset == 'multi_fashion' and l==1 and a==1.2:
+                        axins = zoomed_inset_axes(ax, 40, loc='upper right') # zoom = 6
+                        for a_s in alphas:
+                            s = np.array(results[dataset][method][l][a_s]['test_scores'][0])
+                            axins.plot(
+                                s[:, 0], 
+                                s[:, 1], 
+                                color=colors[a_s],
+                                marker='.',
+                                linestyle='--' if method != 'ParetoMTL' else '',
+                            )
+                        axins.set_xlim(.465, .475)
+                        axins.set_ylim(.48, .49)
                         axins.set_yticklabels([])
                         axins.set_xticklabels([])
                         mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
@@ -211,16 +226,18 @@ def plot_ablation(datasets, methods, lambdas, alphas):
                 ax.set_xlim(left=lim[0], right=lim[1])
                 ax.set_ylim(bottom=lim[2], top=lim[3])
 
+            ax.grid(True)
             ax.set_title(r"$\lambda = $" + f"{l}")
             ax.set_xlabel(ax_lables[dataset][0])
             if j==0:
                 ax.set_ylabel(ax_lables[dataset][1])
-            ax.legend(loc='upper right')
+            if j != 0 or dataset=='multi_fashion_mnist':
+                ax.legend(loc='upper right')
         fig.suptitle(titles[dataset], y=1.05)
         fig.savefig(f'ablation_{dataset}.pdf' , bbox_inches='tight')
         plt.close(fig)
 
-datasets1 = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
+datasets1 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
 methods1 = ['cosmos_ln']
 
 
