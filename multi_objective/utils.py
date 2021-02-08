@@ -3,9 +3,9 @@ import os
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+import collections
 
 from datetime import datetime
-from itertools import chain, combinations
 
 from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
 from models import FullyConnected, MultiLeNet, EfficientNet, ResNet
@@ -41,7 +41,6 @@ def model_from_dataset(dataset, **kwargs):
         return MultiLeNet(**kwargs)
     elif dataset == 'celeba':
         if 'efficientnet' in kwargs['model_name']:
-            # return EfficientNet.from_pretrained(**kwargs)
             return EfficientNet.from_pretrained(**kwargs)
         elif kwargs['model_name'] == 'resnet18':
             return ResNet.from_name(**kwargs)
@@ -51,34 +50,37 @@ def model_from_dataset(dataset, **kwargs):
 
 def circle_points(n, min_angle=0.1, max_angle=np.pi / 2 - 0.1, dim=2):
     # generate evenly distributed preference vector
-    if dim <= 2:
+    assert dim > 1
+    if dim == 2:
         ang0 = 1e-6 if min_angle is None else min_angle
         ang1 = np.pi / 2 - ang0 if max_angle is None else max_angle
         angles = np.linspace(ang0, ang1, n, endpoint=True)
         x = np.cos(angles)
         y = np.sin(angles)
         return np.c_[x, y]
+    elif dim == 3:
+        # Fibonacci sphere algorithm
+        # https://stackoverflow.com/a/26127012
+        points = []
+        phi = np.pi * (3. - np.sqrt(5.))  # golden angle in radians
+
+        for i in range(n):
+            y = 1 - (i / float(n - 1)) * 2  # y goes from 1 to -1
+            radius = np.sqrt(1 - y * y)  # radius at y
+
+            theta = phi * i  # golden angle increment
+
+            x = np.cos(theta) * radius
+            z = np.sin(theta) * radius
+
+            points.append((x, y, z))
+        return np.array(points)
     else:
         # this is an unsolved problem for more than 3 dimensions
         # we just generate random points
         points = np.random.rand(n, dim)
         points /= points.sum(axis=1).reshape(n, 1)
         return points
-
-
-def calc_devisor(train_loader, model, objectives):
-    values = np.zeros(len(objectives))
-    for batch in train_loader:
-        batch = dict_to_cuda(batch)
-        
-        batch['logits'] = model(batch['data'])
-
-        for i, objective in enumerate(objectives):
-            values[i] += objective(**batch)
-
-    divisor = values / min(values)
-    print("devisor={}".format(divisor))
-    return divisor
 
 
 def num_parameters(params):
@@ -139,13 +141,6 @@ def get_runname(settings):
     return runname
 
 
-
-def powerset(s):
-    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
-    p = chain.from_iterable(combinations(s, r) for r in range(1, len(s)+1))
-    return list(reversed(list(p)))
-
-
 def calc_gradients(batch, model, objectives):
     # store gradients and objective values
     gradients = []
@@ -172,60 +167,29 @@ def calc_gradients(batch, model, objectives):
     return gradients, obj_values
 
 
-def is_pareto_efficient(costs, return_mask=True):
-        """
-        From https://stackoverflow.com/questions/32791911/fast-calculation-of-pareto-front-in-python
-        Find the pareto-efficient points
-        :param costs: An (n_points, n_costs) array
-        :param return_mask: True to return a mask
-        :return: An array of indices of pareto-efficient points.
-            If return_mask is True, this will be an (n_points, ) boolean array
-            Otherwise it will be a (n_efficient_points, ) integer array of indices.
-        """
-        is_efficient = np.arange(costs.shape[0])
-        n_points = costs.shape[0]
-        next_point_index = 0  # Next index in the is_efficient array to search for
-        while next_point_index<len(costs):
-            nondominated_point_mask = np.any(costs<costs[next_point_index], axis=1)
-            nondominated_point_mask[next_point_index] = True
-            is_efficient = is_efficient[nondominated_point_mask]  # Remove dominated points
-            costs = costs[nondominated_point_mask]
-            next_point_index = np.sum(nondominated_point_mask[:next_point_index])+1
-        if return_mask:
-            is_efficient_mask = np.zeros(n_points, dtype = bool)
-            is_efficient_mask[is_efficient] = True
-            return is_efficient_mask
-        else:
-            return is_efficient
+class RunningMean():
 
+    def __init__(self, len=100) -> None:
+        super().__init__()
+        self.queue = collections.deque(maxlen=len)
 
-class AverageMeter(object):
-
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.avg = 0
-        self.sum = 0
-        self.cnt = 0
-
-    def update(self, val, n=1):
-        self.sum += val * n
-        self.cnt += n
-        self.avg = self.sum / self.cnt
+    def __call__(self, x):
+        self.queue.append(x)
+        return np.mean(list(self.queue)).item()
 
 
 class ParetoFront():
+
 
     def __init__(self, labels, logdir='tmp', prefix=""):
         self.labels = labels
         self.logdir = os.path.join(logdir, 'pf')
         self.prefix = prefix
         self.points = np.array([])
-        self.e = 0
 
         if not os.path.exists(self.logdir):
             os.makedirs(self.logdir)
+
 
     def append(self, point):
         point = np.array(point)
@@ -237,21 +201,8 @@ class ParetoFront():
     
     def plot(self):
         p = self.points
-        # for e in range(self.e + 1):
-        #     idx1 = e * 20
-        #     idx2 = (e+1) * 20
-        #    plt.plot(p[idx1:idx2, 0], p[idx1:idx2, 1], '-', label="e={}".format(e+1))
         plt.plot(p[:, 0], p[:, 1], 'o')
-        # for i, text in enumerate(range(len(self.points))):
-        #     plt.annotate(text, (p[i,0], p[i,1]))
-        
-        #if p.shape[0] >= 3:
-        #    front = p[self._is_pareto_efficient(p)]
-        #    plt.plot(front[:, 0], front[:, 1], 'ro')
-
         plt.xlabel(self.labels[0])
         plt.ylabel(self.labels[1])
-        # plt.legend()
         plt.savefig(os.path.join(self.logdir, "x_{}.png".format(self.prefix)))
         plt.close()
-        self.e += 1

@@ -5,11 +5,9 @@ import numpy as np
 # seed now to be save and overwrite later
 np.random.seed(1)
 random.seed(1)
-
 torch.manual_seed(1)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(1)
-    torch.cuda.manual_seed_all(1)
+torch.cuda.manual_seed(1)
+torch.cuda.manual_seed_all(1)
 
 import argparse
 import os
@@ -26,7 +24,7 @@ from hv import HyperVolume
 
 
 from solvers import HypernetSolver, ParetoMTLSolver, SingleTaskSolver, COSMOSSolver, MGDASolver, UniformScalingSolver
-from scores import mcr, DDP, from_objectives
+from scores import from_objectives
 
 
 def solver_from_name(method, **kwargs):
@@ -60,7 +58,7 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
     for batch in data_loader:
         batch = utils.dict_to_cuda(batch)
         
-        # more than one for some solvers
+        # more than one solution for some solvers
         s = []
         for l in solver.eval_step(batch):
             batch.update(l)
@@ -73,16 +71,8 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
     score_values /= len(data_loader)
     hv = HyperVolume(reference_point)
 
-    if score_values.shape[1] > 2:
-        # computing hypervolume in high dimensions is expensive
-        # Do only pairwise hypervolume and report the average
-        n, m = score_values.shape
-        volume = 0
-        for columns in itertools.combinations(range(m), 2):
-            volume += hv.compute(score_values[:, columns])
-        volume /= len(list(itertools.combinations(range(m), 2)))
-    else:
-        volume = hv.compute(score_values)
+    # Computing hyper-volume for many objectives is expensive
+    volume = hv.compute(score_values) if score_values.shape[1] < 5 else -1
 
     if len(scores) == 2:
         pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir, "{}_{:03d}".format(split, e))
@@ -121,17 +111,6 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
     
     return result_dict
 
-import collections
-queue1 = collections.deque(maxlen=400)
-queue2 = collections.deque(maxlen=400)
-def rm1(x):
-    queue1.append(x)
-    return np.mean(list(queue1)).item()
-
-def rm2(x):
-    queue2.append(x)
-    return np.mean(list(queue2)).item()
-
 
 def main(settings):
     print("start processig with settings", settings)
@@ -155,6 +134,9 @@ def main(settings):
 
     objectives = from_name(settings.pop('objectives'), train_set.task_names())
     scores = from_objectives(objectives)
+
+    rm1 = utils.RunningMean(400)
+    rm2 = utils.RunningMean(400)
 
     solver = solver_from_name(objectives=objectives, **settings)
 
@@ -183,8 +165,10 @@ def main(settings):
             for b, batch in enumerate(train_loader):
                 batch = utils.dict_to_cuda(batch)
                 optimizer.zero_grad()
-                loss, sim = solver.step(batch)
+                stats = solver.step(batch)
                 optimizer.step()
+
+                loss, sim  = stats if isinstance(stats, tuple) else (stats, 0)
                 print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}, sim {:.4f}, rm train_loss {:.3f}, rm sim {:.3f}".format(e, b, loss, sim, rm1(loss), rm2(sim)))
             
             tock = time.time()
@@ -229,9 +213,9 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='celeba')
-    parser.add_argument('--method', '-m', default='cosmos_ln')
-    parser.add_argument('--seed', '-s', default=1, type=int)
+    parser.add_argument('--dataset', '-d', default='mm', help="The dataset to run on.")
+    parser.add_argument('--method', '-m', default='hyper_ln', help="The method to generate the Pareto front.")
+    parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()
 
@@ -242,10 +226,8 @@ def parse_args():
         if args.task_id is not None:
             settings['num_starts'] = 1
             settings['task_id'] = args.task_id
-    elif args.method == 'cosmos_ln':
-        settings.update(s.cosmos_ln)
-    elif args.method == 'cosmos_epo':
-        settings.update(s.cosmos_ln)
+    elif args.method == 'cosmos':
+        settings.update(s.cosmos)
     elif args.method == 'hyper_ln':
         settings.update(s.hyperSolver_ln)
     elif args.method == 'hyper_epo':

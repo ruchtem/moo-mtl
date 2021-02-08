@@ -86,10 +86,10 @@ class FCPHNTarget(nn.Module):
 
 class HypernetSolver(BaseSolver):
 
-    def __init__(self, objectives, dim, n_test_rays, internal_solver, **kwargs):
+    def __init__(self, objectives, dim, n_test_rays, alpha, internal_solver, **kwargs):
         self.objectives = objectives
         self.n_test_rays = n_test_rays
-        self.alpha = kwargs['alpha_dir']
+        self.alpha = alpha
         self.K = len(objectives)
 
         if len(dim) == 1:

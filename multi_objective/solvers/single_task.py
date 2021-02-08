@@ -36,7 +36,7 @@ class SingleTaskSolver(BaseSolver):
         batch.update(self.model(batch))
         loss = self.objectives[self.task](**batch)
         loss.backward()
-        return loss.item(), 0
+        return loss.item()
     
 
     def log(self):
