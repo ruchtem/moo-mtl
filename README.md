@@ -31,6 +31,7 @@ Available datasets:
 | `-d adult`           | Adult dataset                |
 | `-d compass`         | Compass dataset              |
 | `-d default`         | Default dataset              |
+| `-d celeba`          | CelebA dataset               |
 
 ---
 
@@ -84,3 +85,4 @@ The large number of dependencies is partly due to the baselines, available in th
 ## Acknowledgments
 
 To be done.
+

@@ -16,7 +16,7 @@ def dataset_from_name(dataset, **kwargs):
         return adult_loader.ADULT(**kwargs)
     elif dataset == 'credit':
         return credit_loader.Credit(**kwargs)
-    elif dataset == 'compas':
+    elif dataset == 'compass':
         return compas_loader.Compas(**kwargs)
     elif dataset == 'multi_mnist':
         return multi_mnist_loader.MultiMNIST(dataset='mnist', **kwargs)
@@ -35,7 +35,7 @@ def model_from_dataset(dataset, **kwargs):
         return FullyConnected(**kwargs)
     elif dataset == 'credit':
         return FullyConnected(**kwargs)
-    elif dataset == 'compas':
+    elif dataset == 'compass':
         return FullyConnected(**kwargs)
     elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist' or dataset == 'multi_fashion':
         return MultiLeNet(**kwargs)

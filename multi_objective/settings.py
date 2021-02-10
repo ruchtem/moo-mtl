@@ -23,8 +23,8 @@ credit = dict(
     alpha=[.1, .5],
 )
 
-compas = dict(
-    dataset='compas',
+compass = dict(
+    dataset='compass',
     dim=(20,),
     objectives=['BinaryCrossEntropyLoss', 'deo'],
     epochs=50,

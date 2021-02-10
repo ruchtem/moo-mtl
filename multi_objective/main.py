@@ -14,7 +14,6 @@ import os
 import pathlib
 import time
 import json
-import itertools
 from torch.utils import data
 
 import settings as s
@@ -249,8 +248,8 @@ def parse_args():
         settings.update(s.multi_fashion)
     elif args.dataset == 'credit':
         settings.update(s.credit)
-    elif args.dataset == 'compas':
-        settings.update(s.compas)
+    elif args.dataset == 'compass':
+        settings.update(s.compass)
     elif args.dataset == 'celeba':
         settings.update(s.celeba)
     
