@@ -5,19 +5,14 @@ import numpy as np
 # seed now to be save and overwrite later
 np.random.seed(1)
 random.seed(1)
-
 torch.manual_seed(1)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(1)
-    torch.cuda.manual_seed_all(1)
+torch.cuda.manual_seed(1)
+torch.cuda.manual_seed_all(1)
 
 import os
 import pathlib
-import itertools
 import json
 import torch.utils.data as data
-
-from datetime import datetime
 
 import utils
 from main import parse_args, solver_from_name
@@ -26,86 +21,77 @@ from objectives import from_name
 from hv import HyperVolume
 
 
-
-
-def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, result_dict):
+def evaluate(j, e, solver, scores1, scores2, data_loader, logdir, reference_point, split, result_dict):
+    """
+    Do one forward pass through the dataloader and log the scores.
+    """
     assert split in ['train', 'val', 'test']
-    print("which to u[date", j)
-    # n_test_rays = 25
-    n_test_rays = 1
 
-    # sample two columns randomly and vary those
-    i = np.random.randint(40, size=2)
-    print(i)
+    # mode = 'mcr'
+    mode = 'pf'
 
-    # circle_points = utils.circle_points(n_test_rays, dim=2)
-    # test_rays = np.full((n_test_rays, 40), 0.001)
-    # test_rays[:, i] = circle_points
+    if mode == 'pf':
+        # generate Pareto front
+        assert len(scores1) == len(scores2) <= 3, "Cannot generate cirlce points for more than 3 dimensions."
+        n_test_rays = 25
+        test_rays = utils.circle_points(n_test_rays, dim=len(scores1))
+    elif mode == 'mcr':
+        # calculate the MRCs using a middle ray
+        test_rays = np.ones((1, len(scores1)))
+        test_rays /= test_rays.sum(axis=1).reshape(1, 1)
+    else:
+        raise ValueError()
+    
+    print(test_rays[0])
 
-    test_rays = np.ones((n_test_rays, 40))
-
-    test_rays /= test_rays.sum(axis=1).reshape(n_test_rays, 1)
-    print(test_rays)
-
-    score_values = np.array([])
+    # we wanna calculate the loss and mcr
+    score_values1 = np.array([])
+    score_values2 = np.array([])
     
     for k, batch in enumerate(data_loader):
         print(f'eval batch {k+1} of {len(data_loader)}')
         batch = utils.dict_to_cuda(batch)
         
         # more than one for some solvers
-        s = []
+        s1 = []
+        s2 = []
         for l in solver.eval_step(batch, test_rays):
             batch.update(l)
-            s.append([s(**batch) for s in scores])
-        if score_values.size == 0:
-            score_values = np.array(s)
+            s1.append([s(**batch) for s in scores1])
+            s2.append([s(**batch) for s in scores2])
+        if score_values1.size == 0:
+            score_values1 = np.array(s1)
+            score_values2 = np.array(s2)
         else:
-            score_values += np.array(s)
+            score_values1 += np.array(s1)       
+            score_values2 += np.array(s2)  
     
-    score_values /= len(data_loader)
+    score_values1 /= len(data_loader)
+    score_values2 /= len(data_loader)
+
     hv = HyperVolume(reference_point)
 
-    if score_values.shape[1] > 2:
-        # computing hypervolume in high dimensions is expensive
-        # Do only pairwise hypervolume and report the average
-        n, m = score_values.shape
-        volume = 0
-        l = 0
-        for columns in itertools.combinations(range(m), 2):
-            if columns[0] in i or columns[1] in i:
-                volume += hv.compute(score_values[:, columns])
-
-                pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir, "{}_{:03d}_{}".format(split, e, columns))
-                pareto_front.append(score_values[:, columns])
-                pareto_front.plot()
-                l += 1
-        volume /= l
+    if mode == 'pf':
+        pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores1], logdir, "{}_{:03d}".format(split, e))
+        pareto_front.append(score_values1)
+        pareto_front.plot()
+        volume = hv.compute(score_values1)
     else:
-        volume = hv.compute(score_values)
+        volume = -1
 
     result = {
-        "scores": score_values.tolist(),
+        "scores_loss": score_values1.tolist(),
+        "scores_mcr": score_values2.tolist(),
         "hv": volume,
-    }
-
-                    
-    result.update({
+        "task": j,
+        # expected by some plotting code
         "max_epoch_so_far": -1,
         "max_volume_so_far": -1,
         "training_time_so_far": -1,
-    })
+    }
 
     result.update(solver.log())
 
-    # if f"epoch_{e}" in result_dict[f"start_{j}"]:
-    #     result_dict[f"start_{j}"][f"epoch_{e}"].update(result)
-    # else:
-    result.update({
-        "task": j,
-    })
-
-    print("which to u[date", j)
     result_dict[f"start_{j}"][f"epoch_{e}"] = result
 
     with open(pathlib.Path(logdir) / f"{split}_results.json", "w") as file:
@@ -114,19 +100,20 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
     return result_dict
 
 
-
-
-
-
-
+# Path to the checkpoint dir. Use the method folder.
+CHECKPOINT_DIR = 'path/to/checkpoints'
 
 
 def eval(settings):
+    """
+    The full evaluation loop. Generate scores for all checkpoints found in the directory specified above.
+
+    Uses the same ArgumentParser as main.py to determine the method and dataset.
+    """
+
     settings['batch_size'] = 2048
-    settings['model_name'] = 'resnet18'
 
     print("start evaluation with settings", settings)
-    #set_seed(settings['seed'])
 
     # create the experiment folders
     logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], utils.get_runname(settings))
@@ -134,11 +121,11 @@ def eval(settings):
 
 
     # prepare
-    # train_set = utils.dataset_from_name(split='train', **settings)
+    train_set = utils.dataset_from_name(split='train', **settings)
     val_set = utils.dataset_from_name(split='val', **settings)
     test_set = utils.dataset_from_name(split='test', **settings)
 
-    # train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
+    train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
     val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
     test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
 
@@ -148,58 +135,51 @@ def eval(settings):
 
     solver = solver_from_name(objectives=objectives, **settings)
 
-    # train_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
+    train_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
     val_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
     test_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
 
-    checkpoint_dir = 'results_celeba/SingleTask_resnet/celeba'
+    
     task_ids = settings['task_ids'] if settings['method'] == 'SingleTask' else [0]
     for j in task_ids:
         if settings['method'] == 'SingleTask':
             # we ran it in parallel
-            checkpoints = pathlib.Path(checkpoint_dir).glob(f'**/*_{j:03d}/*/c_*.pth')
+            checkpoints = pathlib.Path(CHECKPOINT_DIR).glob(f'**/*_{j:03d}/*/c_*.pth')
         else:
-            checkpoints = pathlib.Path(checkpoint_dir).glob('**/c_*.pth')
-
-        c = list(sorted(checkpoints))[-1]
-        print("cechlpoint", c)
+            checkpoints = pathlib.Path(CHECKPOINT_DIR).glob('**/c_*.pth')
         
-        solver.model.load_state_dict(torch.load(c))
-
-        _, e = c.stem.replace('c_', '').split('-')
-
-        j = int(j)
-        e = int(e)
-
+        train_results[f"start_{j}"] = {}
         val_results[f"start_{j}"] = {}
         test_results[f"start_{j}"] = {}
 
-        # run eval on train set (mainly for debugging)
-        # if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
-        #     train_results = evaluate(j, e, solver, scores, train_loader, logdir, 
-        #         reference_point=settings['reference_point'],
-        #         split='train',
-        #         result_dict=train_results)
+        for c in sorted(checkpoints):
 
-        
-        # Validation results
-        val_results = evaluate(j, e, solver, scores2, val_loader, logdir, 
-            reference_point=settings['reference_point'],
-            split='val',
-            result_dict=val_results)
+            #c = list(sorted(checkpoints))[-1]
+            print("checkpoint", c)
+            _, e = c.stem.replace('c_', '').split('-')
 
-        # Test results
-        test_results = evaluate(j, e, solver, scores2, test_loader, logdir, 
-            reference_point=settings['reference_point'],
-            split='test',
-            result_dict=test_results)
+            j = int(j)
+            e = int(e)
+            
+            solver.model.load_state_dict(torch.load(c))
 
+            # Validation results
+            val_results = evaluate(j, e, solver, scores1, scores2, val_loader, logdir, 
+                reference_point=settings['reference_point'],
+                split='val',
+                result_dict=val_results)
 
-        print()
+            # Test results
+            test_results = evaluate(j, e, solver, scores1, scores2, test_loader, logdir, 
+                reference_point=settings['reference_point'],
+                split='test',
+                result_dict=test_results)
 
-
-
-
+            # Train results
+            # train_results = evaluate(j, e, solver, scores1, scores2, train_loader, logdir, 
+            #     reference_point=settings['reference_point'],
+            #     split='train',
+            #     result_dict=train_results)
 
 
 if __name__ == "__main__":
