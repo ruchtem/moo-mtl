@@ -1,3 +1,4 @@
+import random
 # datsets override methods override generic
 
 #
@@ -60,16 +61,19 @@ multi_fashion_mnist = dict(
 celeba = dict(
     dataset='celeba',
     dim=(3, 64, 64),
-    task_ids=[25, 27],      # task_ids=[16, 22],
-    objectives=['BinaryCrossEntropyLoss' for _ in range(2)],
-    n_test_rays=100,
-    epochs=100,
+    task_ids=[16, 22],                                    # easy tasks
+    # task_ids=[25, 27],                                    # hard tasks
+    # task_ids=[16, 22, 24],                                # 3 objectives
+    # task_ids=[26, 22, 24, 26],                            # 4 objectives
+    # task_ids=[random.randint(0, 39) for _ in range(10)],  # 10 random tasks
+    objectives=['BinaryCrossEntropyLoss' for _ in range(10)],
+    n_test_rays=1,
+    epochs=30,
     use_scheduler=False,
     train_eval_every=0,     # do it in parallel manually
-    eval_every=0,
-    model_name='efficientnet-b4',
+    eval_every=0,           #
+    model_name='efficientnet-b4',   # we also experimented with 'resnet-18', try it.
     lr=0.0005,
-    logdir='results_celeba',
     lamda=3,
     alpha=1,
     checkpoint_every=1,
