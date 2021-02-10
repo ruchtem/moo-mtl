@@ -12,22 +12,15 @@ from plotting import (
     font_size,
     markers,
     colors,
-    natural_sort,
-    lists_to_tuples,
     compare_settings,
     dirname,
     methods,
     figsize,
     titles,
     ax_lables,
-    reference_points,
     load_files,
     mean_and_std,
 )
-
-datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
-methods = ['cosmos_ln']
-
 
 def adjust_lightness(color, amount=0.5):
     import matplotlib.colors as mc
@@ -40,9 +33,10 @@ def adjust_lightness(color, amount=0.5):
     return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
 
 
-p = Path(dirname)
-all_files = list(p.glob('**/*.json'))
+datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
+methods = ['cosmos_ln']
 
+p = Path(dirname)
 results = {}
 
 for dataset in datasets:
@@ -134,7 +128,7 @@ def plot_convergence(datasets, methods, epochs=None):
             if method not in results[dataset]:
                 continue
 
-            color_shades = np.linspace(1.7, .3, len(epochs)).tolist()
+            color_shades = np.linspace(1.8, 1, len(epochs)).tolist()
             for i, e in enumerate(epochs):
                 r = results[dataset][method][e]
                 # we take the mean only

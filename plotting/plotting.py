@@ -9,6 +9,10 @@ import re
 from multi_objective.hv import HyperVolume
 
 
+#
+# Helper functions
+#
+
 def natural_sort(l): 
     convert = lambda text: int(text) if text.isdigit() else text.lower() 
     alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
@@ -38,7 +42,6 @@ def get_early_stop(epoch_data, key='hv'):
         return int(last_epoch.replace('epoch_', ''))
 
 
-
 def fix_scores_dim(scores):
     scores = np.array(scores)
     if scores.ndim == 1:
@@ -63,32 +66,6 @@ def compare_settings(data):
     
     assert len(diff) == 1, f"Runs or not similar apart from seed! {diff}"
     assert 'seed' in dict(diff)
-
-font_size = 12
-figsize=(14, 3.5)
-
-dirname = 'results_plot/results_final_paper'
-# dirname = 'results_plot/results_celeba/effnet'
-
-datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist', 'celeba']
-methods = ['SingleTask', 'hyper_epo', 'hyper_ln', 'ParetoMTL',  'cosmos_ln']
-
-generating_pareto_front = ['cosmos_ln', 'hyper_ln', 'hyper_epo']
-
-stop_key = {
-    'SingleTask': 'score', 
-    'hyper_epo': 'hv', 
-    'hyper_ln': 'hv', 
-    'cosmos_ln': 'hv', 
-    'ParetoMTL': 'hv', 
-}
-
-early_stop = ['hyper_ln', 'hyper_epo', 'SingleTask', 'ParetoMTL']
-
-reference_points = {
-    'adult': [2, 2], 'compas': [2, 2], 'credit': [2, 2], 
-    'multi_mnist': [2, 2], 'multi_fashion': [2, 2], 'multi_fashion_mnist': [2, 2],
-}
 
 
 def load_files(paths):
@@ -144,9 +121,97 @@ def process_non_pareto_front(data_val, data_test):
     return result_i
 
 
-p = Path(dirname)
-all_files = list(p.glob('**/*.json'))
 
+#
+# Plotting params
+#
+font_size = 12
+figsize=(14, 3.5)
+
+dirname = '../results_plot/results_final_paper'
+
+datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
+methods = ['SingleTask', 'hyper_epo', 'hyper_ln', 'ParetoMTL',  'cosmos_ln']
+
+generating_pareto_front = ['cosmos_ln', 'hyper_ln', 'hyper_epo']
+
+stop_key = {
+    'SingleTask': 'score', 
+    'hyper_epo': 'hv', 
+    'hyper_ln': 'hv', 
+    'cosmos_ln': 'hv', 
+    'ParetoMTL': 'hv', 
+}
+
+early_stop = ['hyper_ln', 'hyper_epo', 'SingleTask', 'ParetoMTL']
+
+reference_points = {
+    'adult': [2, 2], 'compas': [2, 2], 'credit': [2, 2], 
+    'multi_mnist': [2, 2], 'multi_fashion': [2, 2], 'multi_fashion_mnist': [2, 2],
+}
+
+plt.rcParams.update({'font.size': font_size})
+plt.tight_layout()
+
+markers = {
+    'hyper_epo': '.', 
+    'hyper_ln': 'x', 
+    'cosmos_ln': 'd', 
+    'cosmos_2_pf': 'd', 
+    'ParetoMTL': '*'
+}
+
+colors = {
+    'SingleTask': '#1f77b4', 
+    'hyper_epo': '#ff7f0e', 
+    'hyper_ln': '#2ca02c',
+    'cosmos_ln': '#d62728',
+    'cosmos_2_pf': '#d62728',
+    'ParetoMTL': '#9467bd', 
+}
+
+titles = {
+    'adult': 'Adult',
+    'compas': 'Compass',
+    'credit': 'Default', 
+    'multi_mnist': "Multi-MNIST", 
+    'multi_fashion': 'Multi-Fashion',
+    'multi_fashion_mnist': 'Multi-Fashion+MNIST'
+}
+
+ax_lables = {
+    'adult': ('Binary Cross-Entropy Loss', 'DEO'),
+    'compas': ('Binary Cross-Entropy Loss', 'DEO'),
+    'credit': ('Binary Cross-Entropy Loss', 'DEO'), 
+    'multi_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
+    'multi_fashion': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
+    'multi_fashion_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
+}
+
+method_names = {
+    'SingleTask': 'Single Task', 
+    'hyper_epo': 'PHN-EPO', 
+    'hyper_ln': 'PHN-LS',
+    'cosmos_ln': 'COSMOS',
+    'ParetoMTL': 'ParetoMTL', 
+}
+
+limits_baselines = {
+    # dataset: [left, right, bottom, top]
+    'adult': [.3, .6, -0.01, .14],
+    'compas': [0, 1.5, -.01, .35],
+    'credit': [.42, .65, -0.001, .017],
+    'multi_mnist': [.24, .5, .3, .5], 
+    'multi_fashion': [.45, .75, .47, .75], 
+    'multi_fashion_mnist': [.18, .6, .4, .6],
+}
+
+
+#
+# Load the data
+#
+
+p = Path(dirname)
 results = {}
 
 for dataset in datasets:
@@ -255,52 +320,9 @@ for dataset in datasets:
 with open('results.json', 'w') as outfile:
     json.dump(results, outfile)
 
-
+#
 # Generate the plots and tables
-plt.rcParams.update({'font.size': font_size})
-plt.tight_layout()
-
-markers = {
-    'hyper_epo': '.', 
-    'hyper_ln': 'x', 
-    'cosmos_ln': 'd', 
-    'ParetoMTL': '*'
-}
-
-colors = {
-    'SingleTask': '#1f77b4', 
-    'hyper_epo': '#ff7f0e', 
-    'hyper_ln': '#2ca02c',
-    'cosmos_ln': '#d62728',
-    'ParetoMTL': '#9467bd', 
-    #'#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
-}
-
-titles = {
-    'adult': 'Adult',
-    'compas': 'Compass',
-    'credit': 'Default', 
-    'multi_mnist': "Multi-MNIST", 
-    'multi_fashion': 'Multi-Fashion',
-    'multi_fashion_mnist': 'Multi-Fashion+MNIST'
-}
-
-ax_lables = {
-    'adult': ('Binary Cross-Entropy Loss', 'DEO'),
-    'compas': ('Binary Cross-Entropy Loss', 'DEO'),
-    'credit': ('Binary Cross-Entropy Loss', 'DEO'), 
-    'multi_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
-    'multi_fashion': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
-    'multi_fashion_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
-}
-
-method_names = {
-    'SingleTask': 'Single Task', 
-    'hyper_epo': 'PHN-EPO', 
-    'hyper_ln': 'PHN-LS',
-    'cosmos_ln': 'COSMOS',
-    'ParetoMTL': 'ParetoMTL', 
-}
+#
 
 def plot_row(datasets, methods, limits, prefix):
     assert len(datasets) == 3
@@ -328,25 +350,9 @@ def plot_row(datasets, methods, limits, prefix):
                     linestyle='--' if method != 'ParetoMTL' else ' ',
                     label="{}".format(method_names[method])
                 )
-
-                # if dataset == 'multi_mnist' and method == 'cosmos_ln' and prefix == 'cosmos':
-                #     axins = zoomed_inset_axes(ax, 4, loc='upper right') # zoom = 6
-                #     axins.plot(
-                #         s[:, 0], 
-                #         s[:, 1], 
-                #         color=colors[method],
-                #         marker=markers[method],
-                #         linestyle='--' if method != 'ParetoMTL' else '',
-                #         label="{}".format(method_names[method])
-                #     )
-                #     axins.set_xlim(.25, .29)
-                #     axins.set_ylim(.318, .35)
-                #     axins.set_yticklabels([])
-                #     axins.set_xticklabels([])
-                #     mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
                 
                 if dataset == 'multi_fashion' and method == 'cosmos_ln' and prefix == 'cosmos':
-                    axins = zoomed_inset_axes(ax, 7, loc='upper right') # zoom = 6
+                    axins = zoomed_inset_axes(ax, 7, loc='upper right')
                     axins.plot(
                         s[:, 0], 
                         s[:, 1], 
@@ -376,52 +382,6 @@ def plot_row(datasets, methods, limits, prefix):
     plt.close(fig)
 
 
-limits_baselines = {
-    # dataset: [left, right, bottom, top]
-    'adult': [.3, .6, -0.01, .14],
-    'compas': [0, 1.5, -.01, .35],
-    'credit': [.42, .65, -0.001, .017],
-    'multi_mnist': [.24, .5, .3, .5], 
-    'multi_fashion': [.45, .75, .47, .75], 
-    'multi_fashion_mnist': [.18, .6, .4, .6],
-}
-
-
-def plot_gain():
-
-    st = np.array(results['celeba']['SingleTask']['test_scores'])
-    co = np.array(results['celeba']['cosmos_ln']['test_scores'])
-
-    gain = st/co
-
-    fig,ax = plt.subplots(1)
-
-    ax.hist(gain.ravel(), bins=50, histtype='stepfilled', alpha=.7)
-    
-    ylim = 7
-    ax.set_ylim(top=ylim)
-    mean = np.mean(gain)
-    std = np.std(gain)
-    height = ylim * .9
-    ax.vlines(mean, 0, ylim)
-    ax.arrow(mean, height, -std, 0, length_includes_head=True, head_length=0.01, head_width=0.1)
-    ax.arrow(mean, height, +std, 0, length_includes_head=True, head_length=0.01, head_width=0.1)
-    ax.text(mean-std/2, height + .1, "std", horizontalalignment='center')
-    ax.text(mean+std/2, height + .1, "std", horizontalalignment='center')
-
-    ax.set_xlabel(r"$MCR^{(COSMOS)} / MCR^{(Single Task)}$")
-    ax.set_ylabel("Frequencies")
-    #ax.set_title("MRC COSMOS / MRC Single Task = ")
-
-    #plt.show()
-    plt.savefig('hist')
-    plt.close()
-    
-
-
-#plot_gain()
-
-
 datasets1 = ['adult', 'compas', 'credit']
 methods1 = ['hyper_epo', 'hyper_ln', 'ParetoMTL', 'cosmos_ln']
 datasets2 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
@@ -434,8 +394,10 @@ plot_row(datasets1, methods2, limits_baselines, prefix='cosmos')
 plot_row(datasets2, methods2, limits_baselines, prefix='cosmos')
 
 
-
+#
 # generating the tables
+#
+
 def generate_table(datasets, methods, name):
     text = f"""
 \\toprule
@@ -462,19 +424,3 @@ generate_table(datasets1, methods, name='fairness')
 
 datasets2 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
 generate_table(datasets2, methods, name='mnist')
-
-# PHN-LS  & 1 $\pm$ 1        & 1          &  1 \\
-# PHN-EPO & 1 $\pm$ 1        & 1          &  1 \\
-# COSMOS  & 1 $\pm$ 1        & 1          &  1 \\ 
-# \multicolumn{4}{c}{\bf Compass} \\ \cmidrule{2-4}
-# PMTL    & 1 $\pm$ 1        & 1          &  1 \\
-# PHN-LS  & 1 $\pm$ 1        & 1          &  1 \\
-# PHN-EPO & 1 $\pm$ 1        & 1          &  1 \\
-# COSMOS  & 1 $\pm$ 1        & 1          &  1 \\ 
-# \multicolumn{4}{c}{\bf Credit} \\ \cmidrule{2-4}
-# PMTL    & 1 $\pm$ 1        & 1          &  1 \\
-# PHN-LS  & 1 $\pm$ 1        & 1          &  1 \\
-# PHN-EPO & 1 $\pm$ 1        & 1          &  1 \\
-# COSMOS  & 1 $\pm$ 1        & 1          &  1 \\
-# \bottomrule
-print()

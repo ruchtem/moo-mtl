@@ -1,19 +1,13 @@
-import argparse
 import json
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from pathlib import Path
-import re
-from multi_objective.hv import HyperVolume
 
 from plotting import (
     font_size,
-    markers,
     colors,
-    natural_sort,
-    lists_to_tuples,
     compare_settings,
     stop_key,
     get_early_stop,
@@ -22,35 +16,28 @@ from plotting import (
     figsize,
     titles,
     ax_lables,
-    reference_points,
     load_files,
     mean_and_std,
 )
 
-# datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
-datasets = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
+
+scenario = 'fair'
+
+if scenario == 'fair':
+    datasets = ['adult', 'compas', 'credit']
+    lambdas = [0, .01, .1]
+elif scenario == 'multi':
+    datasets = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
+    lambdas = [1, 3, 5]
+else:
+    raise ValueError()
+
+alphas = [.1, .7, 1.2]
 methods = ['cosmos_ln']
-
-
-def adjust_lightness(color, amount=0.5):
-    import matplotlib.colors as mc
-    import colorsys
-    try:
-        c = mc.cnames[color]
-    except:
-        c = color
-    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
-    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
-
-dirname = "results_plot/results_ablation/"
+dirname = "../results_plot/results_ablation/"
 
 p = Path(dirname)
-all_files = list(p.glob('**/*.json'))
-
 results = {}
-
-lambdas = [1, 3, 5]
-alphas = [.1, .7, 1.2]
 
 for dataset in datasets:
     results[dataset] = {}
@@ -154,9 +141,8 @@ colors = {
     #alpha, color
     alphas[0]: '#8c564b',
     alphas[1]: '#e377c2',
-    alphas[2]: '#17becf', #'#7f7f7f',
+    alphas[2]: '#17becf',
 }
-# '#bcbd22', '#17becf'
 
 # change size cause of suptitle
 figsize = (figsize[0], figsize[1] * .88)
@@ -172,8 +158,6 @@ def plot_ablation(datasets, methods, lambdas, alphas):
                 
                 for a in alphas:
 
-                #color_shades = np.linspace(1.7, .3, len(epochs)).tolist()
-
                     r = results[dataset][method][l][a]
                     # we take the mean only
                     s = np.array(r['test_scores'][0]) if isinstance(r['test_scores'], tuple) else np.array(r['test_scores'])
@@ -181,10 +165,9 @@ def plot_ablation(datasets, methods, lambdas, alphas):
                         s[:, 0], 
                         s[:, 1], 
                         color=colors[a],
-                        #marker=markers[method],
                         marker='.',
                         linestyle='--' if method != 'ParetoMTL' else ' ',
-                        label=r"$\alpha = $" + str(a)   # r"$\lambda = $" + str(l) + 
+                        label=r"$\alpha = $" + str(a)
                     )
 
                     if dataset == 'multi_mnist' and l==1 and a==1.2:
@@ -205,7 +188,7 @@ def plot_ablation(datasets, methods, lambdas, alphas):
                         mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
                     
                     if dataset == 'multi_fashion' and l==1 and a==1.2:
-                        axins = zoomed_inset_axes(ax, 40, loc='upper right') # zoom = 6
+                        axins = zoomed_inset_axes(ax, 40, loc='upper right')
                         for a_s in alphas:
                             s = np.array(results[dataset][method][l][a_s]['test_scores'][0])
                             axins.plot(
@@ -237,9 +220,6 @@ def plot_ablation(datasets, methods, lambdas, alphas):
         fig.savefig(f'ablation_{dataset}.pdf' , bbox_inches='tight')
         plt.close(fig)
 
-datasets1 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
-methods1 = ['cosmos_ln']
 
-
-plot_ablation(datasets1, methods1, lambdas, alphas)
+plot_ablation(datasets, methods, lambdas, alphas)
                 
