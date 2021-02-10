@@ -135,7 +135,7 @@ generic = dict(
     seed=1,
     
     # Directory for logging the results
-    logdir='results_tmp',
+    logdir='results',
 
     # dataloader worker threads
     num_workers=4,

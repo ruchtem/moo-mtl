@@ -213,8 +213,8 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='adult', help="The dataset to run on.")
-    parser.add_argument('--method', '-m', default='hyper_ln', help="The method to generate the Pareto front.")
+    parser.add_argument('--dataset', '-d', default='mm', help="The dataset to run on.")
+    parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()
