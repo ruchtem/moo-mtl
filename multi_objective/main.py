@@ -23,23 +23,23 @@ from objectives import from_name
 from hv import HyperVolume
 
 
-from solvers import HypernetSolver, ParetoMTLSolver, SingleTaskSolver, COSMOSSolver, MGDASolver, UniformScalingSolver
+from methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMethod, MGDAMethod, UniformScalingMethod
 from scores import from_objectives
 
 
-def solver_from_name(method, **kwargs):
+def method_from_name(method, **kwargs):
     if method == 'ParetoMTL':
-        return ParetoMTLSolver(**kwargs)
+        return ParetoMTLMethod(**kwargs)
     elif 'cosmos' in method:
-        return COSMOSSolver(**kwargs)
+        return COSMOSMethod(**kwargs)
     elif method == 'SingleTask':
-        return SingleTaskSolver(**kwargs)
+        return SingleTaskMethod(**kwargs)
     elif 'hyper' in method:
-        return HypernetSolver(**kwargs)
+        return HypernetMethod(**kwargs)
     elif method == 'mgda':
-        return MGDASolver(**kwargs)
+        return MGDAMethod(**kwargs)
     elif method == 'uniform':
-        return UniformScalingSolver(**kwargs)
+        return UniformScalingMethod(**kwargs)
     else:
         raise ValueError("Unkown method {}".format(method))
 
@@ -49,7 +49,7 @@ volume_max = -1
 elapsed_time = 0
 
 
-def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, result_dict):
+def evaluate(j, e, method, scores, data_loader, logdir, reference_point, split, result_dict):
     assert split in ['train', 'val', 'test']
     global volume_max
     global epoch_max
@@ -60,7 +60,7 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
         
         # more than one solution for some solvers
         s = []
-        for l in solver.eval_step(batch):
+        for l in method.eval_step(batch):
             batch.update(l)
             s.append([s(**batch) for s in scores])
         if score_values.size == 0:
@@ -99,7 +99,7 @@ def evaluate(j, e, solver, scores, data_loader, logdir, reference_point, split, 
             "training_time_so_far": elapsed_time,
         })
 
-    result.update(solver.log())
+    result.update(method.log())
 
     if f"epoch_{e}" in result_dict[f"start_{j}"]:
         result_dict[f"start_{j}"][f"epoch_{e}"].update(result)
@@ -138,11 +138,11 @@ def main(settings):
     rm1 = utils.RunningMean(400)
     rm2 = utils.RunningMean(400)
 
-    solver = solver_from_name(objectives=objectives, **settings)
+    method = method_from_name(objectives=objectives, **settings)
 
-    train_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
-    val_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
-    test_results = dict(settings=settings, num_parameters=utils.num_parameters(solver.model_params()))
+    train_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
+    val_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
+    test_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
 
     with open(pathlib.Path(logdir) / "settings.json", "w") as file:
         json.dump(train_results, file)
@@ -153,19 +153,19 @@ def main(settings):
         val_results[f"start_{j}"] = {}
         test_results[f"start_{j}"] = {}
 
-        optimizer = torch.optim.Adam(solver.model_params(), settings['lr'])
+        optimizer = torch.optim.Adam(method.model_params(), settings['lr'])
         if settings['use_scheduler']:
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, settings['scheduler_milestones'], gamma=settings['scheduler_gamma'])
         
         for e in range(settings['epochs']):
             print(f"Epoch {e}")
             tick = time.time()
-            solver.new_epoch(e)
+            method.new_epoch(e)
 
             for b, batch in enumerate(train_loader):
                 batch = utils.dict_to_cuda(batch)
                 optimizer.zero_grad()
-                stats = solver.step(batch)
+                stats = method.step(batch)
                 optimizer.step()
 
                 loss, sim  = stats if isinstance(stats, tuple) else (stats, 0)
@@ -181,7 +181,7 @@ def main(settings):
 
             # run eval on train set (mainly for debugging)
             if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
-                train_results = evaluate(j, e, solver, scores, train_loader, logdir, 
+                train_results = evaluate(j, e, method, scores, train_loader, logdir, 
                     reference_point=settings['reference_point'],
                     split='train',
                     result_dict=train_results)
@@ -189,13 +189,13 @@ def main(settings):
             
             if settings['eval_every'] > 0 and (e+1) % settings['eval_every'] == 0:
                 # Validation results
-                val_results = evaluate(j, e, solver, scores, val_loader, logdir, 
+                val_results = evaluate(j, e, method, scores, val_loader, logdir, 
                     reference_point=settings['reference_point'],
                     split='val',
                     result_dict=val_results)
 
                 # Test results
-                test_results = evaluate(j, e, solver, scores, test_loader, logdir, 
+                test_results = evaluate(j, e, method, scores, test_loader, logdir, 
                     reference_point=settings['reference_point'],
                     split='test',
                     result_dict=test_results)
@@ -203,17 +203,17 @@ def main(settings):
             # Checkpoints
             if settings['checkpoint_every'] > 0 and (e+1) % settings['checkpoint_every'] == 0:
                 pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
-                torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
+                torch.save(method.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
 
         print("epoch_max={}, val_volume_max={}".format(epoch_max, volume_max))
         pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
-        torch.save(solver.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, 999999)))
+        torch.save(method.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, 999999)))
     return volume_max
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='mm', help="The dataset to run on.")
+    parser.add_argument('--dataset', '-d', default='adult', help="The dataset to run on.")
     parser.add_argument('--method', '-m', default='hyper_ln', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')

@@ -1,10 +1,10 @@
 import torch
 
 from utils import model_from_dataset
-from .base import BaseSolver
+from .base import BaseMethod
 
 
-class SingleTaskSolver(BaseSolver):
+class SingleTaskMethod(BaseMethod):
 
     def __init__(self, objectives, num_starts, **kwargs):
         self.objectives = objectives

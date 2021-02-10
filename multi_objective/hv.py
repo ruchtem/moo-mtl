@@ -17,7 +17,7 @@
 
 __author__ = "Simon Wessing"
 # https://ls11-www.cs.tu-dortmund.de/rudolph/hypervolume/start
-# ported to python3
+# ported to python3 by Michael Ruchte
 
 
 class HyperVolume:

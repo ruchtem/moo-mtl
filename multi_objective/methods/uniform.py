@@ -1,10 +1,10 @@
 import torch
 
 from utils import model_from_dataset
-from .base import BaseSolver
+from .base import BaseMethod
 
 
-class UniformScalingSolver(BaseSolver):
+class UniformScalingMethod(BaseMethod):
 
     def __init__(self, objectives, **kwargs):
         self.objectives = objectives

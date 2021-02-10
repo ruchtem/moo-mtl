@@ -4,12 +4,12 @@
 import torch
 from torch.autograd import Variable
 
-from ..base import BaseSolver
+from ..base import BaseMethod
 from min_norm_solvers import MinNormSolver, gradient_normalizers
 from utils import model_from_dataset, calc_gradients
 
 
-class MGDASolver(BaseSolver):
+class MGDAMethod(BaseMethod):
 
     def __init__(self, objectives, approximate_norm_solution, normalization_type, **kwargs) -> None:
         super().__init__()

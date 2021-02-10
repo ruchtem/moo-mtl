@@ -1,16 +1,19 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import matplotlib.pyplot as plt
 
-from .epo_lp import EPO_LP
-from utils import calc_gradients, num_parameters, model_from_dataset, circle_points
-from solvers.base import BaseSolver
-from .utils import alpha_from_epo, uniform_sample_alpha
+from utils import num_parameters, model_from_dataset, circle_points
+from ..base import BaseMethod
 
 
-class AlphaGenerator(nn.Module):
+class Upsampler(nn.Module):
+
+
     def __init__(self, K, child_model, input_dim):
+        """
+        In case of tabular data: append the sampled rays to the data instances (no upsampling)
+        In case of image data: use a transposed CNN for the sampled rays.
+        """
         super().__init__()
 
         if len(input_dim) == 1:
@@ -19,7 +22,7 @@ class AlphaGenerator(nn.Module):
         elif len(input_dim) == 3:
             # image data
             self.tabular = False
-            self.main = nn.Sequential(
+            self.transposed_cnn = nn.Sequential(
                 nn.ConvTranspose2d(K, K, kernel_size=4, stride=1, padding=0, bias=False),
                 nn.ReLU(inplace=True),
                 nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
@@ -33,13 +36,17 @@ class AlphaGenerator(nn.Module):
 
 
     def forward(self, batch):
-        b = batch['data'].shape[0]
+        x = batch['data']
+        
+        b = x.shape[0]
         a = batch['alpha'].repeat(b, 1)
+        
         if not self.tabular:
             # use transposed convolution
             a = a.reshape(b, len(batch['alpha']), 1, 1)
-            a = self.main(a)
-        x = torch.cat((batch['data'], a), dim=1)
+            a = self.transposed_cnn(a)
+        
+        x = torch.cat((x, a), dim=1)
         return self.child_model(dict(data=x))
 
     
@@ -51,9 +58,19 @@ class AlphaGenerator(nn.Module):
 
 
 
-class COSMOSSolver(BaseSolver):
+class COSMOSMethod(BaseMethod):
 
-    def __init__(self, objectives, alpha, dim, n_test_rays, lamda, **kwargs):
+    def __init__(self, objectives, alpha, lamda, dim, n_test_rays, **kwargs):
+        """
+        Instanciate the cosmos solver.
+
+        Args:
+            objectives: A list of objectives
+            alpha: Dirichlet sampling parameter (list or float)
+            lamda: Cosine similarity penalty
+            dim: Dimensions of the data
+            n_test_rays: The number of test rays used for evaluation.
+        """
         self.objectives = objectives
         self.K = len(objectives)
         self.alpha = alpha
@@ -64,7 +81,7 @@ class COSMOSSolver(BaseSolver):
         dim[0] = dim[0] + self.K
 
         model = model_from_dataset(method='cosmos', dim=dim, **kwargs)
-        self.model = AlphaGenerator(self.K, model, dim).cuda()
+        self.model = Upsampler(self.K, model, dim).cuda()
 
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
@@ -81,7 +98,7 @@ class COSMOSSolver(BaseSolver):
                 np.random.dirichlet([self.alpha for _ in range(self.K)], 1).astype(np.float32).flatten()
             ).cuda()
         else:
-            batch['alpha']  = uniform_sample_alpha(self.K)
+            raise ValueError(f"Unknown value for alpha: {self.alpha}, expecting list or float.")
 
 
         # step 2: calculate loss

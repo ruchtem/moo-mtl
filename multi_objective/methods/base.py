@@ -1,8 +1,7 @@
 from abc import abstractmethod
-import torch
 
 
-class BaseSolver():
+class BaseMethod():
 
 
     def model_params(self):

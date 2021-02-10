@@ -5,7 +5,7 @@ import numpy as np
 
 
 from utils import num_parameters, circle_points
-from solvers.base import BaseSolver
+from ..base import BaseMethod
 
 from .models import PHNHyper, PHNTarget
 from .solvers import LinearScalarizationSolver, EPOSolver
@@ -84,7 +84,7 @@ class FCPHNTarget(nn.Module):
 
 
 
-class HypernetSolver(BaseSolver):
+class HypernetMethod(BaseMethod):
 
     def __init__(self, objectives, dim, n_test_rays, alpha, internal_solver, **kwargs):
         self.objectives = objectives

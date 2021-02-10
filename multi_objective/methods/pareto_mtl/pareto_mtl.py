@@ -6,7 +6,7 @@ from torch.autograd import Variable
 from min_norm_solvers import MinNormSolver
 
 from utils import calc_gradients, circle_points, model_from_dataset, reset_weights
-from ..base import BaseSolver
+from ..base import BaseMethod
 
 
 def get_d_paretomtl_init(grads, losses, preference_vectors, pref_idx):
@@ -102,7 +102,7 @@ def get_d_paretomtl(grads, losses, preference_vectors, pref_idx):
         return weight
 
 
-class ParetoMTLSolver(BaseSolver):
+class ParetoMTLMethod(BaseMethod):
 
     def __init__(self, objectives, num_starts, **kwargs):
         assert len(objectives) <= 2
