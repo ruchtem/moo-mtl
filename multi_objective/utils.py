@@ -64,6 +64,7 @@ def circle_points(n, min_angle=0.1, max_angle=np.pi / 2 - 0.1, dim=2):
         points = []
         phi = np.pi * (3. - np.sqrt(5.))  # golden angle in radians
 
+        n = n*8   # we are only looking at the positive part
         for i in range(n):
             y = 1 - (i / float(n - 1)) * 2  # y goes from 1 to -1
             radius = np.sqrt(1 - y * y)  # radius at y
@@ -72,8 +73,8 @@ def circle_points(n, min_angle=0.1, max_angle=np.pi / 2 - 0.1, dim=2):
 
             x = np.cos(theta) * radius
             z = np.sin(theta) * radius
-
-            points.append((x, y, z))
+            if x >=0 and y>=0 and z>=0:
+                points.append((x, y, z))
         return np.array(points)
     else:
         # this is an unsolved problem for more than 3 dimensions
