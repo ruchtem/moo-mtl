@@ -1,13 +1,12 @@
 import os
 import pandas as pd
-import numpy as np
 import torch
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import StandardScaler
 
 from torch.utils import data
-from collections import namedtuple
+
 
 def load_dataset(path, s_label):
     data = pd.read_csv(path)

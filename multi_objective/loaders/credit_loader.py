@@ -31,6 +31,7 @@ def load_dataset(root, s_label):
 
     return x, y, s
 
+
 class Credit(torch.utils.data.Dataset):
 
     def __init__(self, split, root='data/credit', sensible_attribute='SEX', **kwargs):

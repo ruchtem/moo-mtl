@@ -8,6 +8,8 @@ from PIL import Image
 
 from torch.utils import data
 
+# taken from https://github.com/intel-isl/MultiObjectiveOptimization and adapted
+
 
 class CelebA(data.Dataset):
     def __init__(self, split, task_ids=[], root='data/celeba', dim=64, augmentations=None, **kwargs):
@@ -95,17 +97,15 @@ class CelebA(data.Dataset):
             img = self.augmentations(np.array(img, dtype=np.uint8))
 
         img = self.transform(img)
-
         labels = {'labels_{}'.format(i): label[i] for i in self.task_names()}
-
         return dict(data=img, **labels)
 
     
     def task_names(self):
         return self.task_ids if self.task_ids else range(self.n_classes)
 
+
 if __name__ == '__main__':
-    import torchvision
     import matplotlib.pyplot as plt
 
 
@@ -122,9 +122,6 @@ if __name__ == '__main__':
         f, axarr = plt.subplots(bs,4)
         for j in range(bs):
             axarr[j][0].imshow(imgs[j])
-            #axarr[j][1].imshow(labels.numpy()[j])
-            #axarr[j][2].imshow(instances[j,0,:,:])
-            #axarr[j][3].imshow(instances[j,1,:,:])
         plt.show()
         a = input()
         if a == 'ex':

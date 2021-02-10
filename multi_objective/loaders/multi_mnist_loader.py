@@ -1,9 +1,11 @@
 import torch
-import os
 import pickle
 
 import pickle
 from sklearn.model_selection import train_test_split
+
+# taken from https://github.com/Xi-L/ParetoMTL and adapted
+
 
 class MultiMNIST(torch.utils.data.Dataset):
     """
@@ -16,48 +18,6 @@ class MultiMNIST(torch.utils.data.Dataset):
 
         # equal size of val and test split
         train_split = .9
-
-        # if dataset == 'mnist':
-        #     with open(os.path.join(root, 'multi_mnist.pickle'),'rb') as f:
-        #         trainX, trainLabel, testX, testLabel = pickle.load(f)  
-        
-        # if dataset == 'fashion':
-        #     with open(os.path.join(root, 'multi_fashion.pickle'),'rb') as f:
-        #         trainX, trainLabel,testX, testLabel = pickle.load(f)  
-        
-        # if dataset == 'fashion_and_mnist':
-        #     with open(os.path.join(root, 'multi_fashion_and_mnist.pickle'),'rb') as f:
-        #         trainX, trainLabel,testX, testLabel = pickle.load(f)
-        
-        # trainX = torch.Tensor(trainX).float()
-        # trainLabel = torch.Tensor(trainLabel).long()
-        # testX = torch.Tensor(testX).float()
-        # testLabel = torch.Tensor(testLabel).long()
-
-        # # normalize
-        # # trainX -= trainX.min(1, keepdim=True)[0]
-        # # trainX /= trainX.max(1, keepdim=True)[0] + 1e-15
-        # # testX -= testX.min(1, keepdim=True)[0]
-        # # testX /= testX.max(1, keepdim=True)[0] + 1e-15
-
-        # # randomly shuffle
-        # idx = torch.randperm(trainX.shape[0])
-        # trainX = trainX[idx].float()
-        # trainLabel = trainLabel[idx]
-
-        # if split in ['train', 'val']:
-        #     n = int(len(trainX) * train_split)
-        #     if split == 'val':
-        #         self.X = trainX[n:]
-        #         self.y = trainLabel[n:]
-        #     elif split == 'train':
-        #         self.X = trainX[:n]
-        #         self.y = trainLabel[:n]
-        # elif split == 'test':
-        #     self.X = testX
-        #     self.y = testLabel
-        
-        # self.X = torch.unsqueeze(self.X, dim=1)
 
         if dataset == 'mnist':
             self.path = 'data/multi/multi_mnist.pickle'
