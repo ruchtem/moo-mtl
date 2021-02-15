@@ -60,7 +60,7 @@ class Upsampler(nn.Module):
 
 class COSMOSMethod(BaseMethod):
 
-    def __init__(self, objectives, alpha, lamda, dim, n_test_rays, **kwargs):
+    def __init__(self, objectives, model, alpha, lamda, dim, **kwargs):
         """
         Instanciate the cosmos solver.
 
@@ -71,20 +71,23 @@ class COSMOSMethod(BaseMethod):
             dim: Dimensions of the data
             n_test_rays: The number of test rays used for evaluation.
         """
-        self.objectives = objectives
+        super().__init__(objectives, model, **kwargs)
         self.K = len(objectives)
         self.alpha = alpha
-        self.n_test_rays = n_test_rays
         self.lamda = lamda
 
         dim = list(dim)
         dim[0] = dim[0] + self.K
 
-        model = model_from_dataset(method='cosmos', dim=dim, **kwargs)
-        self.model = Upsampler(self.K, model, dim).cuda()
+        model.change_input_dim(dim[0])
+        self.model = Upsampler(self.K, model, dim).to(self.device)
 
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
+
+
+    def preference_at_inference(self):
+        return True
 
 
     def step(self, batch):
@@ -92,11 +95,11 @@ class COSMOSMethod(BaseMethod):
         if isinstance(self.alpha, list):
             batch['alpha']  = torch.from_numpy(
                 np.random.dirichlet(self.alpha, 1).astype(np.float32).flatten()
-            ).cuda()
+            ).to(self.device)
         elif self.alpha > 0:
             batch['alpha']  = torch.from_numpy(
                 np.random.dirichlet([self.alpha for _ in range(self.K)], 1).astype(np.float32).flatten()
-            ).cuda()
+            ).to(self.device)
         else:
             raise ValueError(f"Unknown value for alpha: {self.alpha}, expecting list or float.")
 
@@ -107,8 +110,8 @@ class COSMOSMethod(BaseMethod):
         batch.update(logits)
         loss_total = None
         task_losses = []
-        for a, objective in zip(batch['alpha'], self.objectives):
-            task_loss = objective(**batch)
+        for a, t in zip(batch['alpha'], self.task_ids):
+            task_loss = self.objectives[t](**batch)
             loss_total = a * task_loss if not loss_total else loss_total + a * task_loss
             task_losses.append(task_loss)
         
@@ -119,18 +122,9 @@ class COSMOSMethod(BaseMethod):
         return loss_total.item(), cossim.item()
 
 
-    def eval_step(self, batch, test_rays=None):
+    def eval_step(self, batch, preference_vector):
         self.model.eval()
-        logits = []
         with torch.no_grad():
-            if test_rays is None:
-                test_rays = circle_points(self.n_test_rays, dim=self.K)
-
-            for ray in test_rays:
-                ray = torch.from_numpy(ray.astype(np.float32)).cuda()
-                ray /= ray.sum()
-
-                batch['alpha'] = ray
-                logits.append(self.model(batch))
-        return logits
+            batch['alpha'] = torch.from_numpy(preference_vector).to(self.device).float()
+            return self.model(batch)
 

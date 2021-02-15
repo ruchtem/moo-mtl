@@ -39,7 +39,7 @@ from torch.utils import model_zoo
 GlobalParams = collections.namedtuple('GlobalParams', [
     'width_coefficient', 'depth_coefficient', 'image_size', 'dropout_rate',
     'num_classes', 'batch_norm_momentum', 'batch_norm_epsilon',
-    'drop_connect_rate', 'depth_divisor', 'min_depth', 'include_top'])
+    'drop_connect_rate', 'depth_divisor', 'min_depth', 'include_top', 'batch_norm_layer'])
 
 # Parameters for an individual model block
 BlockArgs = collections.namedtuple('BlockArgs', [
@@ -491,6 +491,7 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, image_size=None
         depth_divisor=8,
         min_depth=None,
         include_top=include_top,
+        batch_norm_layer=nn.BatchNorm2d,
     )
 
     return blocks_args, global_params
@@ -565,18 +566,20 @@ def load_pretrained_weights(model, model_name, weights_path=None, load_fc=True, 
         # AutoAugment or Advprop (different preprocessing)
         url_map_ = url_map_advprop if advprop else url_map
         state_dict = model_zoo.load_url(url_map_[model_name])
-    if model.my_in_channels > 3:
-        state_dict['_conv_stem.weight'] = torch.nn.Parameter(torch.ones(([model.stem_out_channels, model.my_in_channels, 3, 3])))
 
     if load_fc:
         ret = model.load_state_dict(state_dict, strict=False)
-        #assert not ret.missing_keys, 'Missing keys when loading pretrained weights: {}'.format(ret.missing_keys)
+        if ret.missing_keys:
+            print('Missing keys when loading pretrained weights: {}'.format(ret.missing_keys))
     else:
         state_dict.pop('_fc.weight')
         state_dict.pop('_fc.bias')
         ret = model.load_state_dict(state_dict, strict=False)
-        #assert set(ret.missing_keys) == set(
-        #    ['_fc.weight', '_fc.bias']), 'Missing keys when loading pretrained weights: {}'.format(ret.missing_keys)
-    #assert not ret.unexpected_keys, 'Missing keys when loading pretrained weights: {}'.format(ret.unexpected_keys)
+        assert set(ret.missing_keys) == set(
+            ['_fc.weight', '_fc.bias']), 'Missing keys when loading pretrained weights: {}'.format(ret.missing_keys)
+    
+    # ignore the batch norm weights, might have been turned off
+    if any('bn' not in k for k in ret.unexpected_keys):
+        assert not ret.unexpected_keys, 'Missing keys when loading pretrained weights: {}'.format(ret.unexpected_keys)
 
     print('Loaded pretrained weights for {}'.format(model_name))

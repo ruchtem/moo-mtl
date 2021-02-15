@@ -9,7 +9,7 @@ from datetime import datetime
 
 from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
 from models import FullyConnected, MultiLeNet, EfficientNet, ResNet
-
+from hv import HyperVolume
 
 def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':
@@ -31,11 +31,7 @@ def dataset_from_name(dataset, **kwargs):
 
 
 def model_from_dataset(dataset, **kwargs):
-    if dataset == 'adult':
-        return FullyConnected(**kwargs)
-    elif dataset == 'credit':
-        return FullyConnected(**kwargs)
-    elif dataset == 'compass':
+    if dataset == 'adult' or dataset == 'credit' or dataset == 'compass':
         return FullyConnected(**kwargs)
     elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist' or dataset == 'multi_fashion':
         return MultiLeNet(**kwargs)
@@ -110,8 +106,22 @@ def reset_weights(model):
             layer.reset_parameters()
 
 
-def dict_to_cuda(d):
-    return {k: v.cuda() if isinstance(v, torch.Tensor) else v for k, v in d.items()}
+def dict_to(dict, device):
+    return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in dict.items()}
+
+
+def normalize_score_dict(d, divisor):
+    d = d.copy()
+    for k, v in d.items():
+        if isinstance(v, int) or isinstance(v, float):
+            d[k] = v/divisor
+        elif isinstance(v, list):
+            v = np.array(v) / divisor
+            d[k] = v.tolist()
+        elif isinstance(v, dict):
+            d[k] = normalize_score_dict(v, divisor)
+    return d
+
 
 
 def set_seed(seed):
@@ -168,6 +178,52 @@ def calc_gradients(batch, model, objectives):
     return gradients, obj_values
 
 
+class EvalResult():
+
+    def __init__(self, J, n_test_rays, task_ids) -> None:
+        self.task_ids = task_ids
+        self.center = np.zeros(J)
+        self.pf = np.zeros((n_test_rays, J))
+        self.hv = -1
+        self.pf_available = False
+        self.i = 0
+        self.j = 0
+
+    def update(self, data, mode):
+        if mode == 'center_ray':
+            self.center += data
+            self.i += 1
+        elif mode == 'pareto_front':
+            self.pf_available = True
+            self.pf += data
+            self.j += 1
+        else:
+            raise ValueError(f"Unknown eval mode {mode}")
+
+        
+    
+    def normalize(self):
+        self.center /= self.i
+        self.pf /= self.j
+
+    
+    def compute_hv(self, reference_point):
+        if self.pf_available:
+            hv = HyperVolume(reference_point)
+            self.hv = hv.compute(self.pf.tolist())
+
+
+    def to_dict(self):
+        result = {'center_ray': self.center.tolist(),}
+        if self.pf_available:
+            result.update({
+                'pareto_front': self.pf.tolist(),
+                'hv': self.hv,
+            })
+
+        return result
+
+
 class RunningMean():
 
     def __init__(self, len=100) -> None:
@@ -205,5 +261,5 @@ class ParetoFront():
         plt.plot(p[:, 0], p[:, 1], 'o')
         plt.xlabel(self.labels[0])
         plt.ylabel(self.labels[1])
-        plt.savefig(os.path.join(self.logdir, "x_{}.png".format(self.prefix)))
+        plt.savefig(os.path.join(self.logdir, "{}.png".format(self.prefix)))
         plt.close()

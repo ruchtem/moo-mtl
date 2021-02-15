@@ -26,77 +26,127 @@ from methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMet
 from scores import from_objectives
 
 
-def method_from_name(method, **kwargs):
+def method_from_name(objectives, model, settings):
+    """
+    Initializes the method specified in settings along with its configuration.
+
+    Args:
+        objectives (dict): All objectives for the experiment. Structure is
+            task_id: Objective.
+        model (models.base.BaseModel): A model for the method to learn. It's a
+            `torch.nn.Module` with some custom functions required by some MOO methods
+        settings (dict): The settings
+    
+    Returns:
+        Method. The configured method instance.
+    """
+    method = settings['method']
+    settings = settings.copy()
+    settings.pop('objectives')
     if method == 'ParetoMTL':
-        return ParetoMTLMethod(**kwargs)
+        return ParetoMTLMethod(objectives, model, **settings)
     elif 'cosmos' in method:
-        return COSMOSMethod(**kwargs)
+        return COSMOSMethod(objectives, model, **settings)
     elif method == 'SingleTask':
-        return SingleTaskMethod(**kwargs)
+        return SingleTaskMethod(objectives, model, **settings)
     elif 'hyper' in method:
-        return HypernetMethod(**kwargs)
+        return HypernetMethod(objectives, model, **settings)
     elif method == 'mgda':
-        return MGDAMethod(**kwargs)
+        return MGDAMethod(objectives, model, **settings)
     elif method == 'uniform':
-        return UniformScalingMethod(**kwargs)
+        return UniformScalingMethod(objectives, model, **settings)
     else:
         raise ValueError("Unkown method {}".format(method))
 
 
-epoch_max = -1
-volume_max = -1
-elapsed_time = 0
+def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, train_time, settings):
+    """
+    Evaluate the method on a given dataset split. Calculates:
+    - score for all the scores given in `scores`
+    - computes hyper-volume if applicable
+    - plots the Pareto front to `logdir` for debugging purposes
 
+    Also stores everything in a json file.
 
-def evaluate(j, e, method, scores, data_loader, logdir, reference_point, split, result_dict):
-    assert split in ['train', 'val', 'test']
-    global volume_max
-    global epoch_max
-
-    score_values = np.array([])
-    for batch in data_loader:
-        batch = utils.dict_to_cuda(batch)
-        
-        # more than one solution for some solvers
-        s = []
-        for l in method.eval_step(batch):
-            batch.update(l)
-            s.append([s(**batch) for s in scores])
-        if score_values.size == 0:
-            score_values = np.array(s)
-        else:
-            score_values += np.array(s)
+    Args:
+        j (int): The index of the run (if there are several starts)
+        e (int): Epoch
+        method: The method subject to evaluation
+        scores (dict): All scores which the method should be evaluated on
+        data_loader: The dataloader
+        split (str): Split of the evaluation. Used to name log files
+        result_dict (dict): Global result dict to store the evaluations for this epoch and run in
+        logdir (str): Directory where to store the logs
+        train_time (float): The training time elapsed so far, added to the logs
+        settings (dict): Settings of the experiment
     
-    score_values /= len(data_loader)
-    hv = HyperVolume(reference_point)
+    Returns:
+        dict: The updates `result_dict` containing the results of this evaluation
+    """
+    assert split in ['train', 'val', 'test']
+    
+    if 'task_ids' in settings:
+        J = len(settings['task_ids'])
+        task_ids = settings['task_ids']
+    else:
+        # single output setting
+        J = len(settings['objectives'])
+        task_ids = list(scores[list(scores)[0]].keys())
 
-    # Computing hyper-volume for many objectives is expensive
-    volume = hv.compute(score_values) if score_values.shape[1] < 5 else -1
+    n_rays = settings['n_test_rays']
+    
 
-    if len(scores) == 2:
-        pareto_front = utils.ParetoFront([s.__class__.__name__ for s in scores], logdir, "{}_{:03d}".format(split, e))
-        pareto_front.append(score_values)
-        pareto_front.plot()
+    # gather the scores
+    score_values = {et: utils.EvalResult(J, n_rays, task_ids) for et in scores.keys()}
+    for batch in data_loader:
+        batch = utils.dict_to(batch, settings['device'])
 
-    result = {
-        "scores": score_values.tolist(),
-        "hv": volume,
-    }
+        if 'center_ray' in settings['eval_mode']:
+            center_ray = np.ones(J) / J
+            batch.update(method.eval_step(batch, preference_vector=center_ray))
 
-    if split == 'val':
-        if volume > volume_max:
-            volume_max = volume
-            epoch_max = e
-                    
-        result.update({
-            "max_epoch_so_far": epoch_max,
-            "max_volume_so_far": volume_max,
-            "training_time_so_far": elapsed_time,
-        })
-    elif split == 'test':
-        result.update({
-            "training_time_so_far": elapsed_time,
-        })
+            for eval_mode, score in scores.items():
+                data = [score[t](**batch) for t in task_ids]
+                score_values[eval_mode].update(data, 'center_ray')
+
+                
+        if 'pareto_front' in settings['eval_mode'] and method.preference_at_inference():
+            pareto_rays = utils.circle_points(settings['n_test_rays'], dim=J)
+
+            data = {et: np.zeros((n_rays, J)) for et in scores.keys()}
+            for i, ray in enumerate(pareto_rays):
+                batch.update(method.eval_step(batch, preference_vector=ray))
+
+                for eval_mode, score in scores.items():
+
+                    data[eval_mode][i] += np.array([score[t](**batch) for t in task_ids])
+            
+            for eval_mode in scores:
+                score_values[eval_mode].update(data[eval_mode], 'pareto_front')
+    
+    # normalize scores and compute hyper-volume
+    for v in score_values.values():
+        v.normalize()
+        if 'pareto_front' in settings['eval_mode'] and method.preference_at_inference():
+            v.compute_hv(settings['reference_point'])
+
+    # plot pareto front to pf
+    for eval_mode, score in score_values.items():
+        if score.pf_available and score.pf.shape[1] == 2:
+            pareto_front = utils.ParetoFront(
+                ["-".join([str(t), eval_mode]) for t in task_ids], 
+                logdir,
+                "{}_{}_{:03d}".format(eval_mode, split, e)
+            )
+            pareto_front.append(score.pf)
+            pareto_front.plot()
+
+    result = {k: v.to_dict() for k, v in score_values.items()}
+
+    
+    result.update({
+        "training_time_so_far": train_time,
+    })
 
     result.update(method.log())
 
@@ -114,8 +164,7 @@ def evaluate(j, e, method, scores, data_loader, logdir, reference_point, split, 
 def main(settings):
     print("start processig with settings", settings)
     utils.set_seed(settings['seed'])
-
-    global elapsed_time
+    device = settings['device']
 
     # create the experiment folders
     logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], utils.get_runname(settings))
@@ -127,17 +176,19 @@ def main(settings):
     val_set = utils.dataset_from_name(split='val', **settings)
     test_set = utils.dataset_from_name(split='test', **settings)
 
-    train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
-    val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
+    train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True, num_workers=settings['num_workers'])
+    val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True, num_workers=settings['num_workers'])
     test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
 
-    objectives = from_name(settings.pop('objectives'), train_set.task_names())
-    scores = from_objectives(objectives)
+    objectives = from_name(**settings)
+    scores = from_objectives(objectives, with_mcr=True)
 
     rm1 = utils.RunningMean(400)
     rm2 = utils.RunningMean(400)
+    elapsed_time = 0
 
-    method = method_from_name(objectives=objectives, **settings)
+    model = utils.model_from_dataset(**settings).to(device)
+    method = method_from_name(objectives, model, settings)
 
     train_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
     val_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
@@ -162,7 +213,7 @@ def main(settings):
             method.new_epoch(e)
 
             for b, batch in enumerate(train_loader):
-                batch = utils.dict_to_cuda(batch)
+                batch = utils.dict_to(batch, device)
                 optimizer.zero_grad()
                 stats = method.step(batch)
                 optimizer.step()
@@ -180,40 +231,44 @@ def main(settings):
 
             # run eval on train set (mainly for debugging)
             if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
-                train_results = evaluate(j, e, method, scores, train_loader, logdir, 
-                    reference_point=settings['reference_point'],
+                train_results = evaluate(j, e, method, scores, train_loader,
                     split='train',
-                    result_dict=train_results)
+                    result_dict=train_results,
+                    logdir=logdir,
+                    train_time=elapsed_time,
+                    settings=settings,)
 
             
             if settings['eval_every'] > 0 and (e+1) % settings['eval_every'] == 0:
                 # Validation results
-                val_results = evaluate(j, e, method, scores, val_loader, logdir, 
-                    reference_point=settings['reference_point'],
+                val_results = evaluate(j, e, method, scores, val_loader,
                     split='val',
-                    result_dict=val_results)
+                    result_dict=val_results,
+                    logdir=logdir,
+                    train_time=elapsed_time,
+                    settings=settings,)
 
                 # Test results
-                test_results = evaluate(j, e, method, scores, test_loader, logdir, 
-                    reference_point=settings['reference_point'],
+                test_results = evaluate(j, e, method, scores, test_loader,
                     split='test',
-                    result_dict=test_results)
+                    result_dict=test_results,
+                    logdir=logdir,
+                    train_time=elapsed_time,
+                    settings=settings,)
 
             # Checkpoints
             if settings['checkpoint_every'] > 0 and (e+1) % settings['checkpoint_every'] == 0:
                 pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
                 torch.save(method.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
 
-        print("epoch_max={}, val_volume_max={}".format(epoch_max, volume_max))
         pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
         torch.save(method.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, 999999)))
-    return volume_max
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='mm', help="The dataset to run on.")
-    parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
+    parser.add_argument('--dataset', '-d', default='adult', help="The dataset to run on.")
+    parser.add_argument('--method', '-m', default='hyper_ln', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()

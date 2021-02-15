@@ -6,7 +6,7 @@ from abc import abstractmethod
 import objectives as obj
 
 
-def from_objectives(objectives):
+def from_objectives(objectives, with_mcr=False):
     scores = {
         obj.CrossEntropyLoss: CrossEntropy,
         obj.BinaryCrossEntropyLoss: BinaryCrossEntropy,
@@ -14,7 +14,12 @@ def from_objectives(objectives):
         obj.DEOHyperbolicTangentRelaxation: DEO,
         obj.MSELoss: L2Distance,
     }
-    return [scores[o.__class__](o.label_name, o.logits_name) for o in objectives]
+    result = {
+        'loss': {t: scores[o.__class__](o.label_name, o.logits_name) for t, o in objectives.items()},
+    }
+    if with_mcr:
+        result['mcr'] = {t: mcr(o.label_name, o.logits_name) for t, o in objectives.items()}
+    return result
 
 class BaseScore():
 

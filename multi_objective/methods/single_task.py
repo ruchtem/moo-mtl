@@ -6,35 +6,25 @@ from .base import BaseMethod
 
 class SingleTaskMethod(BaseMethod):
 
-    def __init__(self, objectives, num_starts, **kwargs):
-        self.objectives = objectives
-        if num_starts > 1:
-            # we are doing it sequentially
-            self.task = -1
-            assert 'task_id' not in kwargs
+    def __init__(self, objectives, model, task_ids, **kwargs):
+        super().__init__(objectives, model)
+        
+        if 'task_id' in kwargs:
+            self.task_id = kwargs['task_id']
+            self.task_ids = None
         else:
-            assert num_starts == 1
-            print(objectives)
-            self.task = kwargs['task_id'] - 1
-            for obj in objectives:
-                if kwargs['task_id'] == int(obj.label_name.replace('labels_', '')):
-                    self.objectives = {kwargs['task_id']: obj}
-        self.model = model_from_dataset(method='single_task', **kwargs).cuda()
-
-
-    def model_params(self):
-        return list(self.model.parameters())
+            self.task_ids = iter(task_ids)
 
     
     def new_epoch(self, e):
         self.model.train()
-        if e == 0:
-            self.task += 1
+        if e == 0 and self.task_ids is not None:
+            self.task_id = next(self.task_ids)
 
 
     def step(self, batch):
         batch.update(self.model(batch))
-        loss = self.objectives[self.task](**batch)
+        loss = self.objectives[self.task_id](**batch)
         loss.backward()
         return loss.item()
     
@@ -43,7 +33,7 @@ class SingleTaskMethod(BaseMethod):
         return {"task": self.task}
 
 
-    def eval_step(self, batch, test_rays=None):
+    def eval_step(self, batch, preference_vector=None):
         self.model.eval()
         with torch.no_grad():
-            return[self.model(batch)]
+            return self.model(batch)

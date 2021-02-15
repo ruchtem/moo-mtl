@@ -2,8 +2,8 @@ import torch
 import autograd
 
 
-def from_name(names, task_names):
-    objectives = {
+def from_name(objectives, task_ids=None, **kwargs):
+    map = {
         'CrossEntropyLoss': CrossEntropyLoss,
         'BinaryCrossEntropyLoss': BinaryCrossEntropyLoss,
         'L1Regularization': L1Regularization,
@@ -11,11 +11,11 @@ def from_name(names, task_names):
         'ddp': DDPHyperbolicTangentRelaxation,
         'deo': DEOHyperbolicTangentRelaxation,
     }
-
-    if task_names is not None:
-        return [objectives[n]("labels_{}".format(t), "logits_{}".format(t)) for n, t in zip(names, task_names)]
+    if task_ids is not None:
+        return {t: map[n]("labels_{}".format(t), "logits_{}".format(t)) for n, t in zip(objectives, task_ids)}
     else:
-        return [objectives[n]() for n in names]
+        print("WARNING: No task ids specified, assuming all objectives use the same default output.")
+        return {t: map[n]() for t, n in enumerate(objectives)}
     
 
 

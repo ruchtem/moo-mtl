@@ -11,7 +11,7 @@ adult = dict(
     epochs=50,
     use_scheduler=False,
     lamda=.01,
-    alpha=.5,
+    alpha=.1,
 )
 
 credit = dict(
@@ -37,6 +37,7 @@ compass = dict(
 multi_mnist = dict(
     dataset='multi_mnist',
     dim=(1, 36, 36),
+    task_ids=['l', 'r'],
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     lamda=2,
     alpha=1.2,
@@ -45,6 +46,7 @@ multi_mnist = dict(
 multi_fashion = dict(
     dataset='multi_fashion',
     dim=(1, 36, 36),
+    task_ids=['l', 'r'],
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     lamda=2,
     alpha=1.2,
@@ -53,6 +55,7 @@ multi_fashion = dict(
 multi_fashion_mnist = dict(
     dataset='multi_fashion_mnist',
     dim=(1, 36, 36),
+    task_ids=['l', 'r'],
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     lamda=8,
     alpha=1.2,
@@ -144,6 +147,10 @@ generic = dict(
     # dataloader worker threads
     num_workers=4,
 
+    # Which results to generate during evaluation.
+    # If 'pareto_front' is selected, it will be obtained by using n_test_rays
+    eval_mode=['center_ray', 'pareto_front'],
+
     # Number of test preference vectors for Pareto front generating methods    
     n_test_rays=25,
 
@@ -171,4 +178,7 @@ generic = dict(
 
     # Reference point for hyper-volume calculation
     reference_point=[2, 2],
+
+    # cuda or cpu
+    device='cuda',
 )

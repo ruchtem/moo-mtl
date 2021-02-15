@@ -86,8 +86,8 @@ class FCPHNTarget(nn.Module):
 
 class HypernetMethod(BaseMethod):
 
-    def __init__(self, objectives, dim, n_test_rays, alpha, internal_solver, **kwargs):
-        self.objectives = objectives
+    def __init__(self, objectives, model, dim, n_test_rays, alpha, internal_solver, **kwargs):
+        super().__init__(objectives, model, **kwargs)
         self.n_test_rays = n_test_rays
         self.alpha = alpha
         self.K = len(objectives)
@@ -105,8 +105,8 @@ class HypernetMethod(BaseMethod):
 
         print("Number of parameters: {}".format(num_parameters(hnet)))
 
-        self.model = hnet.cuda()
-        self.net = net.cuda()
+        self.model = hnet.to(self.device)
+        self.net = net.to(self.device)
 
         if internal_solver == 'linear':
             self.solver = LinearScalarizationSolver(n_tasks=len(objectives))
@@ -114,21 +114,26 @@ class HypernetMethod(BaseMethod):
             self.solver = EPOSolver(n_tasks=len(objectives), n_params=num_parameters(hnet))
 
 
+    def preference_at_inference(self):
+        return True
+
+
+
     def step(self, batch):
         if self.alpha > 0:
             ray = torch.from_numpy(
                 np.random.dirichlet([self.alpha for _ in range(len(self.objectives))], 1).astype(np.float32).flatten()
-            ).cuda()
+            ).to(self.device)
         else:
             alpha = torch.empty(1, ).uniform_(0., 1.)
-            ray = torch.tensor([alpha.item(), 1 - alpha.item()]).cuda()
+            ray = torch.tensor([alpha.item(), 1 - alpha.item()]).to(self.device)
 
         img = batch['data']
 
         weights = self.model(ray)
         batch.update(self.net(img, weights))
 
-        losses = torch.stack([o(**batch) for o in self.objectives])
+        losses = torch.stack([self.objectives[t](**batch) for t in self.task_ids])
 
         ray = ray.squeeze(0)
         loss = self.solver(losses, ray, list(self.model.parameters()))
@@ -136,19 +141,13 @@ class HypernetMethod(BaseMethod):
 
         return loss.item()
     
-    def eval_step(self, batch):
+    def eval_step(self, batch, preference_vector):
         self.model.eval()
 
-        test_rays = circle_points(self.n_test_rays, dim=self.K)
-
-        logits = []
-        for ray in test_rays:
-            ray = torch.from_numpy(ray.astype(np.float32)).cuda()
-            ray /= ray.sum()
-
-            weights = self.model(ray)
-            logits.append(self.net(batch['data'], weights))
-        return logits
+        with torch.no_grad():
+            preference_vector = torch.from_numpy(preference_vector).to(self.device).float()
+            weights = self.model(preference_vector)
+            return self.net(batch['data'], weights)
 
 
 
