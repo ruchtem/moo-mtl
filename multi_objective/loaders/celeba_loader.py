@@ -12,7 +12,7 @@ from torch.utils import data
 
 
 class CelebA(data.Dataset):
-    def __init__(self, split, task_ids=[], root='data/celeba', dim=64, augmentations=None, **kwargs):
+    def __init__(self, split, task_ids=[], root='data/celeba', dim=(3, 64, 64), augmentations=None, **kwargs):
         """__init__
 
         :param root:
@@ -108,20 +108,21 @@ class CelebA(data.Dataset):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-
     dst = CelebA(split='val', task_ids=[22, 39])
     bs = 4
-    trainloader = data.DataLoader(dst, batch_size=bs, num_workers=0)
+    trainloader = data.DataLoader(dst, batch_size=bs, shuffle=False, num_workers=0)
 
     for i, data in enumerate(trainloader):
         imgs = data['data']
-        labels = data['labels']
+        labels_mustache = data['labels_22']
+        labels_young = data['labels_39']
         imgs = imgs.numpy()[:, ::-1, :, :]
         imgs = np.transpose(imgs, [0,2,3,1])
 
-        f, axarr = plt.subplots(bs,4)
+        f, axarr = plt.subplots(1, bs)
         for j in range(bs):
-            axarr[j][0].imshow(imgs[j])
+            axarr[j].imshow(imgs[j])
+            axarr[j].set_title(f"m={labels_mustache[j]}, y={labels_young[j]}")
         plt.show()
         a = input()
         if a == 'ex':

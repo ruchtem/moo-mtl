@@ -84,13 +84,13 @@ class MultiMNIST(torch.utils.data.Dataset):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     
-    dst = Multi(dataset='fashion_and_mnist', split='val')
+    dst = MultiMNIST(dataset='mnist', split='train')
     loader = torch.utils.data.DataLoader(dst, batch_size=10, shuffle=True, num_workers=0)
     for dat in loader:
         ims = dat['data'].view(10,36,36).numpy()
 
-        labs_l = dat['label_l']
-        labs_r = dat['label_r']
+        labs_l = dat['labels_l']
+        labs_r = dat['labels_r']
         f, axarr = plt.subplots(2,5)
         for j in range(5):
             for i in range(2):
