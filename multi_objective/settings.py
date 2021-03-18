@@ -83,6 +83,7 @@ celeba = dict(
     alpha=1,
     checkpoint_every=1,
     batch_size=32,
+    eval_mode=['center_ray'],
 )
 
 #

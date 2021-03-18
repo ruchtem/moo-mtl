@@ -18,7 +18,13 @@ def from_objectives(objectives, with_mcr=False):
         'loss': {t: scores[o.__class__](o.label_name, o.logits_name) for t, o in objectives.items()},
     }
     if with_mcr:
-        result['mcr'] = {t: mcr(o.label_name, o.logits_name) for t, o in objectives.items()}
+        # We only want to use mcr for classification objectives
+        result['mcr'] = {}
+        for t, o in objectives.items():
+            if o.__class__ in [obj.CrossEntropyLoss, obj.BinaryCrossEntropyLoss]:
+                result['mcr'][t] = mcr(o.label_name, o.logits_name)
+            else:
+                result['mcr'][t] = scores[o.__class__](o.label_name, o.logits_name)
     return result
 
 class BaseScore():
