@@ -224,6 +224,35 @@ class EvalResult():
         return result
 
 
+class MinMaxNormalizer():
+
+    def __init__(self, dim: tuple) -> None:
+        super().__init__()
+        self.min = np.full(dim, 100.)
+        self.max = np.full(dim, -100.)
+
+
+    def update(self, data):
+        data = np.array(data)
+        assert data.ndim == 1
+        for i in range(len(data)):
+            if isinstance(data[i], torch.Tensor):
+                data[i] = data[i].item()
+
+        update_min_idx = data < self.min
+        self.min[update_min_idx] = data[update_min_idx]
+        update_max_idx = data > self.max
+        self.max[update_max_idx] = data[update_max_idx]
+    
+
+    def normalize(self, data, exploration=.1):
+        diff = self.max - self.min
+        diff = diff + 2*exploration*diff    # extend the range for exploration
+        return diff * (data - 1) + self.max + exploration*self.max
+
+
+
+
 class RunningMean():
 
     def __init__(self, len=100) -> None:

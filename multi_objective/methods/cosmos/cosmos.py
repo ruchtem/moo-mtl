@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from utils import num_parameters, model_from_dataset, circle_points
+from utils import num_parameters, MinMaxNormalizer
 from ..base import BaseMethod
 
 
@@ -75,6 +75,8 @@ class COSMOSMethod(BaseMethod):
         self.K = len(objectives)
         self.alpha = alpha
         self.lamda = lamda
+        self.loss_normalizer = MinMaxNormalizer(dim=(self.K,))
+        self.s = 0
 
         dim = list(dim)
         dim[0] = dim[0] + self.K
@@ -93,17 +95,20 @@ class COSMOSMethod(BaseMethod):
     def step(self, batch):
         # step 1: sample alphas
         if isinstance(self.alpha, list):
-            batch['alpha']  = torch.from_numpy(
-                np.random.dirichlet(self.alpha, 1).astype(np.float32).flatten()
-            ).to(self.device)
+            batch['alpha'] = np.random.dirichlet(self.alpha, 1).flatten()
         elif self.alpha > 0:
-            batch['alpha']  = torch.from_numpy(
-                np.random.dirichlet([self.alpha for _ in range(self.K)], 1).astype(np.float32).flatten()
-            ).to(self.device)
+            batch['alpha'] = np.random.dirichlet([self.alpha for _ in self.task_ids], 1).flatten()
         else:
             raise ValueError(f"Unknown value for alpha: {self.alpha}, expecting list or float.")
 
+        # normalize rays:
+        if self.s > 50:
+            batch['alpha'] = self.loss_normalizer.normalize(batch['alpha'], exploration=.0)
+        
+        print(batch['alpha'])
+        batch['alpha'] = torch.from_numpy(batch['alpha'].astype(np.float32)).to(self.device)
 
+        
         # step 2: calculate loss
         self.model.zero_grad()
         logits = self.model(batch)
@@ -119,12 +124,18 @@ class COSMOSMethod(BaseMethod):
         loss_total -= self.lamda * cossim
             
         loss_total.backward()
+
+        if self.s > 20:
+            self.loss_normalizer.update(task_losses)
+        self.s += 1
         return loss_total.item(), cossim.item()
 
 
     def eval_step(self, batch, preference_vector):
         self.model.eval()
         with torch.no_grad():
+            preference_vector = self.loss_normalizer.normalize(preference_vector, exploration=.0)
+            # print(f"normalized preference {preference_vector}")
             batch['alpha'] = torch.from_numpy(preference_vector).to(self.device).float()
             return self.model(batch)
 
