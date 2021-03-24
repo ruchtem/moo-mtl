@@ -18,14 +18,13 @@ def from_name(objectives, task_ids=None, **kwargs):
         return {t: map[n]() for t, n in enumerate(objectives)}
     
 
-
 class CrossEntropyLoss(torch.nn.CrossEntropyLoss):
     
     def __init__(self, label_name='labels', logits_name='logits'):
         super().__init__(reduction='mean')
         self.label_name = label_name
         self.logits_name = logits_name
-    
+
 
     def __call__(self, **kwargs):
         logits = kwargs[self.logits_name]
@@ -49,7 +48,7 @@ class BinaryCrossEntropyLoss(torch.nn.BCEWithLogitsLoss):
         if labels.dtype != torch.float:
             labels = labels.float()
         return super().__call__(logits, labels)
-
+        
 
 class MSELoss(torch.nn.MSELoss):
 
@@ -90,22 +89,19 @@ class DDPHyperbolicTangentRelaxation():
 
     def __call__(self, **kwargs):
         logits = kwargs[self.logits_name]
-        labels = kwargs[self.label_name]
         sensible_attribute = kwargs[self.s_name]
 
-        n = logits.shape[0]
         logits = torch.sigmoid(logits)
         s_negative = logits[sensible_attribute.bool()]
         s_positive = logits[~sensible_attribute.bool()]
 
-        return 1/n * torch.abs(torch.sum(torch.tanh(self.c * torch.relu(s_positive))) - torch.sum(torch.tanh(self.c * torch.relu(s_negative))))
+        return torch.abs(torch.tanh(self.c * torch.relu(s_positive)).mean() - torch.tanh(self.c * torch.relu(s_negative)).mean())
 
 
 class DEOHyperbolicTangentRelaxation():
 
-    def __init__(self, label_name='labels', logits_name='logits', s_name='sensible_attribute', c=1):
-        self.label_name = label_name
-        self.logits_name = logits_name
+    def __init__(self, label_name='labels', logits_name='logits', s_name='sensible_attribute', c=1, normalize=False):
+        super().__init__(label_name, logits_name, normalize)
         self.s_name = s_name
         self.c = c
 
@@ -114,12 +110,11 @@ class DEOHyperbolicTangentRelaxation():
         labels = kwargs[self.label_name]
         sensible_attribute = kwargs[self.s_name]
 
-        n = logits.shape[0]
         logits = torch.sigmoid(logits)
         s_negative = logits[(sensible_attribute.bool()) & (labels == 1)]
         s_positive = logits[(~sensible_attribute.bool()) & (labels == 1)]
 
-        return 1/n * torch.abs(torch.sum(torch.tanh(self.c * torch.relu(s_positive))) - torch.sum(torch.tanh(self.c * torch.relu(s_negative))))
+        return torch.abs(torch.tanh(self.c * torch.relu(s_positive)).mean() - torch.tanh(self.c * torch.relu(s_negative)).mean())
 
 
 """

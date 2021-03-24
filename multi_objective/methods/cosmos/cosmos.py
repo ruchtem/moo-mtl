@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from utils import num_parameters, MinMaxNormalizer
+from utils import num_parameters, RunningMinMaxNormalizer
 from ..base import BaseMethod
 
 
@@ -75,7 +75,7 @@ class COSMOSMethod(BaseMethod):
         self.K = len(objectives)
         self.alpha = alpha
         self.lamda = lamda
-        self.loss_normalizer = MinMaxNormalizer(dim=(self.K,))
+        self.loss_normalizer = RunningMinMaxNormalizer()
         self.s = 0
 
         dim = list(dim)
@@ -103,9 +103,8 @@ class COSMOSMethod(BaseMethod):
 
         # normalize rays:
         if self.s > 50:
-            batch['alpha'] = self.loss_normalizer.normalize(batch['alpha'], exploration=.0)
-        
-        print(batch['alpha'])
+           batch['alpha'] = self.loss_normalizer.normalize(batch['alpha'])
+
         batch['alpha'] = torch.from_numpy(batch['alpha'].astype(np.float32)).to(self.device)
 
         
@@ -125,17 +124,18 @@ class COSMOSMethod(BaseMethod):
             
         loss_total.backward()
 
-        if self.s > 20:
-            self.loss_normalizer.update(task_losses)
+        self.loss_normalizer.update(task_losses)
         self.s += 1
         return loss_total.item(), cossim.item()
 
 
-    def eval_step(self, batch, preference_vector):
+    def eval_step(self, batch, preference_vector, return_norm_ray=False):
         self.model.eval()
         with torch.no_grad():
-            preference_vector = self.loss_normalizer.normalize(preference_vector, exploration=.0)
-            # print(f"normalized preference {preference_vector}")
+            preference_vector = self.loss_normalizer.normalize(preference_vector)
             batch['alpha'] = torch.from_numpy(preference_vector).to(self.device).float()
-            return self.model(batch)
+            if return_norm_ray:
+                return self.model(batch), preference_vector
+            else:
+                return self.model(batch)
 

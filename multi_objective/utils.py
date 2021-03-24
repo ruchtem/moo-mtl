@@ -224,12 +224,11 @@ class EvalResult():
         return result
 
 
-class MinMaxNormalizer():
+class RunningMinMaxNormalizer():
 
-    def __init__(self, dim: tuple) -> None:
+    def __init__(self, history_len: int=200) -> None:
         super().__init__()
-        self.min = np.full(dim, 100.)
-        self.max = np.full(dim, -100.)
+        self.history = collections.deque(maxlen=history_len)
 
 
     def update(self, data):
@@ -238,17 +237,20 @@ class MinMaxNormalizer():
         for i in range(len(data)):
             if isinstance(data[i], torch.Tensor):
                 data[i] = data[i].item()
-
-        update_min_idx = data < self.min
-        self.min[update_min_idx] = data[update_min_idx]
-        update_max_idx = data > self.max
-        self.max[update_max_idx] = data[update_max_idx]
+        
+        self.history.append(data)
     
 
-    def normalize(self, data, exploration=.1):
-        diff = self.max - self.min
+    def normalize(self, data):
+        exploration=.1
+        minimum = np.array(self.history, dtype=np.float).min(axis=0)
+        maximum = np.array(self.history, dtype=np.float).max(axis=0)
+        diff = maximum - minimum
         diff = diff + 2*exploration*diff    # extend the range for exploration
-        return diff * (data - 1) + self.max + exploration*self.max
+        result = diff * (data - 1) + maximum
+        result[result < 0] = 0
+        result[result > 1] = 1
+        return result
 
 
 
@@ -285,10 +287,14 @@ class ParetoFront():
             self.points = np.vstack((self.points, point))
     
     
-    def plot(self):
+    def plot(self, rays=None):
         p = self.points
         plt.plot(p[:, 0], p[:, 1], 'o')
+        if rays:
+            for r in rays:
+                plt.plot([0, r[0]], [0, r[1]], color='black')
         plt.xlabel(self.labels[0])
         plt.ylabel(self.labels[1])
+        plt.grid()
         plt.savefig(os.path.join(self.logdir, "{}.png".format(self.prefix)))
         plt.close()
