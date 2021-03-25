@@ -40,10 +40,8 @@ class MGDAMethod(BaseMethod):
                 
                 obj_values[t] = output.item()
                 
-                private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
                 for name, param in self.model.named_parameters():
-                    not_private = all([p not in name for p in private_params])
-                    if not_private and param.grad is not None and param.grad.sum() != 0.0:
+                    if param.grad is not None and param.grad.sum() != 0.0:
                         grads[t][name] = param.grad.data.detach().clone()
         else:
             # This is plain MGDA

@@ -12,7 +12,7 @@ class EfficientNetWrapper(EfficientNet):
         super().__init__(blocks_args, global_params)
 
         self.task_layers = torch.nn.ModuleDict({
-            f'task_fc_{t}': torch.nn.Linear(1000, 1) for t in self.task_ids
+            f'task_fc_{t}': torch.nn.Linear(1792, 1) for t in self.task_ids
         })
 
 
@@ -20,21 +20,19 @@ class EfficientNetWrapper(EfficientNet):
     def forward_feature_extraction(self, batch):
         x = batch['data']
         x = super().forward(x)
+        x = x.flatten(start_dim=1)
         return x
     
         
     def forward_linear(self, x, i):
-        # x = self._fc(x)
         result = {f'logits_{i}': self.task_layers[f'task_fc_{i}'](x)}
         return result
-    
-    def private_params(self):
-        return [n for n, p in self.named_parameters() if "task_layers" not in n]
 
 
     def forward(self, batch):
         x = batch['data']
         x = super().forward(x)
+        x = x.flatten(start_dim=1)
         result = {f'logits_{t}': self.task_layers[f'task_fc_{t}'](x) for t in self.task_ids}
         return result
 
@@ -47,5 +45,5 @@ class EfficientNetWrapper(EfficientNet):
     @classmethod
     def from_pretrained(cls, dim, task_ids, model_name, **kwargs):
         cls.task_ids = task_ids
-        return super().from_pretrained(model_name, in_channels=dim[0])
+        return super().from_pretrained(model_name, in_channels=dim[0], include_top=False)
     

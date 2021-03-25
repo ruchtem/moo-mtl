@@ -21,7 +21,7 @@ class MultiLeNet(BaseModel):
             nn.Linear(720 , 50),
             nn.ReLU(),
         )
-        self.private_layers = nn.ModuleDict({
+        self.task_layers = nn.ModuleDict({
             f"logits_{t}": nn.Linear(50, 10) for t in self.task_ids
         })
     
@@ -31,16 +31,12 @@ class MultiLeNet(BaseModel):
         x = self.first_layer(x)
         x = self.shared(x)
         return {
-            f"logits_{t}": self.private_layers[f"logits_{t}"](x) for t in self.task_ids
+            f"logits_{t}": self.task_layers[f"logits_{t}"](x) for t in self.task_ids
         }
 
 
     def change_input_dim(self, dim):
         self.first_layer = nn.Conv2d(dim, 10, kernel_size=5)
-
-
-    def private_params(self):
-        return [n for n, p in self.private_layers.named_parameters()]
 
 
 class FullyConnected(BaseModel):

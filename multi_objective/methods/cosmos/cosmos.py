@@ -49,14 +49,6 @@ class Upsampler(nn.Module):
         x = torch.cat((x, a), dim=1)
         return self.child_model(dict(data=x))
 
-    
-    def private_params(self):
-        if hasattr(self.child_model, 'private_params'):
-            return self.child_model.private_params()
-        else:
-            return []
-
-
 
 class COSMOSMethod(BaseMethod):
 

@@ -149,9 +149,8 @@ class ParetoMTLMethod(BaseMethod):
             
             # can use scalable method proposed in the MOO-MTL paper for large scale problem
             # but we keep use the gradient of all parameters in this experiment
-            private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
             for name, param in self.model.named_parameters():
-                if name not in private_params and param.grad is not None:
+                if param.grad is not None:
                     grads[i].append(Variable(param.grad.data.clone().flatten(), requires_grad=False))
 
         
@@ -212,11 +211,6 @@ class ParetoMTLMethod(BaseMethod):
             loss_total.backward()
             return loss_total.item()
             
-            # private_params = self.model.private_params() if hasattr(self.model, 'private_params') else []
-            # for name, param in self.model.named_parameters():
-            #     if name not in private_params:
-            #         param.grad.data.zero_()
-            #         param.grad = sum(weight_vec[o] * gradients[o][name] for o in range(len(self.objectives))).cuda()
     
     def eval_step(self, batch):
         self.model.eval()
