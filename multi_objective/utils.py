@@ -154,9 +154,9 @@ def get_runname(settings):
 
 def calc_gradients(batch, model, objectives):
     # store gradients and objective values
-    gradients = []
-    obj_values = []
-    for i, objective in enumerate(objectives):
+    gradients = {t: {} for t in objectives}
+    obj_values = {t: None for t in objectives}
+    for t, objective in objectives.items():
         # zero grad
         model.zero_grad()
         
@@ -166,14 +166,13 @@ def calc_gradients(batch, model, objectives):
         output = objective(**batch)
         output.backward()
         
-        obj_values.append(output.item())
-        gradients.append({})
+        obj_values[t] = output.item()
         
         private_params = model.private_params() if hasattr(model, 'private_params') else []
         for name, param in model.named_parameters():
             not_private = all([p not in name for p in private_params])
-            if not_private and param.requires_grad and param.grad is not None:
-                gradients[i][name] = param.grad.data.detach().clone()
+            if not_private and param.grad is not None:
+                gradients[t][name] = param.grad.data.detach().clone()
     
     return gradients, obj_values
 
@@ -203,8 +202,10 @@ class EvalResult():
         
     
     def normalize(self):
-        self.center /= self.i
-        self.pf /= self.j
+        if self.i > 0:
+            self.center /= self.i
+        if self.j > 0:
+            self.pf /= self.j
 
     
     def compute_hv(self, reference_point):

@@ -19,14 +19,12 @@ class EfficientNetWrapper(EfficientNet):
     # this is required for approximate mgda
     def forward_feature_extraction(self, batch):
         x = batch['data']
-        x = self.extract_features(x)
-        x = self._avg_pooling(x)
-        x = x.flatten(start_dim=1)
+        x = super().forward(x)
         return x
     
         
     def forward_linear(self, x, i):
-        x = self._fc(x)
+        # x = self._fc(x)
         result = {f'logits_{i}': self.task_layers[f'task_fc_{i}'](x)}
         return result
     
