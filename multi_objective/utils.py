@@ -240,15 +240,13 @@ class RunningMinMaxNormalizer():
         self.history.append(data)
     
 
-    def normalize(self, data):
-        exploration=.1
+    def normalize(self, data, exploration=.1):
         minimum = np.array(self.history, dtype=np.float).min(axis=0)
         maximum = np.array(self.history, dtype=np.float).max(axis=0)
         diff = maximum - minimum
         diff = diff + 2*exploration*diff    # extend the range for exploration
         result = diff * (data - 1) + maximum
         result[result < 0] = 0
-        result[result > 1] = 1
         return result
 
 

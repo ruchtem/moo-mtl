@@ -14,6 +14,7 @@ import os
 import pathlib
 import time
 import json
+import math
 from torch.utils import data
 
 import settings as s
@@ -111,11 +112,12 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
 
                 
         if 'pareto_front' in settings['eval_mode'] and method.preference_at_inference():
-            pareto_rays = utils.circle_points(settings['n_test_rays'], dim=J)
+            pareto_rays = utils.circle_points(settings['n_test_rays'], dim=J, min_angle=0., max_angle=np.pi / 2)
 
             data = {et: np.zeros((n_rays, J)) for et in scores.keys()}
             for i, ray in enumerate(pareto_rays):
-                batch.update(method.eval_step(batch, preference_vector=ray))
+                logits = method.eval_step(batch, preference_vector=ray)
+                batch.update(logits)
 
                 for eval_mode, score in scores.items():
 
@@ -142,12 +144,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
             pareto_front.plot()
 
     result = {k: v.to_dict() for k, v in score_values.items()}
-
-    
-    result.update({
-        "training_time_so_far": train_time,
-    })
-
+    result.update({"training_time_so_far": train_time,})
     result.update(method.log())
 
     if f"epoch_{e}" in result_dict[f"start_{j}"]:
@@ -170,18 +167,17 @@ def main(settings):
     logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], utils.get_runname(settings))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
-
     # prepare
     train_set = utils.dataset_from_name(split='train', **settings)
     val_set = utils.dataset_from_name(split='val', **settings)
     test_set = utils.dataset_from_name(split='test', **settings)
 
     train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True, num_workers=settings['num_workers'])
-    val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True, num_workers=settings['num_workers'])
-    test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
+    val_loader = data.DataLoader(val_set, len(val_set), shuffle=True, num_workers=settings['num_workers'])
+    test_loader = data.DataLoader(test_set, len(test_set), settings['num_workers'])
 
     objectives = from_name(**settings)
-    scores = from_objectives(objectives, with_mcr=True)
+    scores = from_objectives(objectives, with_mcr=False)
 
     rm1 = utils.RunningMean(400)
     rm2 = utils.RunningMean(400)
@@ -219,6 +215,7 @@ def main(settings):
                 optimizer.step()
 
                 loss, sim  = stats if isinstance(stats, tuple) else (stats, 0)
+                assert not math.isnan(loss) and not math.isnan(sim)
                 print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}, sim {:.4f}, rm train_loss {:.3f}, rm sim {:.3f}".format(e, b, loss, sim, rm1(loss), rm2(sim)))
             
             tock = time.time()
@@ -267,8 +264,8 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='adult', help="The dataset to run on.")
-    parser.add_argument('--method', '-m', default='hyper_ln', help="The method to generate the Pareto front.")
+    parser.add_argument('--dataset', '-d', default='celeba', help="The dataset to run on.")
+    parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()
@@ -311,7 +308,6 @@ def parse_args():
     settings['seed'] = args.seed
 
     return settings
-
 
 
 if __name__ == "__main__":

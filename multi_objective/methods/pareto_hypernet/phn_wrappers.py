@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 
-from utils import num_parameters, circle_points
+from utils import num_parameters
 from ..base import BaseMethod
 
 from .models import PHNHyper, PHNTarget
@@ -86,11 +86,14 @@ class FCPHNTarget(nn.Module):
 
 class HypernetMethod(BaseMethod):
 
-    def __init__(self, objectives, model, dim, n_test_rays, alpha, internal_solver, **kwargs):
+    def __init__(self, objectives, model, dim, n_test_rays, alpha, internal_solver, normalize_rays, **kwargs):
         super().__init__(objectives, model, **kwargs)
         self.n_test_rays = n_test_rays
         self.alpha = alpha
         self.K = len(objectives)
+
+        if normalize_rays:
+            raise NotImplementedError()
 
         if len(dim) == 1:
             # tabular
@@ -116,7 +119,6 @@ class HypernetMethod(BaseMethod):
 
     def preference_at_inference(self):
         return True
-
 
 
     def step(self, batch):

@@ -7,19 +7,21 @@ import random
 adult = dict(
     dataset='adult',
     dim=(88,),
-    objectives=['BinaryCrossEntropyLoss', 'deo'],
+    objectives=['BinaryCrossEntropyLoss', 'ddp'],
     epochs=50,
     use_scheduler=False,
+    normalize_rays=True,
     lamda=.01,
-    alpha=.1,
+    alpha=.5,
 )
 
 credit = dict(
     dataset='credit',
     dim=(90,),
-    objectives=['BinaryCrossEntropyLoss', 'deo'],
+    objectives=['BinaryCrossEntropyLoss', 'ddp'],
     epochs=50,
     use_scheduler=False,
+    normalize_rays=True,
     lamda=.01,
     alpha=[.1, .5],
 )
@@ -27,9 +29,10 @@ credit = dict(
 compass = dict(
     dataset='compass',
     dim=(20,),
-    objectives=['BinaryCrossEntropyLoss', 'deo'],
+    objectives=['BinaryCrossEntropyLoss', 'ddp'],
     epochs=50,
     use_scheduler=False,
+    normalize_rays=True,
     lamda=.01,
     alpha=.5,
 )
@@ -64,12 +67,12 @@ multi_fashion_mnist = dict(
 celeba = dict(
     dataset='celeba',
     dim=(3, 64, 64),
-    # task_ids=[16, 22],                                    # easy tasks
+    task_ids=[16, 22],                                    # easy tasks
     # task_ids=[25, 27],                                    # hard tasks
     # task_ids=[16, 22, 24],                                # 3 objectives
     # task_ids=[26, 22, 24, 26],                            # 4 objectives
     # task_ids=[random.randint(0, 39) for _ in range(10)],  # 10 random tasks
-    task_ids=list(range(40)),                             # all tasks
+    # task_ids=list(range(40)),                             # all tasks
     objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
     n_test_rays=1,
     # epochs=30,
@@ -105,8 +108,8 @@ cosmos = dict(
 mgda = dict(
     method='mgda',
     lr=1e-4,
-    approximate_norm_solution=True,
-    normalization_type='loss+',
+    approximate_norm_solution=False,
+    normalization_type='none',
     use_scheduler=False,
 )
 
@@ -158,7 +161,7 @@ generic = dict(
     n_test_rays=25,
 
     # Evaluation period for val and test sets (0 for no evaluation)
-    eval_every=5,
+    eval_every=1,
 
     # Evaluation period for train set (0 for no evaluation)
     train_eval_every=0,
@@ -178,6 +181,7 @@ generic = dict(
     lr=1e-3,
     batch_size=256,
     epochs=100,
+    normalize_rays=False,
 
     # Reference point for hyper-volume calculation
     reference_point=[2, 2],

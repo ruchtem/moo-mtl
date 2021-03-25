@@ -30,7 +30,7 @@ class Upsampler(nn.Module):
                 nn.Upsample(input_dim[-2:])
             )
         else:
-            raise ValueError(f"Unknown dataset structure, expected 1 or 3 dimensions, got {dim}")
+            raise ValueError(f"Unknown dataset structure, expected 1 or 3 dimensions, got {input_dim}")
 
         self.child_model = child_model
 
@@ -52,7 +52,7 @@ class Upsampler(nn.Module):
 
 class COSMOSMethod(BaseMethod):
 
-    def __init__(self, objectives, model, alpha, lamda, dim, **kwargs):
+    def __init__(self, objectives, model, alpha, lamda, dim, normalize_rays, **kwargs):
         """
         Instanciate the cosmos solver.
 
@@ -67,8 +67,10 @@ class COSMOSMethod(BaseMethod):
         self.K = len(objectives)
         self.alpha = alpha
         self.lamda = lamda
-        self.loss_normalizer = RunningMinMaxNormalizer()
-        self.s = 0
+        self.normalize_rays = normalize_rays
+        if normalize_rays:
+            self.loss_normalizer = RunningMinMaxNormalizer()
+            self.s = 0
 
         dim = list(dim)
         dim[0] = dim[0] + self.K
@@ -94,7 +96,7 @@ class COSMOSMethod(BaseMethod):
             raise ValueError(f"Unknown value for alpha: {self.alpha}, expecting list or float.")
 
         # normalize rays:
-        if self.s > 50:
+        if self.normalize_rays and self.s > 50:
            batch['alpha'] = self.loss_normalizer.normalize(batch['alpha'])
 
         batch['alpha'] = torch.from_numpy(batch['alpha'].astype(np.float32)).to(self.device)
@@ -116,18 +118,17 @@ class COSMOSMethod(BaseMethod):
             
         loss_total.backward()
 
-        self.loss_normalizer.update(task_losses)
-        self.s += 1
+        if self.normalize_rays:
+            self.loss_normalizer.update(task_losses)
+            self.s += 1
         return loss_total.item(), cossim.item()
 
 
-    def eval_step(self, batch, preference_vector, return_norm_ray=False):
+    def eval_step(self, batch, preference_vector):
         self.model.eval()
+        if self.normalize_rays:
+                preference_vector = self.loss_normalizer.normalize(preference_vector)
         with torch.no_grad():
-            preference_vector = self.loss_normalizer.normalize(preference_vector)
             batch['alpha'] = torch.from_numpy(preference_vector).to(self.device).float()
-            if return_norm_ray:
-                return self.model(batch), preference_vector
-            else:
-                return self.model(batch)
+            return self.model(batch)
 
