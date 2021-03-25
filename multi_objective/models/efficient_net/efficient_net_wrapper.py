@@ -8,7 +8,7 @@ class EfficientNetWrapper(EfficientNet):
 
 
     def __init__(self, blocks_args, global_params):
-        global_params = global_params._replace(batch_norm_layer=torch.nn.Identity)
+        # global_params = global_params._replace(batch_norm_layer=torch.nn.Identity)
         super().__init__(blocks_args, global_params)
 
         self.task_layers = torch.nn.ModuleDict({
@@ -24,19 +24,22 @@ class EfficientNetWrapper(EfficientNet):
         return x
     
         
-    def forward_linear(self, x, i):
-        result = {f'logits_{i}': self.task_layers[f'task_fc_{i}'](x)}
-        return result
+    def forward_linear(self, x, t):
+        return {
+            f'logits_{t}': self.task_layers[f'task_fc_{t}'](x)
+        }
 
 
     def forward(self, batch):
         x = batch['data']
         x = super().forward(x)
         x = x.flatten(start_dim=1)
-        result = {f'logits_{t}': self.task_layers[f'task_fc_{t}'](x) for t in self.task_ids}
-        return result
+        return {
+            f'logits_{t}': self.task_layers[f'task_fc_{t}'](x) for t in self.task_ids
+        }
 
 
+    # this is required for cosmos
     def change_input_dim(self, dim):
         assert isinstance(dim, int)
         self._change_in_channels(dim)
