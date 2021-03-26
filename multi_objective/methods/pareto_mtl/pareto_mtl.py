@@ -5,7 +5,7 @@ from torch.autograd import Variable
 
 from min_norm_solvers import MinNormSolver
 
-from utils import calc_gradients, circle_points, model_from_dataset, reset_weights
+from utils import calc_gradients, reference_points, model_from_dataset, reset_weights
 from ..base import BaseMethod
 
 
@@ -114,7 +114,7 @@ class ParetoMTLMethod(BaseMethod):
         self.pref_idx = -1
         # the original ref_vec can be obtained by circle_points(self.num_pareto_points, min_angle=0.0, max_angle=0.5 * np.pi)
         # we use the same min angle / max angle as for the other methods for comparison.
-        self.ref_vec = torch.Tensor(circle_points(self.num_pareto_points)).cuda().float()
+        self.ref_vec = torch.Tensor(reference_points(self.num_pareto_points)).cuda().float()
 
 
     def new_epoch(self, e):

@@ -67,16 +67,16 @@ multi_fashion_mnist = dict(
 celeba = dict(
     dataset='celeba',
     dim=(3, 64, 64),
-    task_ids=[16, 22],                                    # easy tasks
+    # task_ids=[16, 22],                                    # easy tasks
     # task_ids=[25, 27],                                    # hard tasks
     # task_ids=[16, 22, 24],                                # 3 objectives
     # task_ids=[26, 22, 24, 26],                            # 4 objectives
     # task_ids=[random.randint(0, 39) for _ in range(10)],  # 10 random tasks
-    # task_ids=list(range(40)),                             # all tasks
+    task_ids=list(range(40)),                             # all tasks
+    n_partitions=2,
     objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
     n_test_rays=1,
-    # epochs=30,
-    epochs=100,
+    epochs=25,
     use_scheduler=False,
     train_eval_every=0,     # do it in parallel manually
     eval_every=0,           #
@@ -155,10 +155,10 @@ generic = dict(
 
     # Which results to generate during evaluation.
     # If 'pareto_front' is selected, it will be obtained by using n_test_rays
-    eval_mode=['center_ray', 'pareto_front'],
+    # eval_mode=['center_ray', 'pareto_front'],
 
-    # Number of test preference vectors for Pareto front generating methods    
-    n_test_rays=25,
+    # Number of test preference vectors for Pareto front generating methods along one axis (minus one corner point)
+    n_partitions=24,
 
     # Evaluation period for val and test sets (0 for no evaluation)
     eval_every=1,

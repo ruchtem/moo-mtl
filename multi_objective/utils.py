@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import collections
 
 from datetime import datetime
+from pymoo.factory import get_decomposition, get_reference_directions
 
 from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
 from models import FullyConnected, MultiLeNet, EfficientNet, ResNet
@@ -44,40 +45,20 @@ def model_from_dataset(dataset, **kwargs):
         raise ValueError("Unknown model name {}".format(dataset))
 
 
-def circle_points(n, min_angle=0.1, max_angle=np.pi / 2 - 0.1, dim=2):
+def reference_points(partitions, dim=2):
     # generate evenly distributed preference vector
-    assert dim > 1
-    if dim == 2:
-        ang0 = 1e-6 if min_angle is None else min_angle
-        ang1 = np.pi / 2 - ang0 if max_angle is None else max_angle
-        angles = np.linspace(ang0, ang1, n, endpoint=True)
-        x = np.cos(angles)
-        y = np.sin(angles)
-        return np.c_[x, y]
-    elif dim == 3:
-        # Fibonacci sphere algorithm
-        # https://stackoverflow.com/a/26127012
-        points = []
-        phi = np.pi * (3. - np.sqrt(5.))  # golden angle in radians
+    return get_reference_directions("uniform", dim, n_partitions=partitions)
 
-        n = n*8   # we are only looking at the positive part
-        for i in range(n):
-            y = 1 - (i / float(n - 1)) * 2  # y goes from 1 to -1
-            radius = np.sqrt(1 - y * y)  # radius at y
 
-            theta = phi * i  # golden angle increment
-
-            x = np.cos(theta) * radius
-            z = np.sin(theta) * radius
-            if x >=0 and y>=0 and z>=0:
-                points.append((x, y, z))
-        return np.array(points)
+def optimal_solution(pareto_front, weights=None):
+    if weights:
+        assert len(weights) == pareto_front.shape[1]
     else:
-        # this is an unsolved problem for more than 3 dimensions
-        # we just generate random points
-        points = np.random.rand(n, dim)
-        points /= points.sum(axis=1).reshape(n, 1)
-        return points
+        dim = pareto_front.shape[1]
+        weights = np.ones(dim) / dim
+    
+    idx = get_decomposition("asf").do(pareto_front, weights).argmin()
+    return idx, pareto_front[idx]
 
 
 def num_parameters(params):
@@ -185,9 +166,10 @@ class EvalResult():
         self.pf_available = False
         self.i = 0
         self.j = 0
+        self.optimal_sol = None
 
     def update(self, data, mode):
-        if mode == 'center_ray':
+        if mode == 'single_point':
             self.center += data
             self.i += 1
         elif mode == 'pareto_front':
@@ -212,12 +194,18 @@ class EvalResult():
             self.hv = hv.compute(self.pf.tolist())
 
 
+    def compute_optimal_sol(self, weights=None):
+        if self.pf_available:
+            self.optimal_sol = optimal_solution(self.pf, weights)[1]
+
+
     def to_dict(self):
         result = {'center_ray': self.center.tolist(),}
         if self.pf_available:
             result.update({
                 'pareto_front': self.pf.tolist(),
                 'hv': self.hv,
+                'optimal_solution': self.optimal_sol.tolist(),
             })
 
         return result

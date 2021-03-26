@@ -94,26 +94,15 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
         J = len(settings['objectives'])
         task_ids = list(scores[list(scores)[0]].keys())
 
-    n_rays = settings['n_test_rays']
+    pareto_rays = utils.reference_points(settings['n_partitions'], dim=J)
+    n_rays = pareto_rays.shape[0]
     
-
     # gather the scores
     score_values = {et: utils.EvalResult(J, n_rays, task_ids) for et in scores.keys()}
     for batch in data_loader:
         batch = utils.dict_to(batch, settings['device'])
-
-        if 'center_ray' in settings['eval_mode']:
-            center_ray = np.ones(J) / J
-            batch.update(method.eval_step(batch, preference_vector=center_ray))
-
-            for eval_mode, score in scores.items():
-                data = [score[t](**batch) for t in task_ids]
-                score_values[eval_mode].update(data, 'center_ray')
-
                 
-        if 'pareto_front' in settings['eval_mode'] and method.preference_at_inference():
-            pareto_rays = utils.circle_points(settings['n_test_rays'], dim=J, min_angle=0., max_angle=np.pi / 2)
-
+        if method.preference_at_inference():
             data = {et: np.zeros((n_rays, J)) for et in scores.keys()}
             for i, ray in enumerate(pareto_rays):
                 logits = method.eval_step(batch, preference_vector=ray)
@@ -125,12 +114,19 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
             
             for eval_mode in scores:
                 score_values[eval_mode].update(data[eval_mode], 'pareto_front')
-    
+        else:
+            # Method gives just a single point
+            batch.update(method.eval_step(batch))
+            for eval_mode, score in scores.items():
+                data = [score[t](**batch) for t in task_ids]
+                score_values[eval_mode].update(data, 'single_point')
+
     # normalize scores and compute hyper-volume
     for v in score_values.values():
         v.normalize()
-        if 'pareto_front' in settings['eval_mode'] and method.preference_at_inference():
+        if method.preference_at_inference():
             v.compute_hv(settings['reference_point'])
+            v.compute_optimal_sol()
 
     # plot pareto front to pf
     for eval_mode, score in score_values.items():
@@ -217,7 +213,7 @@ def main(settings):
                 loss, sim  = stats if isinstance(stats, tuple) else (stats, 0)
                 assert not math.isnan(loss) and not math.isnan(sim)
                 print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}, sim {:.4f}, rm train_loss {:.3f}, rm sim {:.3f}".format(e, b, loss, sim, rm1(loss), rm2(sim)))
-            
+
             tock = time.time()
             elapsed_time += (tock - tick)
 
