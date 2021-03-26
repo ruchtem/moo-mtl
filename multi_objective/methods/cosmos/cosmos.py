@@ -15,19 +15,21 @@ class Upsampler(nn.Module):
         In case of image data: use a transposed CNN for the sampled rays.
         """
         super().__init__()
+        self.dim = input_dim
 
         if len(input_dim) == 1:
             # tabular data
             self.tabular = True
         elif len(input_dim) == 3:
             # image data
+            assert input_dim[-2] % 4 == 0 and input_dim[-1] % 4 == 0, 'Spatial image dim must be dividable by 4.'
             self.tabular = False
             self.transposed_cnn = nn.Sequential(
                 nn.ConvTranspose2d(K, K, kernel_size=4, stride=1, padding=0, bias=False),
                 nn.ReLU(inplace=True),
                 nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
                 nn.ReLU(inplace=True),
-                nn.Upsample(input_dim[-2:])
+                nn.Upsample((int(input_dim[-2]*.75), int(input_dim[-1]*.75)))
             )
         else:
             raise ValueError(f"Unknown dataset structure, expected 1 or 3 dimensions, got {input_dim}")
@@ -46,8 +48,19 @@ class Upsampler(nn.Module):
             a = a.reshape(b, len(batch['alpha']), 1, 1)
             a = self.transposed_cnn(a)
         
-        x = torch.cat((x, a), dim=1)
-        return self.child_model(dict(data=x))
+        # Random padding to avoid issues with subsequent batch norm layers.
+        result = torch.randn(b, *self.dim).to(x.device)
+        
+        # Write x into result tensor
+        channels = x.shape[1]
+        result[:, 0:channels] = x
+
+        # Write a into the middle of the tensor
+        start_idx = end_idx = (result.shape[-2] - a.shape[-2]) // 2
+        result[:, channels:, start_idx:-end_idx, start_idx:-end_idx] = a
+
+        # x = torch.cat((x, a), dim=1)
+        return self.child_model(dict(data=result))
 
 
 class COSMOSMethod(BaseMethod):
