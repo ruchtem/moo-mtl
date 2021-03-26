@@ -20,7 +20,6 @@ from torch.utils import data
 import settings as s
 import utils
 from objectives import from_name
-from hv import HyperVolume
 
 
 from methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMethod, MGDAMethod, UniformScalingMethod

@@ -6,11 +6,10 @@ import matplotlib.pyplot as plt
 import collections
 
 from datetime import datetime
-from pymoo.factory import get_decomposition, get_reference_directions
+from pymoo.factory import get_decomposition, get_reference_directions, get_performance_indicator
 
 from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
 from models import FullyConnected, MultiLeNet, EfficientNet, ResNet
-from hv import HyperVolume
 
 def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':
@@ -190,8 +189,8 @@ class EvalResult():
     
     def compute_hv(self, reference_point):
         if self.pf_available:
-            hv = HyperVolume(reference_point)
-            self.hv = hv.compute(self.pf.tolist())
+            hv = get_performance_indicator("hv", ref_point=np.array(reference_point))
+            self.hv = hv.calc(self.pf)
 
 
     def compute_optimal_sol(self, weights=None):
