@@ -42,24 +42,26 @@ class Upsampler(nn.Module):
         
         b = x.shape[0]
         a = batch['alpha'].repeat(b, 1)
-        
-        if not self.tabular:
+
+        if self.tabular:
+             result = torch.cat((x, a), dim=1)
+        else:
             # use transposed convolution
             a = a.reshape(b, len(batch['alpha']), 1, 1)
             a = self.transposed_cnn(a)
         
-        # Random padding to avoid issues with subsequent batch norm layers.
-        result = torch.randn(b, *self.dim).to(x.device)
-        
-        # Write x into result tensor
-        channels = x.shape[1]
-        result[:, 0:channels] = x
+            # Random padding to avoid issues with subsequent batch norm layers.
+            result = torch.randn(b, *self.dim, device=x.device)
+            
+            # Write x into result tensor
+            channels = x.shape[1]
+            result[:, 0:channels] = x
 
-        # Write a into the middle of the tensor
-        start_idx = end_idx = (result.shape[-2] - a.shape[-2]) // 2
-        result[:, channels:, start_idx:-end_idx, start_idx:-end_idx] = a
+            # Write a into the middle of the tensor
+            idx_height = (result.shape[-2] - a.shape[-2]) // 2
+            idx_width = (result.shape[-1] - a.shape[-1]) // 2
+            result[:, channels:, idx_height:-idx_height, idx_width:-idx_width] = a
 
-        # x = torch.cat((x, a), dim=1)
         return self.child_model(dict(data=result))
 
 

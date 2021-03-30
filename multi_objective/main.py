@@ -15,7 +15,9 @@ import pathlib
 import time
 import json
 import math
+import matplotlib.pyplot as plt
 from torch.utils import data
+from pymoo.visualization.radviz import Radviz
 
 import settings as s
 import utils
@@ -138,6 +140,10 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
             pareto_front.append(score.pf)
             pareto_front.plot()
 
+        radviz_plot = Radviz().add(score.pf)
+        radviz_plot.save(os.path.join(logdir, "pf/r_{}_{}_{:03d}".format(eval_mode, split, e)))
+        plt.close()
+
     result = {k: v.to_dict() for k, v in score_values.items()}
     result.update({"training_time_so_far": train_time,})
     result.update(method.log())
@@ -259,7 +265,7 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='celeba', help="The dataset to run on.")
+    parser.add_argument('--dataset', '-d', default='cityscapes', help="The dataset to run on.")
     parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
@@ -299,6 +305,8 @@ def parse_args():
         settings.update(s.compass)
     elif args.dataset == 'celeba':
         settings.update(s.celeba)
+    elif args.dataset == 'cityscapes':
+        settings.update(s.cityscapes)
     
     settings['seed'] = args.seed
 
