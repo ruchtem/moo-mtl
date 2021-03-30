@@ -6,6 +6,7 @@ def from_name(objectives, task_ids=None, **kwargs):
     map = {
         'CrossEntropyLoss': CrossEntropyLoss,
         'BinaryCrossEntropyLoss': BinaryCrossEntropyLoss,
+        'L1Loss': L1Loss,
         'L1Regularization': L1Regularization,
         'L2Regularization': L2Regularization,
         'ddp': DDPHyperbolicTangentRelaxation,
@@ -16,7 +17,7 @@ def from_name(objectives, task_ids=None, **kwargs):
     else:
         print("WARNING: No task ids specified, assuming all objectives use the same default output.")
         return {t: map[n]() for t, n in enumerate(objectives)}
-    
+
 
 class CrossEntropyLoss(torch.nn.CrossEntropyLoss):
     
@@ -34,8 +35,8 @@ class CrossEntropyLoss(torch.nn.CrossEntropyLoss):
 
 class BinaryCrossEntropyLoss(torch.nn.BCEWithLogitsLoss):
     
-    def __init__(self, label_name='labels', logits_name='logits', pos_weight=None):
-        super().__init__(reduction='mean', pos_weight=torch.Tensor([pos_weight]).cuda() if pos_weight else None)
+    def __init__(self, label_name='labels', logits_name='logits'):
+        super().__init__(reduction='mean')
         self.label_name = label_name
         self.logits_name = logits_name
     
@@ -48,7 +49,21 @@ class BinaryCrossEntropyLoss(torch.nn.BCEWithLogitsLoss):
         if labels.dtype != torch.float:
             labels = labels.float()
         return super().__call__(logits, labels)
-        
+
+
+class L1Loss(torch.nn.L1Loss):
+
+    def __init__(self, label_name='labels', logits_name='logits'):
+        super().__init__(reduction='mean')
+        self.label_name = label_name
+        self.logits_name = logits_name
+    
+
+    def __call__(self, **kwargs):
+        logits = kwargs[self.logits_name]
+        labels = kwargs[self.label_name]
+        return super().__call__(logits, labels)
+
 
 class MSELoss(torch.nn.MSELoss):
 

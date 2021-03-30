@@ -13,6 +13,7 @@ def from_objectives(objectives, with_mcr=False):
         obj.DDPHyperbolicTangentRelaxation: DDP,
         obj.DEOHyperbolicTangentRelaxation: DEO,
         obj.MSELoss: L2Distance,
+        obj.L1Loss: L1Loss,
     }
     result = {
         'loss': {t: scores[o.__class__](o.label_name, o.logits_name) for t, o in objectives.items()},
@@ -60,6 +61,14 @@ class BinaryCrossEntropy(BaseScore):
 
         with torch.no_grad():
             return torch.nn.functional.binary_cross_entropy_with_logits(logits, labels.float(), reduction='mean').item()
+
+
+class L1Loss(BaseScore):
+    def __call__(self, **kwargs):
+        logits = kwargs[self.logits_name]
+        labels = kwargs[self.label_name]
+        with torch.no_grad():
+            return torch.nn.functional.l1_loss(logits, labels.long(), reduction='mean').item()
 
 
 

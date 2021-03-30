@@ -75,7 +75,7 @@ celeba = dict(
     task_ids=list(range(40)),                             # all tasks
     n_partitions=2,
     objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
-    reference_point=[2 for _ in range(40)],
+    reference_point=[1 for _ in range(40)],
     epochs=25,
     use_scheduler=False,
     train_eval_every=0,     # do it in parallel manually
@@ -86,6 +86,17 @@ celeba = dict(
     alpha=1,
     checkpoint_every=1,
     batch_size=32,
+)
+
+cityscapes = dict(
+    dataset='cityscapes',
+    dim=(3, 256, 512), # height width
+    task_ids=['segm', 'inst', 'depth'],
+    objectives=['CrossEntropyLoss', 'L1Loss', 'L1Loss'],
+    batch_size=8,
+    epochs=250,
+
+
 )
 
 #

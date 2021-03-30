@@ -8,8 +8,8 @@ import collections
 from datetime import datetime
 from pymoo.factory import get_decomposition, get_reference_directions, get_performance_indicator
 
-from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
-from models import FullyConnected, MultiLeNet, EfficientNet, ResNet
+from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader
+from models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet
 
 def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':
@@ -26,6 +26,8 @@ def dataset_from_name(dataset, **kwargs):
         return multi_mnist_loader.MultiMNIST(dataset='fashion_and_mnist', **kwargs)
     elif dataset == 'celeba':
         return celeba_loader.CelebA(**kwargs)
+    elif dataset == 'cityscapes':
+        return cityscapes_loader.CITYSCAPES(**kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
 
@@ -40,6 +42,8 @@ def model_from_dataset(dataset, **kwargs):
             return EfficientNet.from_pretrained(**kwargs)
         elif kwargs['model_name'] == 'resnet18':
             return ResNet.from_name(**kwargs)
+    elif dataset == 'cityscapes':
+        return Pspnet()
     else:
         raise ValueError("Unknown model name {}".format(dataset))
 
