@@ -60,7 +60,7 @@ class CITYSCAPES(data.Dataset):
     Many Thanks to @fvisin for the loader repo:
     https://github.com/fvisin/dataset_loaders/blob/master/dataset_loaders/images/cityscapes.py
     """
-    colors = [#[  0,   0,   0],
+    colors = [[  0,   0,   0],
               [128,  64, 128],
               [244,  35, 232],
               [ 70,  70,  70],
@@ -81,9 +81,11 @@ class CITYSCAPES(data.Dataset):
               [  0,   0, 230],
               [119,  11,  32]]
 
-    label_colours = dict(zip(range(19), colors))
+    label_colours = dict(zip(range(20), colors))
 
-    def __init__(self, split, root='data/cityscapes', dim=(3, 256, 512), ann_dim=(32, 64), **kwargs):
+    val_identifiers = None
+
+    def __init__(self, split, root='data/cityscapes', dim=(3, 256, 512), ann_dim=(32, 64), val_size=0.2, **kwargs):
         """__init__
         :param root:
         :param split:
@@ -91,20 +93,57 @@ class CITYSCAPES(data.Dataset):
         :param img_size:
         :param augmentations
         """
+        assert split in ['train', 'val', 'test']
         self.root = root
         self.split = split
         self.dim = dim
         self.ann_dim = ann_dim
         self.n_classes = 19 + 1 # no classes + background
 
+        def read_files(path, suffix=''):
+            files = list(Path(path).glob(f'**/*{suffix}.png'))
+            return {i.name[:21]: i for i in files}
+        
+        def filter(files, filter_list):
+            return 
+
+        if CITYSCAPES.val_identifiers is None and val_size > 0:
+            # create the validation set
+            files = list(read_files(os.path.join(self.root, 'leftImg8bit', 'train')).keys())
+            random.shuffle(files)
+            CITYSCAPES.val_identifiers = files[:int(len(files) * val_size)]
+
         # self.depth_mean = 7496.97
         # self.depth_std = 7311.58
 
-        self.images_base = os.path.join(self.root, 'leftImg8bit', split)
-        self.annotations_base = os.path.join(self.root, 'gtFine', split)
-        self.depth_base = os.path.join(self.root, 'disparity',  split)
+        if split == 'train' or split == 'val':
+            self.images_base = os.path.join(self.root, 'leftImg8bit', 'train')
+            self.annotations_base = os.path.join(self.root, 'gtFine', 'train')
+            self.depth_base = os.path.join(self.root, 'disparity',  'train')
+        else:
+            self.images_base = os.path.join(self.root, 'leftImg8bit', 'val')
+            self.annotations_base = os.path.join(self.root, 'gtFine', 'val')
+            self.depth_base = os.path.join(self.root, 'disparity',  'val')
 
-        self.files = list(Path(self.images_base).glob('**/*.png'))
+        self.images = read_files(self.images_base)
+        self.labels = read_files(self.annotations_base, suffix='gtFine_labelIds')
+        self.instances = read_files(self.annotations_base, suffix='gtFine_instanceIds')
+        self.depth = read_files(self.depth_base)
+
+        if CITYSCAPES.val_identifiers is not None:
+            if split == 'train':
+                self.images = {k:v for k, v in self.images.items() if k not in CITYSCAPES.val_identifiers}
+                self.labels = {k:v for k, v in self.labels.items() if k not in CITYSCAPES.val_identifiers}
+                self.instances = {k:v for k, v in self.instances.items() if k not in CITYSCAPES.val_identifiers}
+                self.depth = {k:v for k, v in self.depth.items() if k not in CITYSCAPES.val_identifiers}
+            elif split == 'val':
+                self.images = {k:v for k, v in self.images.items() if k in CITYSCAPES.val_identifiers}
+                self.labels = {k:v for k, v in self.labels.items() if k in CITYSCAPES.val_identifiers}
+                self.instances = {k:v for k, v in self.instances.items() if k in CITYSCAPES.val_identifiers}
+                self.depth = {k:v for k, v in self.depth.items() if k in CITYSCAPES.val_identifiers}
+
+
+        self.identifiers = list(self.images.keys())
 
         self.void_classes = [0, 1, 2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 18, 29, 30, -1]
         self.valid_classes = [7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33]
@@ -126,24 +165,24 @@ class CITYSCAPES(data.Dataset):
         else:
             self.augmentations = None
 
-        print("Found %d images" % len(self.files))
+        print("Found %d images" % len(self.identifiers))
 
 
     def __len__(self):
-        return len(self.files)
+        return len(self.identifiers)
 
 
     def __getitem__(self, index):
+        i = self.identifiers[index]
 
-        img_path = self.files[index]
-        label_path = os.path.join(self.annotations_base, img_path.parts[-2], img_path.name[:-15] + 'gtFine_labelIds.png')
-        instance_path = os.path.join(self.annotations_base, img_path.parts[-2], img_path.name[:-15] + 'gtFine_instanceIds.png')
-        depth_path = os.path.join(self.depth_base, img_path.parts[-2], img_path.name[:-15] + 'disparity.png')
+        img = np.array(Image.open(self.images[i]))
+        lbl = np.array(Image.open(self.labels[i]))
+        ins = np.array(Image.open(self.instances[i]))
+        depth = np.array(Image.open(self.depth[i]) , dtype=np.float32)
 
-        img = np.array(Image.open(img_path))
-        lbl = np.array(Image.open(label_path))
-        ins = np.array(Image.open(instance_path))
-        depth = np.array(Image.open(depth_path) , dtype=np.float32)
+        lbl = resize(lbl, self.dim[-2:])
+        ins = resize(ins, self.dim[-2:])
+        depth = resize(depth, self.dim[-2:])
         
         # depth[depth!=0] = (depth[depth!=0] - self.DEPTH_MEAN[depth!=0]) / self.DEPTH_STD
         if self.augmentations is not None:
@@ -155,7 +194,7 @@ class CITYSCAPES(data.Dataset):
         classes = np.unique(lbl)
 
         if not np.all(np.unique(lbl[lbl!=self.ignore_index]) < self.n_classes):
-            print('after det', classes,  np.unique(lbl))
+            # print('after det', classes,  np.unique(lbl))
             raise ValueError("Segmentation map contained invalid class values")
 
         img, lbl, ins, depth = self.transform(img, lbl, ins_y, ins_x, depth)
@@ -250,7 +289,10 @@ if __name__ == '__main__':
     bs = 4
     trainloader = data.DataLoader(dst, batch_size=bs, num_workers=0)
     for i, data in enumerate(trainloader):
-        imgs, labels, instances, depth = data
+        imgs = data['data']
+        labels = data['labels_segm']
+        instances = data['labels_inst']
+        depth = data['labels_depth']
 
         f, axarr = plt.subplots(bs,5)
         for j in range(bs):
