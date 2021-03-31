@@ -102,7 +102,9 @@ class CITYSCAPES(data.Dataset):
 
         def read_files(path, suffix=''):
             files = list(Path(path).glob(f'**/*{suffix}.png'))
-            return {i.name[:21]: i for i in files}
+            def find(s, ch):
+                return [i for i, ltr in enumerate(s) if ltr == ch]
+            return {i.name[:find(i.name, '_')[2]]: i for i in files}
         
         def filter(files, filter_list):
             return 
@@ -180,6 +182,7 @@ class CITYSCAPES(data.Dataset):
         ins = np.array(Image.open(self.instances[i]))
         depth = np.array(Image.open(self.depth[i]) , dtype=np.float32)
 
+        img = resize(img, self.dim[-2:], mode=Image.BICUBIC)
         lbl = resize(lbl, self.dim[-2:])
         ins = resize(ins, self.dim[-2:])
         depth = resize(depth, self.dim[-2:])

@@ -100,7 +100,8 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
     
     # gather the scores
     score_values = {et: utils.EvalResult(J, n_rays, task_ids) for et in scores.keys()}
-    for batch in data_loader:
+    for b, batch in enumerate(data_loader):
+        print(f"Eval {b} of {len(data_loader)}")
         batch = utils.dict_to(batch, settings['device'])
                 
         if method.preference_at_inference():
@@ -174,8 +175,8 @@ def main(settings):
     test_set = utils.dataset_from_name(split='test', **settings)
 
     train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True, num_workers=settings['num_workers'])
-    val_loader = data.DataLoader(val_set, len(val_set), shuffle=True, num_workers=settings['num_workers'])
-    test_loader = data.DataLoader(test_set, len(test_set), settings['num_workers'])
+    val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True, num_workers=settings['num_workers'])
+    test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
 
     objectives = from_name(**settings)
     scores = from_objectives(objectives, with_mcr=False)
