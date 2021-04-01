@@ -199,7 +199,7 @@ class EvalResult():
 
     def compute_optimal_sol(self, weights=None):
         if self.pf_available:
-            self.optimal_sol = optimal_solution(self.pf, weights)[1]
+            self.optimal_sol_idx, self.optimal_sol = optimal_solution(self.pf, weights)
 
 
     def to_dict(self):
@@ -209,6 +209,7 @@ class EvalResult():
                 'pareto_front': self.pf.tolist(),
                 'hv': self.hv,
                 'optimal_solution': self.optimal_sol.tolist(),
+                'optimal_solution_idx': int(self.optimal_sol_idx),
             })
 
         return result

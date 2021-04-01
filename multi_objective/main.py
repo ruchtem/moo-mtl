@@ -97,6 +97,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
 
     pareto_rays = utils.reference_points(settings['n_partitions'], dim=J)
     n_rays = pareto_rays.shape[0]
+    print(n_rays)
     
     # gather the scores
     score_values = {et: utils.EvalResult(J, n_rays, task_ids) for et in scores.keys()}
@@ -127,7 +128,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
     for v in score_values.values():
         v.normalize()
         if method.preference_at_inference():
-            v.compute_hv(settings['reference_point'])
+            # v.compute_hv(settings['reference_point'])
             v.compute_optimal_sol()
 
     # plot pareto front to pf
@@ -142,7 +143,14 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
             pareto_front.plot()
 
         radviz_plot = Radviz().add(score.pf)
-        radviz_plot.save(os.path.join(logdir, "pf/r_{}_{}_{:03d}".format(eval_mode, split, e)))
+        radviz_plot.add(score.pf[score.optimal_sol_idx], color="red", s=70, label="Solution A")
+        radviz_plot.save(os.path.join(logdir, "r_{}_{}_{:03d}".format(eval_mode, split, e)))
+        plt.close()
+
+        norms = np.linalg.norm(score.pf, axis=1)
+        plt.plot(norms, 'o')
+        plt.plot(norms[score.optimal_sol_idx], 'ro')
+        plt.savefig(os.path.join(logdir, "dist_{}_{}_{:03d}".format(eval_mode, split, e)))
         plt.close()
 
     result = {k: v.to_dict() for k, v in score_values.items()}
@@ -248,12 +256,12 @@ def main(settings):
                     settings=settings,)
 
                 # Test results
-                test_results = evaluate(j, e, method, scores, test_loader,
-                    split='test',
-                    result_dict=test_results,
-                    logdir=logdir,
-                    train_time=elapsed_time,
-                    settings=settings,)
+                # test_results = evaluate(j, e, method, scores, test_loader,
+                #     split='test',
+                #     result_dict=test_results,
+                #     logdir=logdir,
+                #     train_time=elapsed_time,
+                #     settings=settings,)
 
             # Checkpoints
             if settings['checkpoint_every'] > 0 and (e+1) % settings['checkpoint_every'] == 0:
@@ -266,7 +274,7 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='cityscapes', help="The dataset to run on.")
+    parser.add_argument('--dataset', '-d', default='celeba', help="The dataset to run on.")
     parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')

@@ -18,11 +18,10 @@ import utils
 from main import parse_args, method_from_name, evaluate
 from scores import from_objectives, mcr
 from objectives import from_name
-from hv import HyperVolume
 
 
 # Path to the checkpoint dir. Use the experiment folder.
-CHECKPOINT_DIR = 'results/cosmos/celeba/4285989'
+CHECKPOINT_DIR = 'results/cosmos/celeba/4663953'
 
 
 def eval(settings):
@@ -42,11 +41,11 @@ def eval(settings):
 
 
     # prepare
-    train_set = utils.dataset_from_name(split='train', **settings)
+    # train_set = utils.dataset_from_name(split='train', **settings)
     val_set = utils.dataset_from_name(split='val', **settings)
     test_set = utils.dataset_from_name(split='test', **settings)
 
-    train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
+    # train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
     val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True,num_workers=settings['num_workers'])
     test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
 
