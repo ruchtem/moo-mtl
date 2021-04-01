@@ -85,7 +85,7 @@ class CITYSCAPES(data.Dataset):
 
     val_identifiers = None
 
-    def __init__(self, split, root='data/cityscapes', dim=(3, 256, 512), ann_dim=(32, 64), val_size=0.2, **kwargs):
+    def __init__(self, split, root='data/cityscapes', dim=(3, 256, 512), ann_dim=(32, 64), val_size=0.1, **kwargs):
         """__init__
         :param root:
         :param split:
@@ -99,6 +99,9 @@ class CITYSCAPES(data.Dataset):
         self.dim = dim
         self.ann_dim = ann_dim
         self.n_classes = 19 + 1 # no classes + background
+
+        self.depth_max = 32257
+        self.depth_min = 0
 
         def read_files(path, suffix=''):
             files = list(Path(path).glob(f'**/*{suffix}.png'))
@@ -114,9 +117,6 @@ class CITYSCAPES(data.Dataset):
             files = list(read_files(os.path.join(self.root, 'leftImg8bit', 'train')).keys())
             random.shuffle(files)
             CITYSCAPES.val_identifiers = files[:int(len(files) * val_size)]
-
-        # self.depth_mean = 7496.97
-        # self.depth_std = 7311.58
 
         if split == 'train' or split == 'val':
             self.images_base = os.path.join(self.root, 'leftImg8bit', 'train')
@@ -187,7 +187,6 @@ class CITYSCAPES(data.Dataset):
         ins = resize(ins, self.dim[-2:])
         depth = resize(depth, self.dim[-2:])
         
-        # depth[depth!=0] = (depth[depth!=0] - self.DEPTH_MEAN[depth!=0]) / self.DEPTH_STD
         if self.augmentations is not None:
             img, lbl, ins, depth = self.augmentations(np.array(img, dtype=np.uint8), np.array(lbl, dtype=np.uint8), np.array(ins, dtype=np.int32), np.array(depth, dtype=np.float32))
 
@@ -214,6 +213,8 @@ class CITYSCAPES(data.Dataset):
 
         img = resize(img, self.dim[-2:], mode=Image.BICUBIC)
         img = img.transpose(2, 0, 1)
+        
+        # normalize image
         img = img / 256
 
         # classes = np.unique(lbl)
@@ -222,6 +223,9 @@ class CITYSCAPES(data.Dataset):
         ins_y = resize(ins_y, self.ann_dim)
         ins_x = resize(ins_x, self.ann_dim)
         depth = resize(depth, self.ann_dim)
+
+        # normalize depth
+        depth = (depth - self.depth_min) / self.depth_max
 
         # if not np.all(classes == np.unique(lbl)):
         #     print("WARN: resizing labels yielded fewer classes")
