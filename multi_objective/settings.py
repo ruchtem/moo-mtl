@@ -99,8 +99,13 @@ cityscapes = dict(
     normalize_rays=False,
     lamda=5,
     lr=0.005,
+)
 
-
+coco = dict(
+    dataset='coco',
+    dim=(3, 512, 512),   # max dims as images have different sizes
+    task_ids=['classification', 'bbox_regression', 'masks'],
+    batch_size=2
 )
 
 #

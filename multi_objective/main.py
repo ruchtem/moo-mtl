@@ -316,6 +316,8 @@ def parse_args():
         settings.update(s.celeba)
     elif args.dataset == 'cityscapes':
         settings.update(s.cityscapes)
+    elif args.dataset == 'coco':
+        settings.update(s.coco)
     
     settings['seed'] = args.seed
 
