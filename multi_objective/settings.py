@@ -93,9 +93,12 @@ cityscapes = dict(
     dim=(3, 256, 512), # height width
     task_ids=['segm', 'inst', 'depth'],
     objectives=['CrossEntropyLoss', 'L1Loss', 'L1Loss'],
-    batch_size=2,
+    batch_size=8,
     epochs=250,
-    n_partitions=5,
+    n_partitions=3,
+    normalize_rays=False,
+    lamda=5,
+    lr=0.005,
 
 
 )
