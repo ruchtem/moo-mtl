@@ -5,13 +5,13 @@ from models.pspnet.pspnet import get_segmentation_encoder, SegmentationDecoder
 
 class PspNetWrapper(torch.nn.Module):
 
-    def __init__(self) -> None:
+    def __init__(self, dim) -> None:
         super().__init__()
 
         self.encoder = get_segmentation_encoder()
-        self.segm_head = SegmentationDecoder(num_class=20, task_type='C')  # 19 + background
-        self.inst_head = SegmentationDecoder(num_class=2, task_type='R')
-        self.dept_head = SegmentationDecoder(num_class=1, task_type='R')
+        self.segm_head = SegmentationDecoder(dim[-2:], num_class=20, task_type='C')  # 19 + background
+        self.inst_head = SegmentationDecoder(dim[-2:], num_class=2, task_type='R')
+        self.dept_head = SegmentationDecoder(dim[-2:], num_class=1, task_type='R')
     
 
     def forward(self, data):

@@ -2,30 +2,26 @@ import torch
 import numpy as np
 
 from abc import abstractmethod
+from pycocotools.mask import encode, iou
 
 import objectives as obj
 
 
-def from_objectives(objectives, with_mcr=False):
+def from_objectives(obj_instances, metrics, task_ids, objectives, **kwargs):
     scores = {
-        obj.CrossEntropyLoss: CrossEntropy,
-        obj.BinaryCrossEntropyLoss: BinaryCrossEntropy,
-        obj.DDPHyperbolicTangentRelaxation: DDP,
-        obj.DEOHyperbolicTangentRelaxation: DEO,
-        obj.MSELoss: L2Distance,
-        obj.L1Loss: L1Loss,
+        'CrossEntropyLoss': CrossEntropy,
+        'BinaryCrossEntropyLoss': BinaryCrossEntropy,
+        'DDPHyperbolicTangentRelaxation': DDP,
+        'DEOHyperbolicTangentRelaxation': DEO,
+        'MSELoss': L2Distance,
+        'L1Loss': L1Loss,
+        'mIoU': mIoU,
     }
     result = {
-        'loss': {t: scores[o.__class__](o.label_name, o.logits_name) for t, o in objectives.items()},
+        'loss': {t: scores[o](obj_instances[t].label_name, obj_instances[t].logits_name) for t, o in zip(task_ids, objectives)},
     }
-    if with_mcr:
-        # We only want to use mcr for classification objectives
-        result['mcr'] = {}
-        for t, o in objectives.items():
-            if o.__class__ in [obj.CrossEntropyLoss, obj.BinaryCrossEntropyLoss]:
-                result['mcr'][t] = mcr(o.label_name, o.logits_name)
-            else:
-                result['mcr'][t] = scores[o.__class__](o.label_name, o.logits_name)
+    if metrics is not None:
+        result['metrics'] = {t: scores[o](obj_instances[t].label_name, obj_instances[t].logits_name) for t, o in zip(task_ids, metrics)}
     return result
 
 class BaseScore():
@@ -69,6 +65,27 @@ class L1Loss(BaseScore):
         labels = kwargs[self.label_name]
         with torch.no_grad():
             return torch.nn.functional.l1_loss(logits, labels.long(), reduction='mean').item()
+
+
+class mIoU(BaseScore):
+
+    def __call__(self, **kwargs):
+        logits = kwargs[self.logits_name]
+        labels = kwargs[self.label_name]
+
+        predictions = logits.max(dim=1)[1]
+        score = 0
+        j = 0
+        for i in range(logits.shape[1]):
+            for b in range(logits.shape[0]):
+                mask_p = predictions[b] == i
+                mask_l = labels[b] == i
+                if mask_l.sum() > 0:
+                    mask_p = encode(np.asfortranarray(mask_p.cpu().numpy()))
+                    mask_l = encode(np.asfortranarray(mask_l.cpu().numpy()))
+                    score += iou([mask_p], [mask_l], [False]).squeeze().item()
+                    j += 1
+        return score / j
 
 
 

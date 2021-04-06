@@ -77,9 +77,9 @@ class ResnetDilated(nn.Module):
 
 # pyramid pooling, bilinear upsample
 class SegmentationDecoder(nn.Module):
-    def __init__(self, num_class=21, fc_dim=2048, pool_scales=(1, 2, 3, 6), task_type='C'):
+    def __init__(self, out_dim, num_class=21, fc_dim=2048, pool_scales=(1, 2, 3, 6), task_type='C'):
         super(SegmentationDecoder, self).__init__()
-
+        self.out_dim = out_dim
         self.task_type = task_type
 
         self.ppm = []
@@ -101,12 +101,12 @@ class SegmentationDecoder(nn.Module):
         )
 
     def forward(self, conv_out):
-        input_size = conv_out.size()
-        ppm_out = [conv_out]
+        ppm_out = [nn.functional.interpolate(conv_out, self.out_dim,
+                mode='bilinear', align_corners=False)]
         for pool_scale in self.ppm:
             ppm_out.append(nn.functional.interpolate(
                 pool_scale(conv_out),
-                (input_size[2], input_size[3]),
+                self.out_dim,
                 mode='bilinear', align_corners=False))
         ppm_out = torch.cat(ppm_out, 1)
 
@@ -116,7 +116,3 @@ class SegmentationDecoder(nn.Module):
             x = nn.functional.log_softmax(x, dim=1)
         return x
 
-
-test = get_segmentation_encoder()
-
-print()

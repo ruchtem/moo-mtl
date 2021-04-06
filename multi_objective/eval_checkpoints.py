@@ -21,7 +21,7 @@ from objectives import from_name
 
 
 # Path to the checkpoint dir. Use the experiment folder.
-CHECKPOINT_DIR = 'results/cosmos/celeba/4663953'
+CHECKPOINT_DIR = 'results/cosmos/cityscapes/cluster'
 
 
 def eval(settings):
@@ -50,7 +50,7 @@ def eval(settings):
     test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
 
     objectives = from_name(**settings)
-    scores = from_objectives(objectives, with_mcr=True)
+    scores = from_objectives(objectives, **settings)
 
     model = utils.model_from_dataset(**settings).to(device)
     method = method_from_name(objectives, model, settings)

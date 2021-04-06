@@ -93,6 +93,7 @@ cityscapes = dict(
     dim=(3, 256, 512), # height width
     task_ids=['segm', 'inst', 'depth'],
     objectives=['CrossEntropyLoss', 'L1Loss', 'L1Loss'],
+    metrics=['mIoU', 'L1Loss', 'L1Loss'],
     batch_size=8,
     epochs=250,
     n_partitions=3,
@@ -207,4 +208,7 @@ generic = dict(
 
     # cuda or cpu
     device='cuda',
+
+    # use defaults
+    metrics=None,
 )

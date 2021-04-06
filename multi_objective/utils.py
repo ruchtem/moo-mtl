@@ -43,7 +43,7 @@ def model_from_dataset(dataset, **kwargs):
         elif kwargs['model_name'] == 'resnet18':
             return ResNet.from_name(**kwargs)
     elif dataset == 'cityscapes':
-        return Pspnet()
+        return Pspnet(dim=kwargs['dim'])
     else:
         raise ValueError("Unknown model name {}".format(dataset))
 

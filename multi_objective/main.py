@@ -187,7 +187,7 @@ def main(settings):
     test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
 
     objectives = from_name(**settings)
-    scores = from_objectives(objectives, with_mcr=False)
+    scores = from_objectives(objectives, **settings)
 
     rm1 = utils.RunningMean(400)
     rm2 = utils.RunningMean(400)
@@ -274,7 +274,7 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='celeba', help="The dataset to run on.")
+    parser.add_argument('--dataset', '-d', default='cityscapes', help="The dataset to run on.")
     parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
