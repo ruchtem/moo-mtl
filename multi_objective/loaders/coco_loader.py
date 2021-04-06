@@ -1,5 +1,6 @@
 import os
 import torch
+import random
 import numpy as np
 import torchvision.transforms as t
 from torchvision.datasets import CocoDetection
@@ -7,12 +8,16 @@ from PIL import Image
 from fvcore import transforms
 
 
-class ResizeLongestSide():
+class ResizeShortestEdge():
+
+    def __init__(self, target_size, interp='bilinear') -> None:
+        self.target_size = target_size
+        self.interp = interp
     
-    @staticmethod
-    def _cal_new_size(img_size, target_size):
-        h, w = img_size
-        max_w, max_h = target_size
+
+    def get_transform(self, image):
+        h, w = image.shape[:2]
+        max_w, max_h = self.target_size
 
         if w <= max_w and h <= max_h:
             new_w = w
@@ -25,34 +30,144 @@ class ResizeLongestSide():
 
             new_w = int(w * scale)
             new_h = int(h * scale)
-        return w, h, new_w, new_h
-    
-
-    def apply_image(self, img, target_size):
-        w, h, new_w, new_h = self._cal_new_size(img.shape[:2], target_size)
-        t = transforms.ScaleTransform(h, w, new_h, new_w)
-        return t.apply_image(img, interp='bilinear')
-    
-    def apply_segmentation(self, segmentation, target_size):
-        w, h, new_w, new_h = self._cal_new_size(segmentation.shape[:2], target_size)
-        t = transforms.ScaleTransform(h, w, new_h, new_w)
-        return t.apply_segmentation(segmentation)
-    
-    def apply_box(self, box, img_shape, target_size):
-        w, h, new_w, new_h = self._cal_new_size(img_shape, target_size)
-        t = transforms.ScaleTransform(h, w, new_h, new_w)
-
-        box[:, 2] += box[:, 0]
-        box[:, 3] += box[:, 1]
-
-        box = t.apply_box(box)
-
-        box[:, 2] -= box[:, 0]
-        box[:, 3] -= box[:, 1]
-
-        return box
+        
+        return transforms.ScaleTransform(h, w, new_h, new_w, self.interp)
         
 
+class RandomFlip():
+
+    def __init__(self, p=0.5, horizontal=True, vertical=False) -> None:
+        self.p = p
+        self.horizontal = horizontal
+        self.vertical = vertical
+    
+
+    def get_transform(self, image):
+        h, w = image.shape[:2]
+        do = random.random() < self.p
+        if do:
+            if self.horizontal:
+                return transforms.HFlipTransform(w)
+            elif self.vertical:
+                return transforms.VFlipTransform(h)
+        else:
+            return transforms.NoOpTransform()
+
+
+class RandomRotation():
+
+    def __init__(self, angle) -> None:
+        self.angle = angle
+    
+
+    def get_transform(self, image):
+        h, w = image.shape[:2]
+        angle = random.uniform(self.angle[0], self.angle[1])
+        if angle % 360 == 0:
+            return transforms.NoOpTransform()
+        return RotationTransform(h, w, angle)
+
+# taken from https://github.com/facebookresearch/detectron2/blob/2455e4790f470bba54299c049410fc0713ae7529/detectron2/data/transforms/transform.py#L162 and adaped
+import cv2
+class RotationTransform():
+    """
+    This method returns a copy of this image, rotated the given
+    number of degrees counter clockwise around its center.
+    """
+
+    def __init__(self, h, w, angle, expand=True, center=None, interp=None):
+        """
+        Args:
+            h, w (int): original image size
+            angle (float): degrees for rotation
+            expand (bool): choose if the image should be resized to fit the whole
+                rotated image (default), or simply cropped
+            center (tuple (width, height)): coordinates of the rotation center
+                if left to None, the center will be fit to the center of each image
+                center has no effect if expand=True because it only affects shifting
+            interp: cv2 interpolation method, default cv2.INTER_LINEAR
+        """
+        super().__init__()
+        image_center = np.array((w / 2, h / 2))
+        if center is None:
+            center = image_center
+        if interp is None:
+            interp = cv2.INTER_LINEAR
+        abs_cos, abs_sin = (abs(np.cos(np.deg2rad(angle))), abs(np.sin(np.deg2rad(angle))))
+        if expand:
+            # find the new width and height bounds
+            bound_w, bound_h = np.rint(
+                [h * abs_sin + w * abs_cos, h * abs_cos + w * abs_sin]
+            ).astype(int)
+        else:
+            bound_w, bound_h = w, h
+
+        self.h = h
+        self.w = w
+        self.angle = angle
+        self.expand = expand
+        self.image_center = image_center
+        self.center = center
+        self.interp = interp
+        self.bound_w = bound_w
+        self.bound_h = bound_h
+        self.rm_coords = self.create_rotation_matrix()
+        # Needed because of this problem https://github.com/opencv/opencv/issues/11784
+        self.rm_image = self.create_rotation_matrix(offset=-0.5)
+
+    def apply_image(self, img, interp=None):
+        """
+        img should be a numpy array, formatted as Height * Width * Nchannels
+        """
+        if len(img) == 0 or self.angle % 360 == 0:
+            return img
+        assert img.shape[:2] == (self.h, self.w)
+        interp = interp if interp is not None else self.interp
+        return cv2.warpAffine(img, self.rm_image, (self.bound_w, self.bound_h), flags=interp)
+
+    def apply_coords(self, coords):
+        """
+        coords should be a N * 2 array-like, containing N couples of (x, y) points
+        """
+        coords = np.asarray(coords, dtype=float)
+        if len(coords) == 0 or self.angle % 360 == 0:
+            return coords
+        return cv2.transform(coords[:, np.newaxis, :], self.rm_coords)[:, 0, :]
+
+    def apply_segmentation(self, segmentation):
+        segmentation = self.apply_image(segmentation, interp=cv2.INTER_NEAREST)
+        return segmentation
+    
+    def apply_box(self, box):
+        box1 = self.apply_coords(box[:, 0:2])
+        box2 = self.apply_coords(box[:, 2:4])
+        return np.hstack((box1, box2))
+
+    def create_rotation_matrix(self, offset=0):
+        center = (self.center[0] + offset, self.center[1] + offset)
+        rm = cv2.getRotationMatrix2D(tuple(center), self.angle, 1)
+        if self.expand:
+            # Find the coordinates of the center of rotation in the new image
+            # The only point for which we know the future coordinates is the center of the image
+            rot_im_center = cv2.transform(self.image_center[None, None, :] + offset, rm)[0, 0, :]
+            new_center = np.array([self.bound_w / 2, self.bound_h / 2]) + offset - rot_im_center
+            # shift the rotation center to the new coordinates
+            rm[:, 2] += new_center
+        return rm
+
+    def inverse(self):
+        """
+        The inverse is to rotate it back with expand, and crop to get the original shape.
+        """
+        if not self.expand:  # Not possible to inverse if a part of the image is lost
+            raise NotImplementedError()
+        rotation = RotationTransform(
+            self.bound_h, self.bound_w, -self.angle, True, None, self.interp
+        )
+        crop = CropTransform(
+            (rotation.bound_w - self.w) // 2, (rotation.bound_h - self.h) // 2, self.w, self.h
+        )
+        return TransformList([rotation, crop])
 
 
 class COCO(CocoDetection):
@@ -70,14 +185,14 @@ class COCO(CocoDetection):
         super().__init__(self.img_dir, self.annFile)
 
         self.min_area = 50.
-        self.smallest_side = 512
 
         self.transforms = [
-            ResizeLongestSide()
+            ResizeShortestEdge(target_size=(512, 512)),
         ]
 
         self.train_transforms = [
-
+            RandomFlip(),
+            RandomRotation((-10, 10)),
         ]
 
 
@@ -98,15 +213,28 @@ class COCO(CocoDetection):
         bboxs = np.stack([a['bbox'] for a in anns])     # bbox_x, bbox_y, bbox_w, bbox_h
         cats = np.stack([a['category_id'] for a in anns])
 
-        # (height, width, channels)
-        original_shape = image.shape
-        for t in self.transforms:
-            image = t.apply_image(image, target_size=(self.smallest_side, self.smallest_side))
-            masks = t.apply_segmentation(masks, target_size=(self.smallest_side, self.smallest_side))
-            bboxs = t.apply_box(bboxs, original_shape[:2], target_size=(self.smallest_side, self.smallest_side))
+        # convert boxes from xywh to xyxy
+        bboxs[:, 2] += bboxs[:, 0]
+        bboxs[:, 3] += bboxs[:, 1]
 
-        image = torch.from_numpy(image)
-        masks = torch.from_numpy(masks)
+        # (height, width, channels)
+        for transform in self.transforms:
+            t = transform.get_transform(image)
+            image = t.apply_image(image)
+            masks = t.apply_segmentation(masks)
+            bboxs = t.apply_box(bboxs)
+        
+        for transform in self.train_transforms:
+            t = transform.get_transform(image)
+            image = t.apply_image(image)
+            masks = t.apply_segmentation(masks)
+            bboxs = t.apply_box(bboxs)
+        
+        bboxs[:, 2] -= bboxs[:, 0]
+        bboxs[:, 3] -= bboxs[:, 1]
+
+        image = torch.from_numpy(image.copy())
+        masks = torch.from_numpy(masks.copy())
         bboxs = torch.from_numpy(bboxs)
         cats = torch.from_numpy(cats)
 
@@ -148,12 +276,13 @@ if __name__ == '__main__':
               [119,  11,  32]]
 
     def collate_fn(x):
-        #x['data'] = torch.stack([i['data'] for i in x])
         return x
     
     def mask_to_colors(cats, masks):
         h, w = masks.shape[-2:]
         masks = masks.numpy().astype(np.bool)
+        if masks.ndim == 2:
+            masks = np.expand_dims(masks, 0)
         img = np.zeros((h, w, 3), dtype=np.uint8)
         for c, m in zip(cats, masks):
             col = colors[c % len(colors)]
