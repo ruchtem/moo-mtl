@@ -74,10 +74,11 @@ class mIoU(BaseScore):
         labels = kwargs[self.label_name]
 
         predictions = logits.max(dim=1)[1]
-        score = 0
-        j = 0
-        for i in range(logits.shape[1]):
-            for b in range(logits.shape[0]):
+        ious = []
+        for b in range(logits.shape[0]):
+            score = 0
+            j = 0
+            for i in range(logits.shape[1]):
                 mask_p = predictions[b] == i
                 mask_l = labels[b] == i
                 if mask_l.sum() > 0:
@@ -87,7 +88,8 @@ class mIoU(BaseScore):
                         [False]
                     ).squeeze().item()
                     j += 1
-        return score / j
+            ious.append(score / j)
+        return sum(ious) / len(ious)
 
 
 
