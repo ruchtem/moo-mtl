@@ -101,12 +101,12 @@ class SegmentationDecoder(nn.Module):
         )
 
     def forward(self, conv_out):
-        ppm_out = [nn.functional.interpolate(conv_out, self.out_dim,
-                mode='bilinear', align_corners=False)]
+        input_size = conv_out.size()
+        ppm_out = [conv_out]
         for pool_scale in self.ppm:
             ppm_out.append(nn.functional.interpolate(
                 pool_scale(conv_out),
-                self.out_dim,
+                (input_size[2], input_size[3]),
                 mode='bilinear', align_corners=False))
         ppm_out = torch.cat(ppm_out, 1)
 

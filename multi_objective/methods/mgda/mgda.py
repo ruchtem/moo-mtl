@@ -2,6 +2,7 @@
 # and adapted
 
 import torch
+from torch.autograd import Variable
 
 from ..base import BaseMethod
 from min_norm_solvers import MinNormSolver, gradient_normalizers
@@ -24,6 +25,9 @@ class MGDAMethod(BaseMethod):
             # First compute representations (z)
             with torch.no_grad():
                 rep = self.model.forward_feature_extraction(batch)
+            
+            # we require gradients wrt to (z)
+            rep = Variable(rep, requires_grad=True)
 
             # Compute gradients of each loss function wrt z
             grads = {t: {} for t in self.task_ids}
@@ -39,10 +43,9 @@ class MGDAMethod(BaseMethod):
                 output.backward()
                 
                 obj_values[t] = output.item()
-                
-                for name, param in self.model.named_parameters():
-                    if param.grad is not None and param.grad.sum() != 0.0:
-                        grads[t][name] = param.grad.data.detach().clone()
+
+                grads[t]['input'] = rep.grad.data.detach().clone()
+                rep.grad.data.zero_()
         else:
             # This is plain MGDA
             grads, obj_values = calc_gradients(batch, self.model, self.objectives)

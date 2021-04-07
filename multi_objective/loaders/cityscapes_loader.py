@@ -85,7 +85,7 @@ class CITYSCAPES(data.Dataset):
 
     val_identifiers = None
 
-    def __init__(self, split, root='data/cityscapes', dim=(3, 256, 512), ann_dim=(256, 512), val_size=0.1, **kwargs):
+    def __init__(self, split, root='data/cityscapes', dim=(3, 256, 512), ann_dim=(32, 64), val_size=0.1, **kwargs):
         """__init__
         :param root:
         :param split:
