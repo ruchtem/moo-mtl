@@ -111,6 +111,7 @@ class SegmentationDecoder(nn.Module):
         ppm_out = torch.cat(ppm_out, 1)
 
         x = self.conv_last(ppm_out)
+        x = nn.functional.interpolate(x, size=self.out_dim, mode='bilinear', align_corners=True)
 
         if self.task_type == 'C':
             x = nn.functional.log_softmax(x, dim=1)
