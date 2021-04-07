@@ -7,6 +7,7 @@ import collections
 
 from datetime import datetime
 from pymoo.factory import get_decomposition, get_reference_directions, get_performance_indicator
+from pymoo.visualization.radviz import Radviz
 
 from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader
 from models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet
@@ -49,11 +50,12 @@ def model_from_dataset(dataset, **kwargs):
 
 
 def reference_points(partitions, dim=2):
-    # generate evenly distributed preference vector
+    """generate evenly distributed preference vector"""
     return get_reference_directions("uniform", dim, n_partitions=partitions)
 
 
 def optimal_solution(pareto_front, weights=None):
+    """Compromise programming from pymoo"""
     if weights:
         assert len(weights) == pareto_front.shape[1]
     else:
@@ -266,24 +268,35 @@ class ParetoFront():
 
         if not os.path.exists(self.logdir):
             os.makedirs(self.logdir)
-
-
-    def append(self, point):
-        point = np.array(point)
-        if not len(self.points):
-            self.points = point
-        else:
-            self.points = np.vstack((self.points, point))
     
     
-    def plot(self, rays=None):
-        p = self.points
-        plt.plot(p[:, 0], p[:, 1], 'o')
-        if rays:
-            for r in rays:
-                plt.plot([0, r[0]], [0, r[1]], color='black')
-        plt.xlabel(self.labels[0])
-        plt.ylabel(self.labels[1])
-        plt.grid()
-        plt.savefig(os.path.join(self.logdir, "{}.png".format(self.prefix)))
+    def plot(self, p, rays=None, best_sol_idx=None):
+        if p.ndim == 1:
+            p = np.expand_dims(p, 0)
+
+        # plot 2d pf
+        if p.shape[1] == 2:
+            plt.plot(p[:, 0], p[:, 1], 'o')
+            if rays:
+                for r in rays:
+                    plt.plot([0, r[0]], [0, r[1]], color='black')
+            plt.xlabel(self.labels[0])
+            plt.ylabel(self.labels[1])
+            plt.grid()
+            plt.savefig(os.path.join(self.logdir, "pf_{}.png".format(self.prefix)))
+            plt.close()
+
+        # plot radviz
+        radviz_plot = Radviz().add(p)
+        if best_sol_idx is not None:
+            radviz_plot.add(p[best_sol_idx], color="red", s=70, label="Solution A")
+        radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
+        plt.close()
+
+        norms = np.linalg.norm(p, axis=1)
+
+        plt.plot(norms, 'o')
+        if best_sol_idx is not None:
+            plt.plot(norms[best_sol_idx], 'ro')
+        plt.savefig(os.path.join(self.logdir, "norm_{}.png".format(self.prefix)))
         plt.close()

@@ -96,10 +96,12 @@ cityscapes = dict(
     metrics=['mIoU', 'L1Loss', 'L1Loss'],
     batch_size=8,
     epochs=250,
-    n_partitions=3,
+    n_partitions=5,
     normalize_rays=False,
     lamda=5,
     lr=0.005,
+    approximate_norm_solution=True,
+    normalization_type='loss+',
 )
 
 coco = dict(

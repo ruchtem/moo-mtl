@@ -17,7 +17,7 @@ import json
 import math
 import matplotlib.pyplot as plt
 from torch.utils import data
-from pymoo.visualization.radviz import Radviz
+
 
 import settings as s
 import utils
@@ -133,25 +133,15 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
 
     # plot pareto front to pf
     for eval_mode, score in score_values.items():
-        if score.pf_available and score.pf.shape[1] == 2:
-            pareto_front = utils.ParetoFront(
-                ["-".join([str(t), eval_mode]) for t in task_ids], 
-                logdir,
-                "{}_{}_{:03d}".format(eval_mode, split, e)
-            )
-            pareto_front.append(score.pf)
-            pareto_front.plot()
-
-        radviz_plot = Radviz().add(score.pf)
-        radviz_plot.add(score.pf[score.optimal_sol_idx], color="red", s=70, label="Solution A")
-        radviz_plot.save(os.path.join(logdir, "r_{}_{}_{:03d}".format(eval_mode, split, e)))
-        plt.close()
-
-        norms = np.linalg.norm(score.pf, axis=1)
-        plt.plot(norms, 'o')
-        plt.plot(norms[score.optimal_sol_idx], 'ro')
-        plt.savefig(os.path.join(logdir, "dist_{}_{}_{:03d}".format(eval_mode, split, e)))
-        plt.close()
+        pareto_front = utils.ParetoFront(
+            ["-".join([str(t), eval_mode]) for t in task_ids], 
+            logdir,
+            "{}_{}_{:03d}".format(eval_mode, split, e)
+        )
+        if score.pf_available:
+            pareto_front.plot(score.pf, best_sol_idx=score.optimal_sol_idx)
+        else:
+            pareto_front.plot(score.center)
 
     result = {k: v.to_dict() for k, v in score_values.items()}
     result.update({"training_time_so_far": train_time,})
@@ -275,7 +265,7 @@ def main(settings):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', '-d', default='cityscapes', help="The dataset to run on.")
-    parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
+    parser.add_argument('--method', '-m', default='mgda', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()

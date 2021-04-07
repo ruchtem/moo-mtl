@@ -81,9 +81,11 @@ class mIoU(BaseScore):
                 mask_p = predictions[b] == i
                 mask_l = labels[b] == i
                 if mask_l.sum() > 0:
-                    mask_p = encode(np.asfortranarray(mask_p.cpu().numpy()))
-                    mask_l = encode(np.asfortranarray(mask_l.cpu().numpy()))
-                    score += iou([mask_p], [mask_l], [False]).squeeze().item()
+                    score += iou(
+                        [encode(np.asfortranarray(mask_p.cpu().numpy()))],
+                        [encode(np.asfortranarray(mask_l.cpu().numpy()))], 
+                        [False]
+                    ).squeeze().item()
                     j += 1
         return score / j
 
