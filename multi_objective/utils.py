@@ -9,8 +9,8 @@ from datetime import datetime
 from pymoo.factory import get_decomposition, get_reference_directions, get_performance_indicator
 from pymoo.visualization.radviz import Radviz
 
-from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader
-from models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet
+from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader, coco_loader
+from models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet, MaskRCNN
 
 def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':
@@ -29,6 +29,8 @@ def dataset_from_name(dataset, **kwargs):
         return celeba_loader.CelebA(**kwargs)
     elif dataset == 'cityscapes':
         return cityscapes_loader.CITYSCAPES(**kwargs)
+    elif dataset == 'coco':
+        return coco_loader.COCO(**kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
 
@@ -45,6 +47,8 @@ def model_from_dataset(dataset, **kwargs):
             return ResNet.from_name(**kwargs)
     elif dataset == 'cityscapes':
         return Pspnet(dim=kwargs['dim'])
+    elif dataset == 'coco':
+        return MaskRCNN(**kwargs)
     else:
         raise ValueError("Unknown model name {}".format(dataset))
 
@@ -93,6 +97,9 @@ def reset_weights(model):
 
 
 def dict_to(dict, device):
+    if isinstance(dict, list):
+        # we have a list of dicts
+        return [dict_to(d, device) for d in dict]
     return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in dict.items()}
 
 
@@ -239,7 +246,7 @@ class RunningMinMaxNormalizer():
         maximum = np.array(self.history, dtype=np.float).max(axis=0)
         diff = maximum - minimum
         diff = diff + 2*exploration*diff    # extend the range for exploration
-        result = diff * (data - 1) + maximum
+        result = diff * (data) + minimum
         result[result < 0] = 0
         return result
 
