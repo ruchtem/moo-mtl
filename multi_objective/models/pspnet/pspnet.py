@@ -66,7 +66,8 @@ class ResnetDilated(nn.Module):
                     m.padding = (dilate, dilate)
 
     def forward(self, x):
-        x = self.relu1(self.bn1(self.conv1(x)))
+        # x = self.relu1(self.bn1(self.conv1(x)))
+        x = self.relu1(self.conv1(x))
         x = self.maxpool(x)
 
         x = self.layer1(x) 

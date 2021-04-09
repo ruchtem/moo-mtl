@@ -40,11 +40,11 @@ class BasicBlock(nn.Module):
         residual = x
 
         out = self.conv1(x)
-        out = self.bn1(out)
+        # out = self.bn1(out)
         out = self.relu(out)
 
         out = self.conv2(out)
-        out = self.bn2(out)
+        # out = self.bn2(out)
 
         if self.downsample is not None:
             residual = self.downsample(x)
@@ -75,15 +75,15 @@ class Bottleneck(nn.Module):
         residual = x
 
         out = self.conv1(x)
-        out = self.bn1(out)
+        # out = self.bn1(out)
         out = self.relu(out)
 
         out = self.conv2(out)
-        out = self.bn2(out)
+        # out = self.bn2(out)
         out = self.relu(out)
 
         out = self.conv3(out)
-        out = self.bn3(out)
+        # out = self.bn3(out)
 
         if self.downsample is not None:
             residual = self.downsample(x)
@@ -145,7 +145,8 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.relu(self.bn1(self.conv1(x)))
+        # x = self.relu(self.bn1(self.conv1(x)))
+        x = self.relu(self.conv1(x))
         if self.deep_base:
             x = self.relu(self.bn2(self.conv2(x)))
             x = self.relu(self.bn3(self.conv3(x)))
