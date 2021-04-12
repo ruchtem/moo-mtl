@@ -22,7 +22,7 @@ def conv3x3(in_planes, out_planes, stride=1, has_bias=False):
 def conv3x3_bn_relu(in_planes, out_planes, stride=1):
     return nn.Sequential(
             conv3x3(in_planes, out_planes, stride),
-            nn.BatchNorm2d(out_planes),
+            # nn.BatchNorm2d(out_planes),
             nn.ReLU(inplace=True),
             )
 
@@ -88,7 +88,7 @@ class SegmentationDecoder(nn.Module):
             self.ppm.append(nn.Sequential(
                 nn.AdaptiveAvgPool2d(scale),
                 nn.Conv2d(fc_dim, 512, kernel_size=1, bias=False),
-                nn.BatchNorm2d(512),
+                # nn.BatchNorm2d(512),
                 nn.ReLU(inplace=True)
             ))
         self.ppm = nn.ModuleList(self.ppm)
@@ -96,7 +96,7 @@ class SegmentationDecoder(nn.Module):
         self.conv_last = nn.Sequential(
             nn.Conv2d(fc_dim+len(pool_scales)*512, 512,
                       kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(512),
+            # nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
             nn.Conv2d(512, num_class, kernel_size=1)
         )

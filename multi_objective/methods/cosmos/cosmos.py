@@ -9,7 +9,7 @@ from ..base import BaseMethod
 class Upsampler(nn.Module):
 
 
-    def __init__(self, K, child_model, input_dim, upsample_fraction=1):
+    def __init__(self, K, child_model, input_dim, upsample_fraction=1.):
         """
         In case of tabular data: append the sampled rays to the data instances (no upsampling)
         In case of image data: use a transposed CNN for the sampled rays.
@@ -110,19 +110,20 @@ class COSMOSMethod(BaseMethod):
             # import matplotlib.pyplot as plt
             # fig, axes = plt.subplots(ncols=3)
             
-            # axes[0].hist(data[:, 0], bins=20, label='task1', histtype='step')
-            # axes[0].hist(data[:, 1], bins=20, label='task2', histtype='step')
+            # axes[0].hist(data, bins=20, histtype='step')
 
             # trans = (data-data.mean(axis=0)) / (data.std(axis=0) + 1e-8)
-            # axes[1].hist(trans[:, 0], bins=20, label='task1', histtype='step')
-            # axes[1].hist(trans[:, 1], bins=20, label='task2', histtype='step')
+            # axes[1].hist(trans, bins=20, histtype='step')
 
             # sigm = 1/ (1 + np.exp(-trans))
-            # axes[2].hist(sigm[:, 0], bins=20, label='task1', histtype='step')
-            # axes[2].hist(sigm[:, 1], bins=20, label='task2', histtype='step')
+            # axes[2].hist(sigm, bins=20, histtype='step')
             # plt.savefig(f'hist_{e}')
             # plt.close()
-            # print(self.means, self.stds)
+
+
+
+
+            print(self.means, self.stds)
 
             
 
@@ -143,10 +144,6 @@ class COSMOSMethod(BaseMethod):
         else:
             raise ValueError(f"Unknown value for alpha: {self.alpha}, expecting list or float.")
 
-        # normalize rays:
-        if self.normalize_rays and self.s > 50:
-           batch['alpha'] = self.loss_normalizer.normalize(batch['alpha'])
-
         batch['alpha'] = torch.from_numpy(batch['alpha'].astype(np.float32)).to(self.device)
 
         
@@ -154,7 +151,7 @@ class COSMOSMethod(BaseMethod):
         self.model.zero_grad()
         logits = self.model(batch)
         batch.update(logits)
-        loss_total = 0
+        loss_total = torch.tensor(0, device=self.device).float()
         task_losses = []
         task_losses_norm = []
         for a, t, mean, std in zip(batch['alpha'], self.task_ids, self.means, self.stds):
@@ -162,21 +159,19 @@ class COSMOSMethod(BaseMethod):
             task_loss_norm = (task_loss - mean) / std    # z normalization (normalize scale)
             if task_loss_norm < -10:
                 task_loss_norm *= -10 / task_loss_norm
+            elif task_loss_norm > 10:
+                task_loss_norm *= 10 / task_loss_norm
             task_loss_norm = 1/(1+torch.exp(-task_loss_norm)) # sigmoid   (normalize variance)
-            loss_total += a * task_loss_norm
+            loss_total += task_loss_norm * a
             task_losses.append(task_loss)
             task_losses_norm.append(task_loss_norm)
         
-        loss_linearization = loss_total.item()
+        loss_linearization = sum(task_losses).item()
 
         cossim = torch.nn.functional.cosine_similarity(torch.stack(task_losses_norm), batch['alpha'], dim=0)
         loss_total -= self.lamda * cossim
             
         loss_total.backward()
-
-        if self.normalize_rays:
-            self.loss_normalizer.update(task_losses)
-            self.s += 1
         
         self.losses.append([l.cpu().detach().numpy() for l in task_losses])
 
@@ -185,8 +180,6 @@ class COSMOSMethod(BaseMethod):
 
     def eval_step(self, batch, preference_vector):
         self.model.eval()
-        if self.normalize_rays:
-                preference_vector = self.loss_normalizer.normalize(preference_vector)
         with torch.no_grad():
             batch['alpha'] = torch.from_numpy(preference_vector).to(self.device).float()
             return self.model(batch)
