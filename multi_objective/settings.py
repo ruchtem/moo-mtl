@@ -10,9 +10,8 @@ adult = dict(
     objectives=['BinaryCrossEntropyLoss', 'ddp'],
     epochs=50,
     use_scheduler=False,
-    normalize_rays=True,
-    lamda=.01,
-    alpha=.5,
+    lamda=3,
+    alpha=1,
 )
 
 credit = dict(
@@ -21,9 +20,8 @@ credit = dict(
     objectives=['BinaryCrossEntropyLoss', 'ddp'],
     epochs=50,
     use_scheduler=False,
-    normalize_rays=True,
-    lamda=.01,
-    alpha=[.1, .5],
+    lamda=3,
+    alpha=1,
 )
 
 compass = dict(
@@ -32,7 +30,6 @@ compass = dict(
     objectives=['BinaryCrossEntropyLoss', 'ddp'],
     epochs=50,
     use_scheduler=False,
-    normalize_rays=True,
     lamda=.01,
     alpha=.5,
 )
@@ -60,8 +57,8 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     task_ids=['l', 'r'],
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
-    lamda=8,
-    alpha=1.2,
+    lamda=1,
+    alpha=1,
 )
 
 celeba = dict(
@@ -107,8 +104,12 @@ cityscapes = dict(
 coco = dict(
     dataset='coco',
     dim=(3, 512, 512),   # max dims as images have different sizes
-    task_ids=['classification', 'bbox_regression', 'masks'],
-    batch_size=2
+    task_ids=['classifier', 'box_reg', 'mask'],
+    objectives=['void' for _ in range(6)],
+    metrics=['mIoU', 'L1Loss', 'L1Loss', 'mIoU'],
+    batch_size=2,
+    device='cpu',
+    num_workers=0,
 )
 
 #
@@ -203,7 +204,6 @@ generic = dict(
     lr=1e-3,
     batch_size=256,
     epochs=100,
-    normalize_rays=False,
 
     # Reference point for hyper-volume calculation
     reference_point=[2, 2],

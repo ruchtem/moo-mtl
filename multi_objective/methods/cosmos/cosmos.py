@@ -9,13 +9,14 @@ from ..base import BaseMethod
 class Upsampler(nn.Module):
 
 
-    def __init__(self, K, child_model, input_dim):
+    def __init__(self, K, child_model, input_dim, upsample_fraction=1):
         """
         In case of tabular data: append the sampled rays to the data instances (no upsampling)
         In case of image data: use a transposed CNN for the sampled rays.
         """
         super().__init__()
         self.dim = input_dim
+        self.fraction = upsample_fraction
 
         if len(input_dim) == 1:
             # tabular data
@@ -29,7 +30,6 @@ class Upsampler(nn.Module):
                 nn.ReLU(inplace=True),
                 nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
                 nn.ReLU(inplace=True),
-                nn.Upsample((int(input_dim[-2]*.75), int(input_dim[-1]*.75)))
             )
         else:
             raise ValueError(f"Unknown dataset structure, expected 1 or 3 dimensions, got {input_dim}")
@@ -49,6 +49,9 @@ class Upsampler(nn.Module):
             # use transposed convolution
             a = a.reshape(b, len(batch['alpha']), 1, 1)
             a = self.transposed_cnn(a)
+
+            target_size = (int(self.dim[-2]*self.fraction), int(self.dim[-1]*self.fraction))
+            a = torch.nn.functional.interpolate(a, target_size, mode='nearest')
         
             # Random padding to avoid issues with subsequent batch norm layers.
             result = torch.randn(b, *self.dim, device=x.device)
@@ -60,14 +63,17 @@ class Upsampler(nn.Module):
             # Write a into the middle of the tensor
             idx_height = (result.shape[-2] - a.shape[-2]) // 2
             idx_width = (result.shape[-1] - a.shape[-1]) // 2
-            result[:, channels:, idx_height:-idx_height, idx_width:-idx_width] = a
+            if idx_height > 0:
+                result[:, channels:, idx_height:-idx_height, idx_width:-idx_width] = a
+            else:
+                result[:, channels:] = a
 
         return self.child_model(dict(data=result))
 
 
 class COSMOSMethod(BaseMethod):
 
-    def __init__(self, objectives, model, alpha, lamda, dim, normalize_rays, **kwargs):
+    def __init__(self, objectives, model, alpha, lamda, dim, **kwargs):
         """
         Instanciate the cosmos solver.
 
@@ -82,10 +88,6 @@ class COSMOSMethod(BaseMethod):
         self.K = len(objectives)
         self.alpha = alpha
         self.lamda = lamda
-        self.normalize_rays = normalize_rays
-        if normalize_rays:
-            self.loss_normalizer = RunningMinMaxNormalizer()
-            self.s = 0
 
         dim = list(dim)
         dim[0] = dim[0] + self.K
@@ -95,6 +97,37 @@ class COSMOSMethod(BaseMethod):
 
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
+
+
+    def new_epoch(self, e):
+        self.means = np.zeros(self.K)
+        self.stds = np.ones(self.K)
+        if e>0:
+            data = np.array(self.losses)
+            self.means = data.mean(axis=0)
+            self.stds = data.std(axis=0) + 1e-8
+
+            # import matplotlib.pyplot as plt
+            # fig, axes = plt.subplots(ncols=3)
+            
+            # axes[0].hist(data[:, 0], bins=20, label='task1', histtype='step')
+            # axes[0].hist(data[:, 1], bins=20, label='task2', histtype='step')
+
+            # trans = (data-data.mean(axis=0)) / (data.std(axis=0) + 1e-8)
+            # axes[1].hist(trans[:, 0], bins=20, label='task1', histtype='step')
+            # axes[1].hist(trans[:, 1], bins=20, label='task2', histtype='step')
+
+            # sigm = 1/ (1 + np.exp(-trans))
+            # axes[2].hist(sigm[:, 0], bins=20, label='task1', histtype='step')
+            # axes[2].hist(sigm[:, 1], bins=20, label='task2', histtype='step')
+            # plt.savefig(f'hist_{e}')
+            # plt.close()
+            # print(self.means, self.stds)
+
+            
+
+        self.losses = []
+        return super().new_epoch(e)
 
 
     def preference_at_inference(self):
@@ -121,14 +154,22 @@ class COSMOSMethod(BaseMethod):
         self.model.zero_grad()
         logits = self.model(batch)
         batch.update(logits)
-        loss_total = None
+        loss_total = 0
         task_losses = []
-        for a, t in zip(batch['alpha'], self.task_ids):
+        task_losses_norm = []
+        for a, t, mean, std in zip(batch['alpha'], self.task_ids, self.means, self.stds):
             task_loss = self.objectives[t](**batch)
-            loss_total = a * task_loss if not loss_total else loss_total + a * task_loss
+            task_loss_norm = (task_loss - mean) / std    # z normalization (normalize scale)
+            if task_loss_norm < -10:
+                task_loss_norm *= -10 / task_loss_norm
+            task_loss_norm = 1/(1+torch.exp(-task_loss_norm)) # sigmoid   (normalize variance)
+            loss_total += a * task_loss_norm
             task_losses.append(task_loss)
+            task_losses_norm.append(task_loss_norm)
         
-        cossim = torch.nn.functional.cosine_similarity(torch.stack(task_losses), batch['alpha'], dim=0)
+        loss_linearization = loss_total.item()
+
+        cossim = torch.nn.functional.cosine_similarity(torch.stack(task_losses_norm), batch['alpha'], dim=0)
         loss_total -= self.lamda * cossim
             
         loss_total.backward()
@@ -136,7 +177,10 @@ class COSMOSMethod(BaseMethod):
         if self.normalize_rays:
             self.loss_normalizer.update(task_losses)
             self.s += 1
-        return loss_total.item(), cossim.item()
+        
+        self.losses.append([l.cpu().detach().numpy() for l in task_losses])
+
+        return loss_linearization, cossim.item()
 
 
     def eval_step(self, batch, preference_vector):
