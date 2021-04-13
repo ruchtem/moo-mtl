@@ -40,9 +40,9 @@ multi_mnist = dict(
     task_ids=['l', 'r'],
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
     lamda=3,
-    alpha=1,
-    lr=1e-3,
-    use_scheduler=False,
+    alpha=1.2,
+    lr=5e-4,
+    lr_scheduler = "CosineAnnealing",
 )
 
 multi_fashion = dict(
@@ -196,10 +196,9 @@ generic = dict(
     # Checkpoint period (0 for no checkpoints)
     checkpoint_every=10,
 
-    # Use a multi-step learning rate scheduler with defined gamma and milestones
-    use_scheduler=True,
-    scheduler_gamma=0.1,
-    scheduler_milestones=[20,40,80,90],
+    # One of [None, CosineAnnealing, MultiStep]
+    lr_scheduler = None,
+    scheduler_milestones=None,
 
     # Number of train rays for methods that follow a training preference (ParetoMTL and MGDA)
     num_starts=1,

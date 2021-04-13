@@ -124,11 +124,12 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
                 data = [score[t](**batch) for t in task_ids]
                 score_values[eval_mode].update(data, 'single_point')
 
+
     # normalize scores and compute hyper-volume
     for v in score_values.values():
         v.normalize()
         if method.preference_at_inference():
-            # v.compute_hv(settings['reference_point'])
+            v.compute_hv(settings['reference_point'])
             v.compute_optimal_sol()
 
     # plot pareto front to pf
@@ -162,19 +163,14 @@ def main(settings):
     print("start processig with settings", settings)
     utils.set_seed(settings['seed'])
     device = settings['device']
+    lr_scheduler = settings['lr_scheduler']
 
     # create the experiment folders
     logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], utils.get_runname(settings))
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
     # prepare
-    train_set = utils.dataset_from_name(split='train', **settings)
-    val_set = utils.dataset_from_name(split='val', **settings)
-    test_set = utils.dataset_from_name(split='test', **settings)
-
-    train_loader = data.DataLoader(train_set, settings['batch_size'], shuffle=True, num_workers=settings['num_workers'])
-    val_loader = data.DataLoader(val_set, settings['batch_size'], shuffle=True, num_workers=settings['num_workers'])
-    test_loader = data.DataLoader(test_set, settings['batch_size'], settings['num_workers'])
+    train_loader, val_loader, test_loader = utils.loaders_from_name(**settings)
 
     objectives = from_name(**settings)
     scores = from_objectives(objectives, **settings)
@@ -200,8 +196,20 @@ def main(settings):
         test_results[f"start_{j}"] = {}
 
         optimizer = torch.optim.Adam(method.model_params(), settings['lr'])
-        if settings['use_scheduler']:
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, settings['scheduler_milestones'], gamma=settings['scheduler_gamma'])
+        
+
+        if lr_scheduler is None:
+            scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lambda epoch: 1.)    # does nothing to the lr
+        elif lr_scheduler == "CosineAnnealing":
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=settings['epochs'])
+        elif lr_scheduler == "MultiStep":
+            if settings['scheduler_milestones'] is None:
+                milestones = [int(.33 * settings['epochs']), int(.66 * settings['epochs'])]
+            else:
+                milestones = settings['scheduler_milestones']
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1)
+        else:
+            raise ValueError(f"Unknown lr scheduler {lr_scheduler}")
         
         for e in range(settings['epochs']):
             print(f"Epoch {e}")
@@ -221,10 +229,9 @@ def main(settings):
             tock = time.time()
             elapsed_time += (tock - tick)
 
-            if settings['use_scheduler']:
-                val_results[f"start_{j}"][f"epoch_{e}"] = {'lr': scheduler.get_last_lr()[0]}
-                scheduler.step()
-
+            
+            val_results[f"start_{j}"][f"epoch_{e}"] = {'lr': scheduler.get_last_lr()[0]}
+            scheduler.step()
 
             # run eval on train set (mainly for debugging)
             if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
@@ -264,8 +271,8 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='cityscapes', help="The dataset to run on.")
-    parser.add_argument('--method', '-m', default='mgda', help="The method to generate the Pareto front.")
+    parser.add_argument('--dataset', '-d', default='mm', help="The dataset to run on.")
+    parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()

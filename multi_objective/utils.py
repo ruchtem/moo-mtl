@@ -5,6 +5,7 @@ import random
 import matplotlib.pyplot as plt
 import collections
 
+from torch.utils.data import DataLoader
 from datetime import datetime
 from pymoo.factory import get_decomposition, get_reference_directions, get_performance_indicator
 from pymoo.visualization.radviz import Radviz
@@ -33,6 +34,23 @@ def dataset_from_name(dataset, **kwargs):
         return coco_loader.COCO(**kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
+
+
+def loaders_from_name(dataset, **kwargs):
+    train = dataset_from_name(dataset, split='train', **kwargs)
+    val = dataset_from_name(dataset, split='val', **kwargs)
+    test = dataset_from_name(dataset, split='test', **kwargs)
+    if dataset in ['adult', 'credit', 'compass', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']:
+        val_bs = len(val)
+        test_bs = len(test)
+    else:
+        val_bs = kwargs['batch_size']
+        test_bs = kwargs['batch_size']
+    return (
+        DataLoader(train, kwargs['batch_size'], shuffle=True, num_workers=kwargs['num_workers']),
+        DataLoader(val, val_bs, num_workers=kwargs['num_workers']),
+        DataLoader(test, test_bs, num_workers=kwargs['num_workers']),
+    )
 
 
 def model_from_dataset(dataset, **kwargs):
@@ -259,9 +277,16 @@ class RunningMean():
         super().__init__()
         self.queue = collections.deque(maxlen=len)
 
-    def __call__(self, x):
+
+    def append(self, x):
         self.queue.append(x)
-        return np.mean(list(self.queue)).item()
+
+
+    def __call__(self, x=None, axis=None):
+        if x is not None:
+            self.queue.append(x)
+        data = np.array(self.queue)
+        return data.mean().item() if axis == None else data.mean(axis=axis)
 
 
 class ParetoFront():

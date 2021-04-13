@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from utils import num_parameters, RunningMinMaxNormalizer
+from utils import num_parameters, RunningMinMaxNormalizer, RunningMean
 from ..base import BaseMethod
 
 
@@ -92,6 +92,9 @@ class COSMOSMethod(BaseMethod):
         dim = list(dim)
         dim[0] = dim[0] + self.K
 
+        self.means = RunningMean(1)
+        self.stds = RunningMean(1)
+
         model.change_input_dim(dim[0])
         self.model = Upsampler(self.K, model, dim).to(self.device)
 
@@ -100,12 +103,13 @@ class COSMOSMethod(BaseMethod):
 
 
     def new_epoch(self, e):
-        self.means = np.zeros(self.K)
-        self.stds = np.ones(self.K)
-        if e>0:
+        if e == 0:
+            self.means.append(np.zeros(self.K))
+            self.stds.append(np.ones(self.K))
+        else:
             data = np.array(self.losses)
-            self.means = data.mean(axis=0)
-            self.stds = data.std(axis=0) + 1e-8
+            self.means.append(data.mean(axis=0))
+            self.stds.append(data.std(axis=0) + 1e-8)
 
             # import matplotlib.pyplot as plt
             # fig, axes = plt.subplots(ncols=3)
@@ -123,7 +127,7 @@ class COSMOSMethod(BaseMethod):
 
 
 
-            print(self.means, self.stds)
+            print(self.means(axis=0), self.stds(axis=0))
 
             
 
@@ -154,7 +158,7 @@ class COSMOSMethod(BaseMethod):
         loss_total = torch.tensor(0, device=self.device).float()
         task_losses = []
         task_losses_norm = []
-        for a, t, mean, std in zip(batch['alpha'], self.task_ids, self.means, self.stds):
+        for a, t, mean, std in zip(batch['alpha'], self.task_ids, self.means(axis=0), self.stds(axis=0)):
             task_loss = self.objectives[t](**batch)
             task_loss_norm = (task_loss - mean) / std    # z normalization (normalize scale)
             if task_loss_norm < -10:
