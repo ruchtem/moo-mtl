@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from utils import num_parameters, RunningMinMaxNormalizer, RunningMean
+from utils import num_parameters, calc_gradients, RunningMean
 from ..base import BaseMethod
 
 
@@ -92,47 +92,14 @@ class COSMOSMethod(BaseMethod):
         dim = list(dim)
         dim[0] = dim[0] + self.K
 
-        self.means = RunningMean(1)
-        self.stds = RunningMean(1)
+        self.data = RunningMean(100)
+        self.lr = kwargs['lr']
 
         model.change_input_dim(dim[0])
         self.model = Upsampler(self.K, model, dim).to(self.device)
 
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
-
-
-    def new_epoch(self, e):
-        if e == 0:
-            self.means.append(np.zeros(self.K))
-            self.stds.append(np.ones(self.K))
-        else:
-            data = np.array(self.losses)
-            self.means.append(data.mean(axis=0))
-            self.stds.append(data.std(axis=0) + 1e-8)
-
-            # import matplotlib.pyplot as plt
-            # fig, axes = plt.subplots(ncols=3)
-            
-            # axes[0].hist(data, bins=20, histtype='step')
-
-            # trans = (data-data.mean(axis=0)) / (data.std(axis=0) + 1e-8)
-            # axes[1].hist(trans, bins=20, histtype='step')
-
-            # sigm = 1/ (1 + np.exp(-trans))
-            # axes[2].hist(sigm, bins=20, histtype='step')
-            # plt.savefig(f'hist_{e}')
-            # plt.close()
-
-
-
-
-            print(self.means(axis=0), self.stds(axis=0))
-
-            
-
-        self.losses = []
-        return super().new_epoch(e)
 
 
     def preference_at_inference(self):
@@ -150,7 +117,9 @@ class COSMOSMethod(BaseMethod):
 
         batch['alpha'] = torch.from_numpy(batch['alpha'].astype(np.float32)).to(self.device)
 
-        
+        # replace with gradnorm
+        grads, _ = calc_gradients(batch, self.model, self.objectives)
+
         # step 2: calculate loss
         self.model.zero_grad()
         logits = self.model(batch)
@@ -158,26 +127,33 @@ class COSMOSMethod(BaseMethod):
         loss_total = torch.tensor(0, device=self.device).float()
         task_losses = []
         task_losses_norm = []
-        for a, t, mean, std in zip(batch['alpha'], self.task_ids, self.means(axis=0), self.stds(axis=0)):
+        stds = []
+        for i, (a, t) in enumerate(zip(batch['alpha'], self.task_ids)):
             task_loss = self.objectives[t](**batch)
-            task_loss_norm = (task_loss - mean) / std    # z normalization (normalize scale)
-            if task_loss_norm < -10:
-                task_loss_norm *= -10 / task_loss_norm
-            elif task_loss_norm > 10:
-                task_loss_norm *= 10 / task_loss_norm
-            task_loss_norm = 1/(1+torch.exp(-task_loss_norm)) # sigmoid   (normalize variance)
+            task_loss_norm = task_loss
+            if len(self.data) > 2:
+                std = self.data.std(axis=0)[i]
+                g = grads[t]
+                task_loss_norm  = task_loss / sum((g_i**2).sum().sqrt() for g_i in g.values()).sqrt().item()
+                # task_loss_norm = task_loss / std    # z normalization (normalize scale)
             loss_total += task_loss_norm * a
-            task_losses.append(task_loss)
+            task_losses.append(task_loss.item())
             task_losses_norm.append(task_loss_norm)
         
-        loss_linearization = sum(task_losses).item()
+        if len(self.data) > 2:
+            c = sum([a.item() * t for a, t in zip(batch['alpha'], task_losses)]) / sum([a.item() * t.item() for a, t in zip(batch['alpha'], task_losses_norm)])
+            # loss_total = loss_total * c
+            print(self.data.std(axis=0), c)
+        
+        # loss_linearization = sum(task_losses).item()
+        loss_linearization = sum(task_losses_norm).item()
 
         cossim = torch.nn.functional.cosine_similarity(torch.stack(task_losses_norm), batch['alpha'], dim=0)
         loss_total -= self.lamda * cossim
-            
+        
         loss_total.backward()
         
-        self.losses.append([l.cpu().detach().numpy() for l in task_losses])
+        self.data.append(task_losses)
 
         return loss_linearization, cossim.item()
 

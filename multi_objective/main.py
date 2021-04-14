@@ -182,6 +182,8 @@ def main(settings):
     model = utils.model_from_dataset(**settings).to(device)
     method = method_from_name(objectives, model, settings)
 
+    utils.GradientMonitor.register_parameters(model)
+
     train_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
     val_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
     test_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
@@ -196,6 +198,7 @@ def main(settings):
         test_results[f"start_{j}"] = {}
 
         optimizer = torch.optim.Adam(method.model_params(), settings['lr'])
+        # optimizer = torch.optim.SGD(method.model_params(), settings['lr'])
         
 
         if lr_scheduler is None:
@@ -220,6 +223,9 @@ def main(settings):
                 batch = utils.dict_to(batch, device)
                 optimizer.zero_grad()
                 stats = method.step(batch)
+                
+                # utils.GradientMonitor.collect_grads(model)
+                
                 optimizer.step()
 
                 loss, sim  = stats if isinstance(stats, tuple) else (stats, 0)
@@ -271,7 +277,7 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='mm', help="The dataset to run on.")
+    parser.add_argument('--dataset', '-d', default='adult', help="The dataset to run on.")
     parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')

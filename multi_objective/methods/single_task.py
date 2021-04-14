@@ -6,14 +6,14 @@ from .base import BaseMethod
 
 class SingleTaskMethod(BaseMethod):
 
-    def __init__(self, objectives, model, task_ids, **kwargs):
-        super().__init__(objectives, model)
+    def __init__(self, objectives, model, **kwargs):
+        super().__init__(objectives, model, **kwargs)
         
         if 'task_id' in kwargs:
             self.task_id = kwargs['task_id']
             self.task_ids = None
         else:
-            self.task_ids = iter(task_ids)
+            self.task_ids = iter(self.task_ids)
 
     
     def new_epoch(self, e):
@@ -30,7 +30,7 @@ class SingleTaskMethod(BaseMethod):
     
 
     def log(self):
-        return {"task": self.task}
+        return {"task": self.task_id}
 
 
     def eval_step(self, batch, preference_vector=None):

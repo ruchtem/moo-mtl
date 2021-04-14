@@ -281,12 +281,21 @@ class RunningMean():
     def append(self, x):
         self.queue.append(x)
 
+    
+    def std(self, axis=None):
+        data = np.array(self.queue)
+        return data.std().item() if axis == None else data.std(axis=axis)
+
 
     def __call__(self, x=None, axis=None):
         if x is not None:
             self.queue.append(x)
         data = np.array(self.queue)
         return data.mean().item() if axis == None else data.mean(axis=axis)
+    
+
+    def __len__(self):
+        return len(self.queue)
 
 
 class ParetoFront():
@@ -332,3 +341,44 @@ class ParetoFront():
             plt.plot(norms[best_sol_idx], 'ro')
         plt.savefig(os.path.join(self.logdir, "norm_{}.png".format(self.prefix)))
         plt.close()
+
+
+
+class GradientMonitor():
+
+    means = {}
+    stds = {}
+
+    _registered = []
+
+
+    @staticmethod
+    def register_parameters(module):
+        for n, p in module.named_parameters():
+            if p.requires_grad:
+                GradientMonitor._registered.append(n)
+        
+        for n in GradientMonitor._registered:
+            GradientMonitor.means[n] = []
+            GradientMonitor.stds[n] = []
+    
+
+    @staticmethod
+    def collect_grads(module):
+        for n, p in module.named_parameters():
+            assert n in GradientMonitor._registered, f"New parameter: {n}"
+            # GradientMonitor.means[n].append(p.grad.abs().mean().item())
+            GradientMonitor.means[n].append((p.grad**2).sum().sqrt().item())
+            GradientMonitor.stds[n].append(p.grad.abs().std().item())
+        
+        if len(GradientMonitor.means[n]) % 200 == 0:
+            for n in GradientMonitor._registered:
+                mean = np.array(GradientMonitor.means[n])
+                std = np.array(GradientMonitor.stds[n])
+                plt.plot(mean, label=n)
+                # plt.fill_between(range(len(std)), mean-std, mean+std, alpha=0.05)
+            
+            plt.yscale('log')
+            plt.legend()
+            plt.savefig('grads.png')
+            plt.close()
