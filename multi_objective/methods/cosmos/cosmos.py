@@ -98,6 +98,8 @@ class COSMOSMethod(BaseMethod):
         model.change_input_dim(dim[0])
         self.model = Upsampler(self.K, model, dim).to(self.device)
 
+        self.bn = {t: torch.nn.BatchNorm1d(1) for t in self.task_ids}
+
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
 
@@ -117,9 +119,6 @@ class COSMOSMethod(BaseMethod):
 
         batch['alpha'] = torch.from_numpy(batch['alpha'].astype(np.float32)).to(self.device)
 
-        # replace with gradnorm
-        grads, _ = calc_gradients(batch, self.model, self.objectives)
-
         # step 2: calculate loss
         self.model.zero_grad()
         logits = self.model(batch)
@@ -127,26 +126,26 @@ class COSMOSMethod(BaseMethod):
         loss_total = torch.tensor(0, device=self.device).float()
         task_losses = []
         task_losses_norm = []
-        stds = []
+        g_norms = []
         for i, (a, t) in enumerate(zip(batch['alpha'], self.task_ids)):
             task_loss = self.objectives[t](**batch)
             task_loss_norm = task_loss
             if len(self.data) > 2:
                 std = self.data.std(axis=0)[i]
-                g = grads[t]
-                task_loss_norm  = task_loss / sum((g_i**2).sum().sqrt() for g_i in g.values()).sqrt().item()
-                # task_loss_norm = task_loss / std    # z normalization (normalize scale)
+                mean = self.data(axis=0)[i]
+                task_loss_norm = (task_loss - mean) / std    # z normalization (normalize scale)
+                task_loss_norm = torch.sigmoid(task_loss_norm)
+                g_norms.append(std)
             loss_total += task_loss_norm * a
             task_losses.append(task_loss.item())
             task_losses_norm.append(task_loss_norm)
         
-        if len(self.data) > 2:
-            c = sum([a.item() * t for a, t in zip(batch['alpha'], task_losses)]) / sum([a.item() * t.item() for a, t in zip(batch['alpha'], task_losses_norm)])
-            # loss_total = loss_total * c
-            print(self.data.std(axis=0), c)
+        # print(g_norms)
+        # print([l.item() for l in task_losses_norm])
+        # print(task_losses)
         
-        # loss_linearization = sum(task_losses).item()
-        loss_linearization = sum(task_losses_norm).item()
+        loss_linearization = sum(task_losses).item()
+        # loss_linearization = sum(task_losses_norm).item()
 
         cossim = torch.nn.functional.cosine_similarity(torch.stack(task_losses_norm), batch['alpha'], dim=0)
         loss_total -= self.lamda * cossim
@@ -163,4 +162,3 @@ class COSMOSMethod(BaseMethod):
         with torch.no_grad():
             batch['alpha'] = torch.from_numpy(preference_vector).to(self.device).float()
             return self.model(batch)
-

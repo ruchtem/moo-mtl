@@ -9,9 +9,11 @@ adult = dict(
     dim=(88,),
     objectives=['BinaryCrossEntropyLoss', 'ddp'],
     epochs=50,
-    use_scheduler=False,
-    lamda=3,
+    # lr_scheduler='MultiStep',
+    lamda=0,
     alpha=1,
+    lr=1e-3,
+    eval_every=1,
 )
 
 credit = dict(
@@ -39,10 +41,11 @@ multi_mnist = dict(
     dim=(1, 36, 36),
     task_ids=['l', 'r'],
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
-    lamda=3,
+    lamda=1,
     alpha=1.2,
-    lr=5e-4,
-    lr_scheduler = "CosineAnnealing",
+    lr=1e-3,
+    # lr_scheduler = "CosineAnnealing",
+    eval_every=1,
 )
 
 multi_fashion = dict(
@@ -59,8 +62,9 @@ multi_fashion_mnist = dict(
     dim=(1, 36, 36),
     task_ids=['l', 'r'],
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
-    lamda=1,
+    lamda=3,
     alpha=1,
+    eval_every=1,
 )
 
 celeba = dict(
