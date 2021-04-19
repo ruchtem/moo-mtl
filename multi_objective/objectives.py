@@ -51,10 +51,13 @@ class BinaryCrossEntropyLoss(torch.nn.BCEWithLogitsLoss):
         return super().__call__(logits, labels)
 
 
-class L1Loss(torch.nn.L1Loss):
+class L1Loss():
+    """
+    Special loss for cityscapes
+    """
 
     def __init__(self, label_name='labels', logits_name='logits'):
-        super().__init__(reduction='mean')
+        super().__init__()
         self.label_name = label_name
         self.logits_name = logits_name
     
@@ -62,7 +65,13 @@ class L1Loss(torch.nn.L1Loss):
     def __call__(self, **kwargs):
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
-        return super().__call__(logits, labels)
+
+        if 'inst' in self.label_name:
+            mask = labels != 0  # zero is ignore index for instances
+            return torch.nn.functional.l1_loss(logits[mask], labels[mask], reduction='mean')
+
+        else:
+            return torch.nn.functional.l1_loss(logits, labels, reduction='mean')
 
 
 class MSELoss(torch.nn.MSELoss):

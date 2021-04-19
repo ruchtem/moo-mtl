@@ -313,5 +313,7 @@ if __name__ == '__main__':
             axarr[j][3].imshow(instances[j,1,:,:])
             d = depth[j]
             axarr[j][4].imshow(d.squeeze())
-        plt.show()
+        # plt.show()
+        plt.savefig('cs.png')
         plt.close()
+        break

@@ -11,7 +11,7 @@ from pymoo.factory import get_decomposition, get_reference_directions, get_perfo
 from pymoo.visualization.radviz import Radviz
 
 from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader, coco_loader
-from models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet, MaskRCNN
+from models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet#, MaskRCNN
 
 def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':
@@ -40,6 +40,10 @@ def loaders_from_name(dataset, **kwargs):
     train = dataset_from_name(dataset, split='train', **kwargs)
     val = dataset_from_name(dataset, split='val', **kwargs)
     test = dataset_from_name(dataset, split='test', **kwargs)
+    if dataset == 'cityscapes' or dataset == 'celeba':
+        train = DebugDataset(val, size=2, replication=80)
+        val = DebugDataset(val, size=2)
+
     if dataset in ['adult', 'credit', 'compass', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']:
         val_bs = len(val)
         test_bs = len(test)
@@ -159,7 +163,7 @@ def get_runname(settings):
     else:
         runname = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     if 'task_id' in settings:
-        runname += f"_{settings['task_id']:03d}"
+        runname += f"_{settings['task_id']}"
     return runname
 
 
@@ -328,19 +332,20 @@ class ParetoFront():
             plt.close()
 
         # plot radviz
-        radviz_plot = Radviz().add(p)
+        p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
+        radviz_plot = Radviz().add(p_normalized)
         if best_sol_idx is not None:
-            radviz_plot.add(p[best_sol_idx], color="red", s=70, label="Solution A")
+            radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
         radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
         plt.close()
 
         norms = np.linalg.norm(p, axis=1)
 
-        plt.plot(norms, 'o')
-        if best_sol_idx is not None:
-            plt.plot(norms[best_sol_idx], 'ro')
-        plt.savefig(os.path.join(self.logdir, "norm_{}.png".format(self.prefix)))
-        plt.close()
+        # plt.plot(norms, 'o')
+        # if best_sol_idx is not None:
+        #     plt.plot(norms[best_sol_idx], 'ro')
+        # plt.savefig(os.path.join(self.logdir, "norm_{}.png".format(self.prefix)))
+        # plt.close()
 
 
 
@@ -353,8 +358,10 @@ class GradientMonitor():
 
 
     @staticmethod
-    def register_parameters(module):
+    def register_parameters(module, filter=None):
         for n, p in module.named_parameters():
+            if filter in n:
+                continue
             if p.requires_grad:
                 GradientMonitor._registered.append(n)
         
@@ -366,12 +373,16 @@ class GradientMonitor():
     @staticmethod
     def collect_grads(module):
         for n, p in module.named_parameters():
-            assert n in GradientMonitor._registered, f"New parameter: {n}"
+            if n not in GradientMonitor._registered:
+                continue
+            
             # GradientMonitor.means[n].append(p.grad.abs().mean().item())
-            GradientMonitor.means[n].append((p.grad**2).sum().sqrt().item())
-            GradientMonitor.stds[n].append(p.grad.abs().std().item())
+            if p.grad is not None:
+                GradientMonitor.means[n].append((p.grad**2).sum().sqrt().item())
+                GradientMonitor.stds[n].append(p.grad.abs().std().item())
         
-        if len(GradientMonitor.means[n]) % 200 == 0:
+        if len(GradientMonitor.means[n]) % 10 == 0:
+            plt.figure(figsize=(20, 20))
             for n in GradientMonitor._registered:
                 mean = np.array(GradientMonitor.means[n])
                 std = np.array(GradientMonitor.stds[n])
@@ -382,3 +393,25 @@ class GradientMonitor():
             plt.legend()
             plt.savefig('grads.png')
             plt.close()
+
+
+class DebugDataset(torch.utils.data.Dataset):
+
+    def __init__(self, dataset, size=8, replication=1) -> None:
+        super().__init__()
+        self.replication = replication
+        self.size = size
+        loader = torch.utils.data.DataLoader(dataset, 1, num_workers=4, collate_fn=lambda x: x)
+        self.data = []
+        for i, b in enumerate(loader):
+            if i >= size:
+                break
+            self.data.append(b[0])
+    
+
+    def __len__(self):
+        return len(self.data) * self.replication
+    
+
+    def __getitem__(self, index):
+        return self.data[index % self.size]

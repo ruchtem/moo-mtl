@@ -7,16 +7,18 @@ from pycocotools.mask import encode, iou
 import objectives as obj
 
 
-def from_objectives(obj_instances, metrics, task_ids, objectives, **kwargs):
+def from_objectives(obj_instances, metrics, objectives, task_ids=None, **kwargs):
     scores = {
         'CrossEntropyLoss': CrossEntropy,
         'BinaryCrossEntropyLoss': BinaryCrossEntropy,
-        'DDPHyperbolicTangentRelaxation': DDP,
+        'ddp': DDP,
         'DEOHyperbolicTangentRelaxation': DEO,
         'MSELoss': L2Distance,
         'L1Loss': L1Loss,
         'mIoU': mIoU,
     }
+    if task_ids is None:
+        task_ids = list(obj_instances.keys())
     result = {
         'loss': {t: scores[o](obj_instances[t].label_name, obj_instances[t].logits_name) for t, o in zip(task_ids, objectives)},
     }
@@ -63,8 +65,13 @@ class L1Loss(BaseScore):
     def __call__(self, **kwargs):
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
+
         with torch.no_grad():
-            return torch.nn.functional.l1_loss(logits, labels.long(), reduction='mean').item()
+            if 'inst' in self.label_name:
+                mask = labels != 0
+                return torch.nn.functional.l1_loss(logits[mask], labels[mask], reduction='mean').item()
+            else:
+                return torch.nn.functional.l1_loss(logits, labels, reduction='mean').item()
 
 
 class mIoU(BaseScore):

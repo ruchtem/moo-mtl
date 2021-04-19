@@ -22,8 +22,11 @@ credit = dict(
     objectives=['BinaryCrossEntropyLoss', 'ddp'],
     epochs=50,
     use_scheduler=False,
-    lamda=3,
-    alpha=1,
+    lamda=5,
+    lr=1e-3,
+    alpha=.5,
+    eval_every=1,
+    batch_size=1024,
 )
 
 compass = dict(
@@ -41,11 +44,10 @@ multi_mnist = dict(
     dim=(1, 36, 36),
     task_ids=['l', 'r'],
     objectives=['CrossEntropyLoss', 'CrossEntropyLoss'],
-    lamda=1,
-    alpha=1.2,
-    lr=1e-3,
-    # lr_scheduler = "CosineAnnealing",
-    eval_every=1,
+    lamda=3,
+    alpha=1,
+    eval_every=5,
+    lr_scheduler='MultiStep',
 )
 
 multi_fashion = dict(
@@ -65,6 +67,7 @@ multi_fashion_mnist = dict(
     lamda=3,
     alpha=1,
     eval_every=1,
+    lr_scheduler='MultiStep',
 )
 
 celeba = dict(
@@ -73,20 +76,20 @@ celeba = dict(
     # task_ids=[16, 22],                                    # easy tasks
     # task_ids=[25, 27],                                    # hard tasks
     # task_ids=[16, 22, 24],                                # 3 objectives
-    # task_ids=[26, 22, 24, 26],                            # 4 objectives
+    task_ids=[16, 22, 24, 26],                            # 4 objectives
     # task_ids=[random.randint(0, 39) for _ in range(10)],  # 10 random tasks
-    task_ids=list(range(40)),                             # all tasks
-    n_partitions=2,
+    # task_ids=list(range(40)),                             # all tasks
+    n_partitions=3,
     objectives=['BinaryCrossEntropyLoss' for _ in range(40)],
-    reference_point=[1 for _ in range(40)],
-    epochs=25,
-    use_scheduler=False,
+    reference_point=[1 for _ in range(4)],
+    epochs=100,
+    lr_scheduler='MultiStep',
     train_eval_every=0,     # do it in parallel manually
-    eval_every=0,           #
+    eval_every=5,           #
     model_name='efficientnet-b4',   # we also experimented with 'resnet-18', try it.
-    lr=0.0005,
-    lamda=3,
-    alpha=1,
+    lr=0.0001,
+    lamda=1,
+    alpha=.5,
     checkpoint_every=1,
     batch_size=32,
 )
@@ -98,15 +101,15 @@ cityscapes = dict(
     objectives=['CrossEntropyLoss', 'L1Loss', 'L1Loss'],
     metrics=['mIoU', 'L1Loss', 'L1Loss'],
     batch_size=8,
-    epochs=250,
+    epochs=200,
     n_partitions=5,
-    lamda=5,
-    lr=0.0001,
-    eval_every=5,
+    lamda=.5,
+    lr=0.0005,
+    eval_every=3,
     approximate_norm_solution=True,
-    normalization_type='loss+',
-    use_scheduler=False,
-    alpha=1,
+    normalization_type='l2',
+    lr_scheduler='MultiStep',
+    alpha=1.3,
 )
 
 coco = dict(
