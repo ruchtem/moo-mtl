@@ -9,7 +9,7 @@ from ..base import BaseMethod
 class Upsampler(nn.Module):
 
 
-    def __init__(self, K, child_model, input_dim, upsample_fraction=1.):
+    def __init__(self, K, child_model, input_dim, upsample_fraction=.75):
         """
         In case of tabular data: append the sampled rays to the data instances (no upsampling)
         In case of image data: use a transposed CNN for the sampled rays.
@@ -29,7 +29,6 @@ class Upsampler(nn.Module):
                 nn.ConvTranspose2d(K, K, kernel_size=4, stride=1, padding=0, bias=False),
                 nn.ReLU(inplace=True),
                 nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
-                nn.ReLU(inplace=True),
             )
         else:
             raise ValueError(f"Unknown dataset structure, expected 1 or 3 dimensions, got {input_dim}")
@@ -61,10 +60,12 @@ class Upsampler(nn.Module):
             result[:, 0:channels] = x
 
             # Write a into the middle of the tensor
-            idx_height = (result.shape[-2] - a.shape[-2]) // 2
-            idx_width = (result.shape[-1] - a.shape[-1]) // 2
-            if idx_height > 0:
-                result[:, channels:, idx_height:-idx_height, idx_width:-idx_width] = a
+            height_start = (result.shape[-2] - a.shape[-2]) // 2
+            height_end = (result.shape[-2] - a.shape[-2]) - height_start
+            width_start = (result.shape[-1] - a.shape[-1]) // 2
+            width_end = (result.shape[-1] - a.shape[-1]) - width_start
+            if height_start > 0:
+                result[:, channels:, height_start:-height_end, width_start:-width_end] = a
             else:
                 result[:, channels:] = a
 
@@ -92,8 +93,8 @@ class COSMOSMethod(BaseMethod):
         dim = list(dim)
         dim[0] = dim[0] + self.K
 
-        self.data = RunningMean(100)
-        self.lr = kwargs['lr']
+        self.data = RunningMean(20)     # should be updates per epoch
+        self.alphas = RunningMean(20)
 
         model.change_input_dim(dim[0])
         self.model = Upsampler(self.K, model, dim).to(self.device)
@@ -106,6 +107,26 @@ class COSMOSMethod(BaseMethod):
 
     def preference_at_inference(self):
         return True
+    
+
+    def new_epoch(self, e):
+        if e > 2:
+            data = np.array(self.data.queue)
+            # self.means.append(data.mean(axis=0))
+            # self.stds.append(data.std(axis=0) + 1e-8)
+
+            # import matplotlib.pyplot as plt
+            # fig, axes = plt.subplots(ncols=3)
+
+            # axes[0].hist(data, bins=20, histtype='step')
+
+            # trans = (data-data.mean(axis=0)) / (data.std(axis=0) + 1e-8)
+            # axes[1].hist(trans, bins=20, histtype='step')
+
+            # sigm = 1/ (1 + np.exp(-trans))
+            # axes[2].hist(sigm, bins=20, histtype='step')
+            # plt.savefig(f'hist_{e}')
+            # plt.close()
 
 
     def step(self, batch):
@@ -131,20 +152,35 @@ class COSMOSMethod(BaseMethod):
             task_loss = self.objectives[t](**batch)
             task_loss_norm = task_loss
             if len(self.data) > 2:
-                std = self.data.std(axis=0)[i]
-                mean = self.data(axis=0)[i]
-                task_loss_norm = (task_loss - mean) / std    # z normalization (normalize scale)
-                task_loss_norm = torch.sigmoid(task_loss_norm)
-                g_norms.append(std)
+                # std = self.data.std(axis=0)[i]
+                # mean = self.data(axis=0)[i]
+                data = np.array(self.data.queue)
+                min = data.min(axis=0)[i]
+                max = data.max(axis=0)[i]
+                # task_loss_norm = (task_loss - mean) / std    # z normalization (normalize scale)
+                task_loss_norm = (task_loss - min) / (max - min + 1e-8)     # min max norm
+                task_loss_norm = torch.abs(task_loss_norm)
+
+                # scale to range of sampled alphas
+                min_a = np.array(self.alphas.queue).min(axis=0)[i]
+                max_a = np.array(self.alphas.queue).max(axis=0)[i]
+                task_loss_norm = (task_loss_norm * (max_a - min_a)) + min_a
+                # if task_loss_norm < -4:
+                #     task_loss_norm *= -4 / task_loss_norm
+                # if task_loss_norm > 4:
+                #     task_loss_norm *= 4 / task_loss_norm
+                # task_loss_norm = torch.sigmoid(task_loss_norm)
+                # g_norms.append(std)
             loss_total += task_loss_norm * a
             task_losses.append(task_loss.item())
             task_losses_norm.append(task_loss_norm)
         
         # print(g_norms)
         # print([l.item() for l in task_losses_norm])
+        # print([a.item() for a in batch['alpha']])
         # print(task_losses)
         
-        loss_linearization = sum(task_losses).item()
+        loss_linearization = sum(task_losses)
         # loss_linearization = sum(task_losses_norm).item()
 
         cossim = torch.nn.functional.cosine_similarity(torch.stack(task_losses_norm), batch['alpha'], dim=0)
@@ -153,8 +189,11 @@ class COSMOSMethod(BaseMethod):
         loss_total.backward()
         
         self.data.append(task_losses)
+        self.alphas.append(batch['alpha'].cpu().detach().numpy())
 
-        return loss_linearization, cossim.item()
+        n = np.array([l.item() for l in task_losses_norm])
+
+        return loss_linearization, cossim.item(), np.array2string(n, formatter={'float': '{: 0.3f}'.format})
 
 
     def eval_step(self, batch, preference_vector):

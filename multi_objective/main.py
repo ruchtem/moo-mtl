@@ -170,10 +170,10 @@ def main(settings):
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
     # prepare
-    train_loader, val_loader, test_loader = utils.loaders_from_name(**settings)
-
     objectives = from_name(**settings)
     scores = from_objectives(objectives, **settings)
+
+    train_loader, val_loader, test_loader = utils.loaders_from_name(**settings)
 
     rm1 = utils.RunningMean(400)
     rm2 = utils.RunningMean(400)
@@ -182,7 +182,7 @@ def main(settings):
     model = utils.model_from_dataset(**settings).to(device)
     method = method_from_name(objectives, model, settings)
 
-    utils.GradientMonitor.register_parameters(model)
+    utils.GradientMonitor.register_parameters(model, filter='encoder')
 
     train_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
     val_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
@@ -228,9 +228,9 @@ def main(settings):
                 
                 optimizer.step()
 
-                loss, sim  = stats if isinstance(stats, tuple) else (stats, 0)
+                loss, sim, norm  = stats if isinstance(stats, tuple) else (stats, 0, 0)
                 assert not math.isnan(loss) and not math.isnan(sim)
-                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}, sim {:.4f}, rm train_loss {:.3f}, rm sim {:.3f}".format(e, b, loss, sim, rm1(loss), rm2(sim)))
+                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}, rm train_loss {:.3f}, rm sim {:.3f}, norm {}".format(e, b, loss, rm1(loss), rm2(sim), norm))
 
             tock = time.time()
             elapsed_time += (tock - tick)
@@ -277,10 +277,10 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='adult', help="The dataset to run on.")
+    parser.add_argument('--dataset', '-d', default='cityscapes', help="The dataset to run on.")
     parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
-    parser.add_argument('--task_id', '-t', default=None, type=int, help='Task id to run single task in parallel. If not set then sequentially.')
+    parser.add_argument('--task_id', '-t', default=None, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()
 
     settings = s.generic
