@@ -158,11 +158,13 @@ def set_seed(seed):
 
 
 def get_runname(settings):
-    slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ and 'hpo' not in settings['logdir'] else None
+    slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ else None
+    slurm_task_id = os.environ['SLURM_ARRAY_TASK_ID'] if 'SLURM_ARRAY_TASK_ID' in os.environ else None
+
     if slurm_job_id:
         runname = f"{slurm_job_id}"
-        if 'ablation' in settings['logdir']:
-            runname += f"_{settings['lamda']}_{settings['alpha']}"
+        if slurm_task_id:
+            runname += f"_{slurm_task_id}"
     else:
         runname = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     if 'task_id' in settings:
