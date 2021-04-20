@@ -1,0 +1,21 @@
+
+dataset: credit
+dim: [90]
+objectives: [BinaryCrossEntropyLoss, ddp]
+epochs: 50
+eval_every: 1
+
+# results of hpo
+cosmos:
+  lamda: 2.
+  alpha: .2
+
+mgda:
+  normalization_type: 'loss'
+
+
+# phn: defaults
+
+# pmtl: defaults
+
+# single_task: defaults. Please provide a task id when running the experiment
