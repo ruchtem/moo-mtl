@@ -22,13 +22,11 @@ from fvcore.common.config import CfgNode
 
 from rtb import log_every_n_seconds, log_first_n, setup_logger
 
-import defaults
-import utils
-from objectives import from_name
+from multi_objective import defaults, utils
+from multi_objective.objectives import from_name
 
-
-from methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMethod, MGDAMethod, UniformScalingMethod
-from scores import from_objectives
+from multi_objective.methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMethod, MGDAMethod, UniformScalingMethod
+from multi_objective.scores import from_objectives
 
 
 def method_from_name(method, objectives, model, cfg):
