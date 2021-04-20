@@ -3,10 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
 
-from min_norm_solvers import MinNormSolver
+from multi_objective.min_norm_solvers import MinNormSolver
 
-from utils import calc_gradients, reference_points, model_from_dataset, reset_weights
-from ..base import BaseMethod
+from multi_objective.utils import calc_gradients, reference_points, model_from_dataset, reset_weights
+from .base import BaseMethod
 
 
 def get_d_paretomtl_init(grads, losses, preference_vectors, pref_idx):

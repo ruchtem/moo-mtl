@@ -1,6 +1,6 @@
 import torch
 
-from models.pspnet.pspnet import get_segmentation_encoder, SegmentationDecoder
+from .pspnet import get_segmentation_encoder, SegmentationDecoder
 
 
 class PspNetWrapper(torch.nn.Module):

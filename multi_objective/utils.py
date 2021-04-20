@@ -10,8 +10,9 @@ from datetime import datetime
 from pymoo.factory import get_decomposition, get_reference_directions, get_performance_indicator
 from pymoo.visualization.radviz import Radviz
 
-from loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader, coco_loader
-from models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet#, MaskRCNN
+
+from .loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader, coco_loader
+from .models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet#, MaskRCNN
 
 def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':
@@ -40,9 +41,10 @@ def loaders_from_name(dataset, **kwargs):
     train = dataset_from_name(dataset, split='train', **kwargs)
     val = dataset_from_name(dataset, split='val', **kwargs)
     test = dataset_from_name(dataset, split='test', **kwargs)
-    if dataset == 'cityscapes' or dataset == 'celeba':
-        train = DebugDataset(val, size=2, replication=80)
-        val = DebugDataset(val, size=2)
+    
+    # if dataset == 'cityscapes' or dataset == 'celeba':
+    #     train = DebugDataset(val, size=2, replication=80)
+    #     val = DebugDataset(val, size=2)
 
     if dataset in ['adult', 'credit', 'compass', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']:
         val_bs = len(val)

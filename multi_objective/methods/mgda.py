@@ -4,9 +4,9 @@
 import torch
 from torch.autograd import Variable
 
-from ..base import BaseMethod
-from min_norm_solvers import MinNormSolver, gradient_normalizers
-from utils import calc_gradients
+from .base import BaseMethod
+from multi_objective.min_norm_solvers import MinNormSolver, gradient_normalizers
+from multi_objective.utils import calc_gradients
 
 
 class MGDAMethod(BaseMethod):

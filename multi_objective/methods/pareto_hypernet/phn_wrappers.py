@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 
-from utils import num_parameters
+from multi_objective.utils import num_parameters
 from ..base import BaseMethod
 
 from .models import PHNHyper, PHNTarget

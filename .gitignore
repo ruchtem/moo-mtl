@@ -5,6 +5,7 @@ saved_models/
 tmp/
 results*/
 
+*.out
 *.pdf
 *.png
 *.json

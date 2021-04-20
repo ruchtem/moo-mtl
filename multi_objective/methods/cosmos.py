@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from utils import num_parameters, calc_gradients, RunningMean
-from ..base import BaseMethod
+from multi_objective.utils import num_parameters, calc_gradients, RunningMean
+from .base import BaseMethod
 
 
 class Upsampler(nn.Module):

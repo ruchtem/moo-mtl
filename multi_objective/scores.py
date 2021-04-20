@@ -4,7 +4,7 @@ import numpy as np
 from abc import abstractmethod
 from pycocotools.mask import encode, iou
 
-import objectives as obj
+import multi_objective.objectives as obj
 
 
 def from_objectives(obj_instances, metrics, objectives, task_ids=None, **kwargs):

@@ -1,6 +1,6 @@
 import torch
 
-from utils import model_from_dataset
+from multi_objective.utils import model_from_dataset
 from .base import BaseMethod
 
 
