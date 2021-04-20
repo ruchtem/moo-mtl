@@ -12,7 +12,7 @@ def from_name(objectives, task_ids=None, **kwargs):
         'ddp': DDPHyperbolicTangentRelaxation,
         'deo': DEOHyperbolicTangentRelaxation,
     }
-    if task_ids is not None:
+    if len(task_ids) > 0:
         return {t: map[n]("labels_{}".format(t), "logits_{}".format(t)) for n, t in zip(objectives, task_ids)}
     else:
         print("WARNING: No task ids specified, assuming all objectives use the same default output.")

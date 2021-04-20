@@ -5,15 +5,14 @@ from abc import abstractmethod
 class BaseMethod():
 
 
-    def __init__(self, objectives, model, device, task_ids=None, **kwargs) -> None:
+    def __init__(self, objectives, model, cfg) -> None:
         super().__init__()
         self.objectives = objectives
         self.model = model
-        self.device = device
+        self.device = cfg.device
+        self.task_ids = cfg.task_ids
 
-        if task_ids is not None:
-            self.task_ids = task_ids
-        else:
+        if len(self.task_ids) == 0:
             self.task_ids = list(objectives.keys())
 
 

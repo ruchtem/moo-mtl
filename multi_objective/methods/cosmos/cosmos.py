@@ -74,7 +74,7 @@ class Upsampler(nn.Module):
 
 class COSMOSMethod(BaseMethod):
 
-    def __init__(self, objectives, model, alpha, lamda, dim, **kwargs):
+    def __init__(self, objectives, model, cfg):
         """
         Instanciate the cosmos solver.
 
@@ -85,12 +85,12 @@ class COSMOSMethod(BaseMethod):
             dim: Dimensions of the data
             n_test_rays: The number of test rays used for evaluation.
         """
-        super().__init__(objectives, model, **kwargs)
+        super().__init__(objectives, model, cfg)
         self.K = len(objectives)
-        self.alpha = alpha
-        self.lamda = lamda
+        self.alpha = cfg.cosmos.alpha
+        self.lamda = cfg.cosmos.lamda
 
-        dim = list(dim)
+        dim = list(cfg.dim)
         dim[0] = dim[0] + self.K
 
         self.data = RunningMean(20)     # should be updates per epoch

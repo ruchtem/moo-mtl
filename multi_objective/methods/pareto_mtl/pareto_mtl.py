@@ -104,17 +104,17 @@ def get_d_paretomtl(grads, losses, preference_vectors, pref_idx):
 
 class ParetoMTLMethod(BaseMethod):
 
-    def __init__(self, objectives, num_starts, **kwargs):
-        assert len(objectives) <= 2
-        self.objectives = objectives
-        self.num_pareto_points = num_starts
+    def __init__(self, objectives, model, cfg):
+        super().__init__(objectives, model, cfg)
+        
+        assert len(self.objectives) <= 2
+        self.num_pareto_points = cfg.pmtl.num_starts
         self.init_solution_found = False
 
-        self.model = model_from_dataset(method='paretoMTL', **kwargs).cuda()
         self.pref_idx = -1
         # the original ref_vec can be obtained by circle_points(self.num_pareto_points, min_angle=0.0, max_angle=0.5 * np.pi)
         # we use the same min angle / max angle as for the other methods for comparison.
-        self.ref_vec = torch.Tensor(reference_points(self.num_pareto_points)).cuda().float()
+        self.ref_vec = torch.Tensor(reference_points(self.num_pareto_points)).to(cfg.device).float()
 
 
     def new_epoch(self, e):
@@ -189,11 +189,11 @@ class ParetoMTLMethod(BaseMethod):
             # run normal update
             gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
             
-            grads = [torch.cat([torch.flatten(v) for k, v in sorted(grads.items())]) for grads in gradients]
+            grads = [torch.cat([torch.flatten(v) for k, v in sorted(gradients[t].items())]) for t in self.task_ids]
             grads = torch.stack(grads)
             
             # calculate the weights
-            losses_vec = torch.Tensor(obj_values).cuda()
+            losses_vec = torch.Tensor([obj_values[t] for t in self.task_ids]).to(self.device)
             weight_vec = get_d_paretomtl(grads, losses_vec, self.ref_vec, self.pref_idx)
             
             normalize_coeff = len(self.objectives) / torch.sum(torch.abs(weight_vec))
@@ -201,10 +201,10 @@ class ParetoMTLMethod(BaseMethod):
             
             # optimization step
             loss_total = None
-            for a, objective in zip(weight_vec, self.objectives):
+            for a, t in zip(weight_vec, self.task_ids):
                 logits = self.model(batch)
                 batch.update(logits)
-                task_loss = objective(**batch)
+                task_loss = self.objectives[t](**batch)
 
                 loss_total = a * task_loss if not loss_total else loss_total + a * task_loss
             
@@ -214,4 +214,4 @@ class ParetoMTLMethod(BaseMethod):
     
     def eval_step(self, batch):
         self.model.eval()
-        return [self.model(batch)]
+        return self.model(batch)

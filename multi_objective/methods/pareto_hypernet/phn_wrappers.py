@@ -86,34 +86,30 @@ class FCPHNTarget(nn.Module):
 
 class HypernetMethod(BaseMethod):
 
-    def __init__(self, objectives, model, dim, n_test_rays, alpha, internal_solver, normalize_rays, **kwargs):
-        super().__init__(objectives, model, **kwargs)
-        self.n_test_rays = n_test_rays
-        self.alpha = alpha
+    def __init__(self, objectives, model, cfg):
+        super().__init__(objectives, model, cfg)
+        self.alpha = cfg.phn.alpha
         self.K = len(objectives)
 
-        if normalize_rays:
-            raise NotImplementedError()
-
-        if len(dim) == 1:
+        if len(cfg.dim) == 1:
             # tabular
-            hnet = FCPHNHyper(dim, ray_hidden_dim=100)
+            hnet = FCPHNHyper(cfg.dim, ray_hidden_dim=100)
             net = FCPHNTarget()
-        elif len(dim) ==3:
+        elif len(cfg.dim) == 3:
             # image
             hnet: nn.Module = LeNetPHNHyper([9, 5], ray_hidden_dim=100)
             net: nn.Module = LeNetPHNTargetWrapper([9, 5])
         else:
-            raise ValueError(f"Unkown dim {dim}, expected len 1 or len 3")
+            raise ValueError(f"Unkown dim {cfg.dim}, expected len 1 or len 3")
 
         print("Number of parameters: {}".format(num_parameters(hnet)))
 
         self.model = hnet.to(self.device)
         self.net = net.to(self.device)
 
-        if internal_solver == 'linear':
+        if cfg.phn.internal_solver == 'linear':
             self.solver = LinearScalarizationSolver(n_tasks=len(objectives))
-        elif internal_solver == 'epo':
+        elif cfg.phn.internal_solver == 'epo':
             self.solver = EPOSolver(n_tasks=len(objectives), n_params=num_parameters(hnet))
 
 

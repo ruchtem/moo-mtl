@@ -11,10 +11,10 @@ from utils import calc_gradients
 
 class MGDAMethod(BaseMethod):
 
-    def __init__(self, objectives, model, approximate_norm_solution, normalization_type, **kwargs) -> None:
-        super().__init__(objectives, model, **kwargs)
-        self.approximate_norm_solution = approximate_norm_solution
-        self.normalization_type = normalization_type
+    def __init__(self, objectives, model, cfg) -> None:
+        super().__init__(objectives, model, cfg)
+        self.approximate_norm_solution = cfg.mgda.approximate_norm_solution
+        self.normalization_type = cfg.mgda.normalization_type
 
 
     def step(self, batch):
@@ -71,7 +71,7 @@ class MGDAMethod(BaseMethod):
             loss_total = a * task_loss if not loss_total else loss_total + a * task_loss
             
         loss_total.backward()
-        return loss_total.item(), min_norm
+        return loss_total.item()
 
 
     @torch.no_grad()

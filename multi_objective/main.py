@@ -17,9 +17,10 @@ import json
 import math
 import matplotlib.pyplot as plt
 from torch.utils import data
+from fvcore.common.config import CfgNode
 
 
-import settings as s
+import defaults
 import utils
 from objectives import from_name
 
@@ -28,7 +29,7 @@ from methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMet
 from scores import from_objectives
 
 
-def method_from_name(objectives, model, settings):
+def method_from_name(method, objectives, model, cfg):
     """
     Initializes the method specified in settings along with its configuration.
 
@@ -42,26 +43,23 @@ def method_from_name(objectives, model, settings):
     Returns:
         Method. The configured method instance.
     """
-    method = settings['method']
-    settings = settings.copy()
-    settings.pop('objectives')
-    if method == 'ParetoMTL':
-        return ParetoMTLMethod(objectives, model, **settings)
+    if method == 'pmtl':
+        return ParetoMTLMethod(objectives, model, cfg)
     elif 'cosmos' in method:
-        return COSMOSMethod(objectives, model, **settings)
-    elif method == 'SingleTask':
-        return SingleTaskMethod(objectives, model, **settings)
-    elif 'hyper' in method:
-        return HypernetMethod(objectives, model, **settings)
+        return COSMOSMethod(objectives, model, cfg)
+    elif method == 'single_task':
+        return SingleTaskMethod(objectives, model, cfg)
+    elif 'phn' in method:
+        return HypernetMethod(objectives, model, cfg)
     elif method == 'mgda':
-        return MGDAMethod(objectives, model, **settings)
+        return MGDAMethod(objectives, model, cfg)
     elif method == 'uniform':
-        return UniformScalingMethod(objectives, model, **settings)
+        return UniformScalingMethod(objectives, model, **cfg)
     else:
         raise ValueError("Unkown method {}".format(method))
 
 
-def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, train_time, settings):
+def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, train_time, cfg):
     """
     Evaluate the method on a given dataset split. Calculates:
     - score for all the scores given in `scores`
@@ -87,15 +85,15 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
     """
     assert split in ['train', 'val', 'test']
     
-    if 'task_ids' in settings:
-        J = len(settings['task_ids'])
-        task_ids = settings['task_ids']
+    if len(cfg.task_ids) > 0:
+        J = len(cfg['task_ids'])
+        task_ids = cfg['task_ids']
     else:
         # single output setting
-        J = len(settings['objectives'])
+        J = len(cfg['objectives'])
         task_ids = list(scores[list(scores)[0]].keys())
 
-    pareto_rays = utils.reference_points(settings['n_partitions'], dim=J)
+    pareto_rays = utils.reference_points(cfg['n_partitions'], dim=J)
     n_rays = pareto_rays.shape[0]
     print(n_rays)
     
@@ -103,7 +101,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
     score_values = {et: utils.EvalResult(J, n_rays, task_ids) for et in scores.keys()}
     for b, batch in enumerate(data_loader):
         print(f"Eval {b} of {len(data_loader)}")
-        batch = utils.dict_to(batch, settings['device'])
+        batch = utils.dict_to(batch, cfg['device'])
                 
         if method.preference_at_inference():
             data = {et: np.zeros((n_rays, J)) for et in scores.keys()}
@@ -129,7 +127,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
     for v in score_values.values():
         v.normalize()
         if method.preference_at_inference():
-            v.compute_hv(settings['reference_point'])
+            v.compute_hv(cfg['reference_point'])
             v.compute_optimal_sol()
 
     # plot pareto front to pf
@@ -159,68 +157,66 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
     return result_dict
 
 
-def main(settings):
-    print("start processig with settings", settings)
-    utils.set_seed(settings['seed'])
-    device = settings['device']
-    lr_scheduler = settings['lr_scheduler']
+def main(method_name, cfg, tag=''):
+    print("start processig with settings", cfg)
+    utils.set_seed(cfg['seed'])
+    lr_scheduler = cfg[method_name].lr_scheduler
 
     # create the experiment folders
-    logdir = os.path.join(settings['logdir'], settings['method'], settings['dataset'], utils.get_runname(settings))
+    logdir = os.path.join(cfg['logdir'], method_name, cfg['dataset'], utils.get_runname(cfg) + f'_{tag}')
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
     # prepare
-    objectives = from_name(**settings)
-    scores = from_objectives(objectives, **settings)
+    objectives = from_name(**cfg)
+    scores = from_objectives(objectives, **cfg)
 
-    train_loader, val_loader, test_loader = utils.loaders_from_name(**settings)
+    train_loader, val_loader, test_loader = utils.loaders_from_name(**cfg)
 
-    rm1 = utils.RunningMean(400)
-    rm2 = utils.RunningMean(400)
+    rm1 = utils.RunningMean(len(train_loader))
+    rm2 = utils.RunningMean(len(train_loader))
     elapsed_time = 0
 
-    model = utils.model_from_dataset(**settings).to(device)
-    method = method_from_name(objectives, model, settings)
+    model = utils.model_from_dataset(**cfg).to(cfg.device)
+    method = method_from_name(method_name, objectives, model, cfg)
 
     utils.GradientMonitor.register_parameters(model, filter='encoder')
 
-    train_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
-    val_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
-    test_results = dict(settings=settings, num_parameters=utils.num_parameters(method.model_params()))
+    train_results = dict(settings=cfg, num_parameters=utils.num_parameters(method.model_params()))
+    val_results = dict(settings=cfg, num_parameters=utils.num_parameters(method.model_params()))
+    test_results = dict(settings=cfg, num_parameters=utils.num_parameters(method.model_params()))
 
     with open(pathlib.Path(logdir) / "settings.json", "w") as file:
         json.dump(train_results, file)
 
     # main
-    for j in range(settings['num_starts']):
+    num_starts = cfg[method_name].num_starts if 'num_starts' in cfg[method_name] else 1
+    for j in range(num_starts):
         train_results[f"start_{j}"] = {}
         val_results[f"start_{j}"] = {}
         test_results[f"start_{j}"] = {}
 
-        optimizer = torch.optim.Adam(method.model_params(), settings['lr'])
-        # optimizer = torch.optim.SGD(method.model_params(), settings['lr'])
-        
+        optimizer = torch.optim.Adam(method.model_params(), cfg.lr)
 
-        if lr_scheduler is None:
+        if lr_scheduler == 'None':
             scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lambda epoch: 1.)    # does nothing to the lr
         elif lr_scheduler == "CosineAnnealing":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=settings['epochs'])
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg['epochs'])
         elif lr_scheduler == "MultiStep":
-            if settings['scheduler_milestones'] is None:
-                milestones = [int(.33 * settings['epochs']), int(.66 * settings['epochs'])]
+            if cfg['scheduler_milestones'] is None:
+                milestones = [int(.33 * cfg['epochs']), int(.66 * cfg['epochs'])]
             else:
-                milestones = settings['scheduler_milestones']
+                milestones = cfg['scheduler_milestones']
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1)
         else:
             raise ValueError(f"Unknown lr scheduler {lr_scheduler}")
         
-        for e in range(settings['epochs']):
+        for e in range(cfg['epochs']):
             print(f"Epoch {e}")
             tick = time.time()
             method.new_epoch(e)
 
             for b, batch in enumerate(train_loader):
-                batch = utils.dict_to(batch, device)
+                batch = utils.dict_to(batch, cfg.device)
                 optimizer.zero_grad()
                 stats = method.step(batch)
                 
@@ -240,23 +236,23 @@ def main(settings):
             scheduler.step()
 
             # run eval on train set (mainly for debugging)
-            if settings['train_eval_every'] > 0 and (e+1) % settings['train_eval_every'] == 0:
+            if cfg['train_eval_every'] > 0 and (e+1) % cfg['train_eval_every'] == 0:
                 train_results = evaluate(j, e, method, scores, train_loader,
                     split='train',
                     result_dict=train_results,
                     logdir=logdir,
                     train_time=elapsed_time,
-                    settings=settings,)
+                    cfg=cfg,)
 
             
-            if settings['eval_every'] > 0 and (e+1) % settings['eval_every'] == 0:
+            if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0:
                 # Validation results
                 val_results = evaluate(j, e, method, scores, val_loader,
                     split='val',
                     result_dict=val_results,
                     logdir=logdir,
                     train_time=elapsed_time,
-                    settings=settings,)
+                    cfg=cfg,)
 
                 # Test results
                 # test_results = evaluate(j, e, method, scores, test_loader,
@@ -267,7 +263,7 @@ def main(settings):
                 #     settings=settings,)
 
             # Checkpoints
-            if settings['checkpoint_every'] > 0 and (e+1) % settings['checkpoint_every'] == 0:
+            if cfg['checkpoint_every'] > 0 and (e+1) % cfg['checkpoint_every'] == 0:
                 pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
                 torch.save(method.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
 
@@ -277,57 +273,30 @@ def main(settings):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', '-d', default='cityscapes', help="The dataset to run on.")
+    parser.add_argument('config', help="Config file.")
     parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
+    parser.add_argument('--tag', default='', type=str, help="Experiment tag")
     parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
     parser.add_argument('--task_id', '-t', default=None, help='Task id to run single task in parallel. If not set then sequentially.')
     args = parser.parse_args()
 
-    settings = s.generic
+    cfg = defaults.get_cfg_defaults()
+    cfg.merge_from_file(args.config)
     
-    if args.method == 'single_task':
-        settings.update(s.SingleTaskSolver)
-        if args.task_id is not None:
-            settings['num_starts'] = 1
-            settings['task_id'] = args.task_id
-    elif args.method == 'cosmos':
-        settings.update(s.cosmos)
-    elif args.method == 'hyper_ln':
-        settings.update(s.hyperSolver_ln)
-    elif args.method == 'hyper_epo':
-        settings.update(s.hyperSolver_epo)
-    elif args.method == 'pmtl':
-        settings.update(s.paretoMTL)
-    elif args.method == 'mgda':
-        settings.update(s.mgda)
-    elif args.method == 'uniform':
-        settings.update(s.uniform_scaling)
+    if args.method == 'single_task' and args.task_id is not None:
+            cfg.single_task.task_id = args.task_id
     
-    if args.dataset == 'mm':
-        settings.update(s.multi_mnist)
-    elif args.dataset == 'adult':
-        settings.update(s.adult)
-    elif args.dataset == 'mfm':
-        settings.update(s.multi_fashion_mnist)
-    elif args.dataset == 'fm':
-        settings.update(s.multi_fashion)
-    elif args.dataset == 'credit':
-        settings.update(s.credit)
-    elif args.dataset == 'compass':
-        settings.update(s.compass)
-    elif args.dataset == 'celeba':
-        settings.update(s.celeba)
-    elif args.dataset == 'cityscapes':
-        settings.update(s.cityscapes)
-    elif args.dataset == 'coco':
-        settings.update(s.coco)
-    
-    settings['seed'] = args.seed
+    cfg.seed = args.seed
+    cfg.freeze()
 
-    return settings
+    tag = args.tag
+    if args.method == 'single_task':
+        tag += str(cfg.single_task.task_id)
+
+    return args.method, cfg, tag
 
 
 if __name__ == "__main__":
     
-    settings = parse_args()
-    main(settings)
+    method, cfg, tag = parse_args()
+    main(method, cfg, tag)

@@ -17,7 +17,7 @@ def from_objectives(obj_instances, metrics, objectives, task_ids=None, **kwargs)
         'L1Loss': L1Loss,
         'mIoU': mIoU,
     }
-    if task_ids is None:
+    if len(task_ids) == 0:
         task_ids = list(obj_instances.keys())
     result = {
         'loss': {t: scores[o](obj_instances[t].label_name, obj_instances[t].logits_name) for t, o in zip(task_ids, objectives)},
