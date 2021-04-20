@@ -132,6 +132,8 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
         if method.preference_at_inference():
             v.compute_hv(cfg['reference_point'])
             v.compute_optimal_sol()
+            v.compute_angle()
+
 
     # plot pareto front to pf
     for eval_mode, score in score_values.items():
@@ -279,6 +281,13 @@ def main(method_name, cfg, tag=''):
 
         pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
         torch.save(method.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, 999999)))
+    
+        epoch_results = val_results['start_0'][f'epoch_{e}']['loss']
+        if 'hv' in epoch_results:
+            return epoch_results['hv'], epoch_results['max_angle']
+        else:
+            # maximize the negative norm, i.e. min norm
+            return -np.linalg.norm(epoch_results['center_ray'])
 
 
 def parse_args():
@@ -312,4 +321,5 @@ if __name__ == "__main__":
     args, tag = parse_args()
     cfg = get_config(args.config, args.opts)
 
-    main(args.method, cfg, tag)
+    res = main(args.method, cfg, tag)
+    print(res)

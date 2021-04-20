@@ -9,7 +9,7 @@ eval_every: 2
 # results of hpo
 cosmos:
   lamda: 3.
-  alpha: 1.
+  alpha: [1.]
   lr_scheduler: MultiStep
 
 mgda:

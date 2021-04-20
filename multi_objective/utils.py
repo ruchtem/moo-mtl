@@ -1,3 +1,4 @@
+import itertools
 import torch
 import os
 import numpy as np
@@ -198,7 +199,8 @@ class EvalResult():
         self.task_ids = task_ids
         self.center = np.zeros(J)
         self.pf = np.zeros((n_test_rays, J))
-        self.hv = -1
+        self.hv = None
+        self.max_angle = None
         self.pf_available = False
         self.i = 0
         self.j = 0
@@ -235,12 +237,32 @@ class EvalResult():
             self.optimal_sol_idx, self.optimal_sol = optimal_solution(self.pf, weights)
 
 
+    def compute_angle(self):
+        if self.pf_available:
+
+            def cosine(a, b):
+                cosine_sim = np.inner(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+                assert cosine_sim >= 0 and cosine_sim <= 1
+                return 1 - cosine_sim
+
+            c_max = 0
+            indices = None
+            for i, j in itertools.combinations(range(len(self.pf)), self.pf.shape[1]):
+                c = cosine(self.pf[i], self.pf[j])
+                if c > c_max:
+                    c_max = c
+                    indices = (i, j)
+
+            self.max_angle = c_max
+
+
     def to_dict(self):
         result = {'center_ray': self.center.tolist(),}
         if self.pf_available:
             result.update({
                 'pareto_front': self.pf.tolist(),
                 'hv': self.hv,
+                'max_angle': self.max_angle,
                 'optimal_solution': self.optimal_sol.tolist(),
                 'optimal_solution_idx': int(self.optimal_sol_idx),
             })

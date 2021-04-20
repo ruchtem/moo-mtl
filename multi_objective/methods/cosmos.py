@@ -90,6 +90,9 @@ class COSMOSMethod(BaseMethod):
         self.alpha = cfg.cosmos.alpha
         self.lamda = cfg.cosmos.lamda
 
+        if len(self.alpha) == 1:
+            self.alpha = [self.alpha[0] for _ in self.task_ids]
+
         dim = list(cfg.dim)
         dim[0] = dim[0] + self.K
 
@@ -131,14 +134,10 @@ class COSMOSMethod(BaseMethod):
 
     def step(self, batch):
         # step 1: sample alphas
-        if isinstance(self.alpha, list):
-            batch['alpha'] = np.random.dirichlet(self.alpha, 1).flatten()
-        elif self.alpha > 0:
-            batch['alpha'] = np.random.dirichlet([self.alpha for _ in self.task_ids], 1).flatten()
-        else:
-            raise ValueError(f"Unknown value for alpha: {self.alpha}, expecting list or float.")
+        
+        alpha = np.random.dirichlet(self.alpha, 1).flatten()
 
-        batch['alpha'] = torch.from_numpy(batch['alpha'].astype(np.float32)).to(self.device)
+        batch['alpha'] = torch.from_numpy(alpha.astype(np.float32)).to(self.device)
 
         # step 2: calculate loss
         self.model.zero_grad()

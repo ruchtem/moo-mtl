@@ -110,7 +110,7 @@ _C.single_task.lr = _C.lr
 _C.cosmos = CN()
 
 # Diriclet sampling parameter
-_C.cosmos.alpha = 1.
+_C.cosmos.alpha = [1.]
 
 # Cosine similarity parameter
 _C.cosmos.lamda = 1.
