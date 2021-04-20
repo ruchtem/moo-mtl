@@ -10,6 +10,7 @@ torch.cuda.manual_seed(1)
 torch.cuda.manual_seed_all(1)
 
 import argparse
+import logging
 import os
 import pathlib
 import time
@@ -19,6 +20,7 @@ import matplotlib.pyplot as plt
 from torch.utils import data
 from fvcore.common.config import CfgNode
 
+from rtb import log_every_n_seconds, log_first_n, setup_logger
 
 import defaults
 import utils
@@ -59,7 +61,7 @@ def method_from_name(method, objectives, model, cfg):
         raise ValueError("Unkown method {}".format(method))
 
 
-def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, train_time, cfg):
+def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, train_time, cfg, logger):
     """
     Evaluate the method on a given dataset split. Calculates:
     - score for all the scores given in `scores`
@@ -95,12 +97,13 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
 
     pareto_rays = utils.reference_points(cfg['n_partitions'], dim=J)
     n_rays = pareto_rays.shape[0]
-    print(n_rays)
+    
+    log_first_n(logging.DEBUG, f"Number of test rays: {n_rays}", n=1)
     
     # gather the scores
     score_values = {et: utils.EvalResult(J, n_rays, task_ids) for et in scores.keys()}
     for b, batch in enumerate(data_loader):
-        print(f"Eval {b} of {len(data_loader)}")
+        log_every_n_seconds(logging.INFO, f"Eval {b} of {len(data_loader)}", n=5)
         batch = utils.dict_to(batch, cfg['device'])
                 
         if method.preference_at_inference():
@@ -158,15 +161,17 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
 
 
 def main(method_name, cfg, tag=''):
-    print("start processig with settings", cfg)
-    utils.set_seed(cfg['seed'])
-    lr_scheduler = cfg[method_name].lr_scheduler
-
     # create the experiment folders
     logdir = os.path.join(cfg['logdir'], method_name, cfg['dataset'], utils.get_runname(cfg) + f'_{tag}')
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
+    logger = setup_logger(os.path.join(logdir, 'exp.log'), name=__name__)
+    logger.info(f"start experiment with settings {cfg}")
+
     # prepare
+    utils.set_seed(cfg['seed'])
+    lr_scheduler = cfg[method_name].lr_scheduler
+
     objectives = from_name(**cfg)
     scores = from_objectives(objectives, **cfg)
 
@@ -202,16 +207,15 @@ def main(method_name, cfg, tag=''):
         elif lr_scheduler == "CosineAnnealing":
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg['epochs'])
         elif lr_scheduler == "MultiStep":
-            if cfg['scheduler_milestones'] is None:
-                milestones = [int(.33 * cfg['epochs']), int(.66 * cfg['epochs'])]
-            else:
-                milestones = cfg['scheduler_milestones']
+            # if cfg['scheduler_milestones'] is None:
+            milestones = [int(.33 * cfg['epochs']), int(.66 * cfg['epochs'])]
+            # else:
+            #     milestones = cfg['scheduler_milestones']
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1)
         else:
             raise ValueError(f"Unknown lr scheduler {lr_scheduler}")
         
         for e in range(cfg['epochs']):
-            print(f"Epoch {e}")
             tick = time.time()
             method.new_epoch(e)
 
@@ -226,7 +230,10 @@ def main(method_name, cfg, tag=''):
 
                 loss, sim, norm  = stats if isinstance(stats, tuple) else (stats, 0, 0)
                 assert not math.isnan(loss) and not math.isnan(sim)
-                print("Epoch {:03d}, batch {:03d}, train_loss {:.4f}, rm train_loss {:.3f}, rm sim {:.3f}, norm {}".format(e, b, loss, rm1(loss), rm2(sim), norm))
+                log_every_n_seconds(logging.INFO, 
+                    f"Epoch {e:03d}, batch {b:03d}, train_loss {loss:.4f}, rm train_loss {rm1(loss):.3f}, rm sim {rm2(sim):.3f}",
+                    n=5
+                )
 
             tock = time.time()
             elapsed_time += (tock - tick)
@@ -242,7 +249,8 @@ def main(method_name, cfg, tag=''):
                     result_dict=train_results,
                     logdir=logdir,
                     train_time=elapsed_time,
-                    cfg=cfg,)
+                    cfg=cfg,
+                    logger=logger,)
 
             
             if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0:
@@ -252,7 +260,8 @@ def main(method_name, cfg, tag=''):
                     result_dict=val_results,
                     logdir=logdir,
                     train_time=elapsed_time,
-                    cfg=cfg,)
+                    cfg=cfg,
+                    logger=logger,)
 
                 # Test results
                 # test_results = evaluate(j, e, method, scores, test_loader,
