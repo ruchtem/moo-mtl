@@ -163,6 +163,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
 
 
 def main(method_name, cfg, tag=''):
+    cfg.freeze()
     # create the experiment folders
     logdir = os.path.join(cfg['logdir'], method_name, cfg['dataset'], utils.get_runname(cfg) + f'_{tag}')
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
@@ -285,29 +286,32 @@ def main(method_name, cfg, tag=''):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('config', help="Config file.")
-    parser.add_argument('--method', '-m', default='cosmos', help="The method to generate the Pareto front.")
+    parser.add_argument('method', default='cosmos', help="The method to generate the Pareto front.")
     parser.add_argument('--tag', default='', type=str, help="Experiment tag")
-    parser.add_argument('--seed', '-s', default=1, type=int, help="Seed")
-    parser.add_argument('--task_id', '-t', default=None, help='Task id to run single task in parallel. If not set then sequentially.')
+    parser.add_argument(
+        "opts",
+        help="Modify config options by adding 'KEY VALUE' pairs at the end of the command.",
+        default=None,
+        nargs=argparse.REMAINDER,
+    )
     args = parser.parse_args()
-
-    cfg = defaults.get_cfg_defaults()
-    cfg.merge_from_file(args.config)
-    
-    if args.method == 'single_task' and args.task_id is not None:
-            cfg.single_task.task_id = args.task_id
-    
-    cfg.seed = args.seed
-    cfg.freeze()
 
     tag = args.tag
     if args.method == 'single_task':
         tag += str(cfg.single_task.task_id)
+    return args, tag
 
-    return args.method, cfg, tag
+    
+def get_config(config_file, opts=[]):
+    cfg = defaults.get_cfg_defaults()
+    cfg.merge_from_file(config_file)
+    cfg.merge_from_list(opts)
+    return cfg
 
 
 if __name__ == "__main__":
-    
-    method, cfg, tag = parse_args()
-    main(method, cfg, tag)
+
+    args, tag = parse_args()
+    cfg = get_config(args.config, args.opts)
+
+    main(args.method, cfg, tag)
