@@ -46,12 +46,14 @@ def method_from_name(method, objectives, model, cfg):
         Method. The configured method instance.
     """
     if method == 'pmtl':
+        assert cfg.dataset not in ['celeba', 'cityscapes'], f"Not supported"
         return ParetoMTLMethod(objectives, model, cfg)
     elif 'cosmos' in method:
         return COSMOSMethod(objectives, model, cfg)
     elif method == 'single_task':
         return SingleTaskMethod(objectives, model, cfg)
     elif 'phn' in method:
+        assert cfg.dataset not in ['celeba', 'cityscapes'], f"Not supported"
         return HypernetMethod(objectives, model, cfg)
     elif method == 'mgda':
         return MGDAMethod(objectives, model, cfg)

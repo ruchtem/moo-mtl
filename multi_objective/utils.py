@@ -63,10 +63,10 @@ def model_from_dataset(dataset, **kwargs):
     elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist' or dataset == 'multi_fashion':
         return MultiLeNet(**kwargs)
     elif dataset == 'celeba':
-        if 'efficientnet' in kwargs['model_name']:
-            return EfficientNet.from_pretrained(**kwargs)
-        elif kwargs['model_name'] == 'resnet18':
-            return ResNet.from_name(**kwargs)
+        # if 'efficientnet' in kwargs['model_name']:
+        return EfficientNet.from_pretrained(model_name='efficientnet-b4', **kwargs)
+        # elif kwargs['model_name'] == 'resnet18':
+        #     return ResNet.from_name(**kwargs)
     elif dataset == 'cityscapes':
         return Pspnet(dim=kwargs['dim'])
     elif dataset == 'coco':

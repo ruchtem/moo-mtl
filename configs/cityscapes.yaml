@@ -1,0 +1,28 @@
+
+dataset: cityscapes
+dim: [3, 256, 512]
+task_ids: [segm, inst, depth]
+objectives: [CrossEntropyLoss, L1Loss, L1Loss]
+metrics: [mIoU, L1Loss, L1Loss]
+n_partitions: 5
+
+batch_size: 8
+epochs: 200
+
+cosmos:
+  lr_scheduler: MultiStep
+  alpha: 1.3
+  lamda: .5
+  lr: 0.0005
+
+mgda:
+  normalization_type: l2
+  approximate_norm_solution: True
+  lr_scheduler: MultiStep
+  lr: 0.0005
+
+single_task:
+  lr_scheduler: MultiStep
+  lr: 0.0005
+
+
