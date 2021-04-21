@@ -13,7 +13,7 @@ source $HOME/dev/venvs/base/bin/activate
 IFS='-'; arrIN=($SLURM_JOB_NAME); unset IFS;
 
 
-COMMAND="python -u multi_objective/main.py --method ${arrIN[0]} --config configs/${arrIN[1]}.yaml seed ${arrIN[2]}";
+COMMAND="python -u multi_objective/main.py --method ${arrIN[0]} --config configs/${arrIN[1]}.yaml --tag ${arrIN[2]}";
 echo "Workingdir: $PWD";
 echo "Started at $(date) on host $SLURMD_NODENAME";
 echo "Executing $COMMAND";
