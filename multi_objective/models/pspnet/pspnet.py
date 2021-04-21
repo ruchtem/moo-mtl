@@ -22,7 +22,7 @@ def conv3x3(in_planes, out_planes, stride=1, has_bias=False):
 def conv3x3_bn_relu(in_planes, out_planes, stride=1):
     return nn.Sequential(
             conv3x3(in_planes, out_planes, stride),
-            # nn.BatchNorm2d(out_planes),
+            nn.BatchNorm2d(out_planes),
             nn.ReLU(inplace=True),
             )
 
@@ -66,8 +66,8 @@ class ResnetDilated(nn.Module):
                     m.padding = (dilate, dilate)
 
     def forward(self, x):
-        # x = self.relu1(self.bn1(self.conv1(x)))
-        x = self.relu1(self.conv1(x))
+        x = self.relu1(self.bn1(self.conv1(x)))
+        # x = self.relu1(self.conv1(x))
         x = self.maxpool(x)
 
         x = self.layer1(x) 
@@ -87,19 +87,19 @@ class SegmentationDecoder(nn.Module):
         for scale in pool_scales:
             self.ppm.append(nn.Sequential(
                 nn.AdaptiveAvgPool2d(scale),
-                # nn.Conv2d(fc_dim, 512, kernel_size=1, bias=False),
-                nn.Conv2d(fc_dim, 512, kernel_size=1, bias=True),
-                # nn.BatchNorm2d(512),
+                nn.Conv2d(fc_dim, 512, kernel_size=1, bias=False),
+                # nn.Conv2d(fc_dim, 512, kernel_size=1, bias=True),
+                nn.BatchNorm2d(512),
                 nn.ReLU(inplace=True)
             ))
         self.ppm = nn.ModuleList(self.ppm)
 
         self.conv_last = nn.Sequential(
-            nn.Conv2d(fc_dim+len(pool_scales)*512, 512,
-                      kernel_size=3, padding=1, bias=True),
             # nn.Conv2d(fc_dim+len(pool_scales)*512, 512,
-            #           kernel_size=3, padding=1, bias=False),
-            # nn.BatchNorm2d(512),
+                    #   kernel_size=3, padding=1, bias=True),
+            nn.Conv2d(fc_dim+len(pool_scales)*512, 512,
+                      kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
             nn.Conv2d(512, num_class, kernel_size=1)
         )

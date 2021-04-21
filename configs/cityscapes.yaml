@@ -18,7 +18,7 @@ cosmos:
 mgda:
   normalization_type: l2
   approximate_norm_solution: True
-  lr_scheduler: MultiStep
+  lr_scheduler: none
   lr: 0.0005
 
 single_task:

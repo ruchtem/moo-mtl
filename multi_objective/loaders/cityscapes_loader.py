@@ -108,9 +108,6 @@ class CITYSCAPES(data.Dataset):
             def find(s, ch):
                 return [i for i, ltr in enumerate(s) if ltr == ch]
             return {i.name[:find(i.name, '_')[2]]: i for i in files}
-        
-        def filter(files, filter_list):
-            return 
 
         if CITYSCAPES.val_identifiers is None and val_size > 0:
             # create the validation set
@@ -160,12 +157,10 @@ class CITYSCAPES(data.Dataset):
         self.class_map = dict(zip(self.valid_classes, range(self.n_classes)))
 
         if split == 'train':
-            # self.augmentations = Compose([
-            #     RandomRotate(10),
-            #     RandomHorizontallyFlip()
-            # ])
-            self.augmentations = None
-
+            self.augmentations = Compose([
+                RandomRotate(10),
+                RandomHorizontallyFlip()
+            ])
         else:
             self.augmentations = None
 
