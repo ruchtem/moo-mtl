@@ -205,13 +205,24 @@ def main(method_name, cfg, tag=''):
 
         optimizer = torch.optim.Adam(method.model_params(), cfg.lr)
 
-        if lr_scheduler == 'None':
+        if lr_scheduler == 'none':
             scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lambda epoch: 1.)    # does nothing to the lr
         elif lr_scheduler == "CosineAnnealing":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg['epochs'])
+            T_max = cfg['epochs']
+            if tag == 'hpo':
+                if cfg.dataset == 'multi_mnist' or cfg.dataset == 'multi_fashion' or cfg.dataset == 'multi_fashion_mnist':
+                    T_max = 100
+                else:
+                    raise ValueError()
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
         elif lr_scheduler == "MultiStep":
             # if cfg['scheduler_milestones'] is None:
             milestones = [int(.33 * cfg['epochs']), int(.66 * cfg['epochs'])]
+            if tag == 'hpo':
+                if cfg.dataset == 'multi_mnist' or cfg.dataset == 'multi_fashion' or cfg.dataset == 'multi_fashion_mnist':
+                    milestones = [33]
+                else:
+                    raise ValueError()
             # else:
             #     milestones = cfg['scheduler_milestones']
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1)
