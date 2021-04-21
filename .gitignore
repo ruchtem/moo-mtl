@@ -5,6 +5,7 @@ saved_models/
 tmp/
 results*/
 
+*.pickle
 *.out
 *.pdf
 *.png

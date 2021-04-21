@@ -37,7 +37,7 @@ _C.checkpoint_every = 0
 
 # We support 2 optional learing rate schedulers: 'MultiStep' and 'Cosine'. MultiStep is decaying 
 # the learing rate with 0.1 at 0.33 * epochs and 0.66 * epochs.
-_C.lr_scheduler = 'None'
+_C.lr_scheduler = 'none'
 
 # learning rate
 _C.lr = 1e-3

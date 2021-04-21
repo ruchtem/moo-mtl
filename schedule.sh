@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH -p alldlc_gpu-rtx2080
+#SBATCH -p ml_gpu-rtx2080
 #SBATCH --gres=gpu:1
 #SBATCH --mem 65000 # memory pool for each core (4GB)
-#SBATCH -t 0-23:00 # time (D-HH:MM)
+#SBATCH -t 1-23:00 # time (D-HH:MM)
 #SBATCH -c 2 # number of cores
 #SBATCH -o tmp/log/%x.%j.out # stdout and stderr
 #SBATCH --mail-type=END,FAIL # (recive mails about end and timeouts/crashes of your job)
@@ -13,7 +13,7 @@ source $HOME/dev/venvs/base/bin/activate
 IFS='-'; arrIN=($SLURM_JOB_NAME); unset IFS;
 
 
-COMMAND="python -u multi_objective/main.py -m ${arrIN[0]} -d ${arrIN[1]} -s ${arrIN[2]}";
+COMMAND="python -u multi_objective/main.py --method ${arrIN[0]} --config configs/${arrIN[1]}.yaml seed ${arrIN[2]}";
 echo "Workingdir: $PWD";
 echo "Started at $(date) on host $SLURMD_NODENAME";
 echo "Executing $COMMAND";

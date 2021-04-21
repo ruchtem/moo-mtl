@@ -303,8 +303,8 @@ def main(method_name, cfg, tag=''):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('config', help="Config file.")
-    parser.add_argument('method', default='cosmos', help="The method to generate the Pareto front.")
+    parser.add_argument('--config', default="", metavar="FILE", help="Config file.")
+    parser.add_argument('--method', default='cosmos', type=str, help="The method to generate the Pareto front.")
     parser.add_argument('--tag', default='', type=str, help="Experiment tag")
     parser.add_argument(
         "opts",
