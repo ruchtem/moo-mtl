@@ -20,6 +20,8 @@ _C.objectives = ['BinaryCrossEntropyLoss', 'ddp']
 # the right task. Can be string. Here we assign just 0 and 1.
 _C.task_ids = []
 
+# Some datasets ignore some classes. This can be set here
+_C.ignore_index = -100
 
 
 #

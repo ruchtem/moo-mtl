@@ -9,7 +9,7 @@ class PspNetWrapper(torch.nn.Module):
         super().__init__()
 
         self.encoder = get_segmentation_encoder()
-        self.segm_head = SegmentationDecoder(dim[-2:], num_class=20, task_type='C')  # 19 + background
+        self.segm_head = SegmentationDecoder(dim[-2:], num_class=19, task_type='C')
         self.inst_head = SegmentationDecoder(dim[-2:], num_class=2, task_type='R')
         self.depth_head = SegmentationDecoder(dim[-2:], num_class=1, task_type='R')
     

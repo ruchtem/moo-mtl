@@ -1,5 +1,5 @@
 import torch
-import autograd
+import torch.nn.functional as F
 
 
 def from_name(objectives, task_ids=None, **kwargs):
@@ -13,32 +13,42 @@ def from_name(objectives, task_ids=None, **kwargs):
         'deo': DEOHyperbolicTangentRelaxation,
     }
     if len(task_ids) > 0:
-        return {t: map[n]("labels_{}".format(t), "logits_{}".format(t)) for n, t in zip(objectives, task_ids)}
+        return {t: map[n]("labels_{}".format(t), "logits_{}".format(t), **kwargs) for n, t in zip(objectives, task_ids)}
     else:
         print("WARNING: No task ids specified, assuming all objectives use the same default output.")
-        return {t: map[n]() for t, n in enumerate(objectives)}
+        return {t: map[n](**kwargs) for t, n in enumerate(objectives)}
 
 
-class CrossEntropyLoss(torch.nn.CrossEntropyLoss):
+class CrossEntropyLoss():
     
-    def __init__(self, label_name='labels', logits_name='logits'):
-        super().__init__(reduction='mean')
+    def __init__(self, label_name='labels', logits_name='logits', ignore_index=-100, **kwargs):
+        super().__init__()
         self.label_name = label_name
         self.logits_name = logits_name
+        self.reduction = 'mean'
+        self.ignore_index = ignore_index
 
 
     def __call__(self, **kwargs):
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
-        return super().__call__(logits, labels)
+        loss = F.cross_entropy(logits, labels, reduction=self.reduction, ignore_index=self.ignore_index)
+
+        if self.reduction == 'none' and len(logits.shape) > 2:
+            # for images we still need to average per image
+            b = logits.shape[0]
+            loss = loss.view(b, -1).mean(dim=1)
+
+        return loss
 
 
 class BinaryCrossEntropyLoss(torch.nn.BCEWithLogitsLoss):
     
-    def __init__(self, label_name='labels', logits_name='logits'):
-        super().__init__(reduction='mean')
+    def __init__(self, label_name='labels', logits_name='logits', **kwargs):
+        super().__init__()
         self.label_name = label_name
         self.logits_name = logits_name
+        self.reduction = 'mean'
     
 
     def __call__(self, **kwargs):
@@ -48,7 +58,7 @@ class BinaryCrossEntropyLoss(torch.nn.BCEWithLogitsLoss):
             logits = torch.squeeze(logits)
         if labels.dtype != torch.float:
             labels = labels.float()
-        return super().__call__(logits, labels)
+        return F.binary_cross_entropy_with_logits(logits, labels, reduction=self.reduction)
 
 
 class L1Loss():
@@ -56,10 +66,11 @@ class L1Loss():
     Special loss for cityscapes
     """
 
-    def __init__(self, label_name='labels', logits_name='logits'):
+    def __init__(self, label_name='labels', logits_name='logits', **kwargs):
         super().__init__()
         self.label_name = label_name
         self.logits_name = logits_name
+        self.reduction = 'mean'
     
 
     def __call__(self, **kwargs):
@@ -67,18 +78,25 @@ class L1Loss():
         labels = kwargs[self.label_name]
 
         if 'inst' in self.label_name:
-            mask = labels != 0  # zero is ignore index for instances
-            return torch.nn.functional.l1_loss(logits[mask], labels[mask], reduction='mean')
-
+            mask = labels != 255  # ignore index for instances
+            loss = F.l1_loss(logits[mask], labels[mask], reduction=self.reduction)
         else:
-            return torch.nn.functional.l1_loss(logits, labels, reduction='mean')
+            loss = F.l1_loss(logits, labels, reduction=self.reduction)
+        
+        if self.reduction == 'none' and len(logits.shape) > 2:
+            # for images we still need to average per image
+            b = logits.shape[0]
+            loss = loss.view(b, -1).mean(dim=1)
+        
+        return loss
 
 
-class MSELoss(torch.nn.MSELoss):
+class MSELoss():
 
-    def __init__(self, label_name='labels'):
+    def __init__(self, label_name='labels', **kwargs):
         super().__init__()
         self.label_name = label_name
+        self.reduction = 'mean'
 
 
     def __call__(self, **kwargs):
@@ -86,7 +104,7 @@ class MSELoss(torch.nn.MSELoss):
         labels = kwargs[self.label_name]
         if logits.ndim == 2:
             logits = torch.squeeze(logits)
-        return super().__call__(logits, labels)
+        return F.mse_loss(logits, labels, reduction=self.reduction)
 
 
 class L1Regularization():
@@ -110,6 +128,7 @@ class DDPHyperbolicTangentRelaxation():
         self.logits_name = logits_name
         self.s_name = s_name
         self.c = c
+        self.reduction = 'mean'
 
     def __call__(self, **kwargs):
         logits = kwargs[self.logits_name]
@@ -119,7 +138,10 @@ class DDPHyperbolicTangentRelaxation():
         s_negative = logits[sensible_attribute.bool()]
         s_positive = logits[~sensible_attribute.bool()]
 
-        return torch.abs(torch.tanh(self.c * torch.relu(s_positive)).mean() - torch.tanh(self.c * torch.relu(s_negative)).mean())
+        if self.reduction == 'mean':
+            return torch.abs(torch.tanh(self.c * torch.relu(s_positive)).mean() - torch.tanh(self.c * torch.relu(s_negative)).mean())
+        else:
+            raise NotImplementedError()
 
 
 class DEOHyperbolicTangentRelaxation():
@@ -139,53 +161,4 @@ class DEOHyperbolicTangentRelaxation():
         s_positive = logits[(~sensible_attribute.bool()) & (labels == 1)]
 
         return torch.abs(torch.tanh(self.c * torch.relu(s_positive)).mean() - torch.tanh(self.c * torch.relu(s_negative)).mean())
-
-
-"""
-Popular problem proposed by
-
-    Carlos Manuel Mira da Fonseca. Multiobjective genetic algorithms with 
-    application to controlengineering problems.PhD thesis, University of Sheffield, 1995.
-
-with a concave pareto front.
-
-$ \mathcal{L}_1(\theta) = 1 - \exp{ - || \theta - 1 / \sqrt{d} || $
-$ \mathcal{L}_1(\theta) = 1 - \exp{ - || \theta + 1 / \sqrt{d} || $
-
-with $\theta \in R^d$ and $ d = 100$
-"""
-class Fonseca1():
-
-    def f1(theta):
-        d = len(theta)
-        sum1 = autograd.numpy.sum([(theta[i] - 1.0/autograd.numpy.sqrt(d)) ** 2 for i in range(d)])
-        f1 = 1 - autograd.numpy.exp(- sum1)
-        return f1
-
-    f1_dx = autograd.grad(f1)
-    
-    def __call__(self, **kwargs):
-        return f1(kwargs['parameters'])
-    
-
-    def gradient(self, **kwargs):
-        return f1_dx(kwargs['parameters'])
-
-
-class Fonseca2():
-
-    def f2(theta):
-        d = len(theta)
-        sum1 = autograd.numpy.sum([(theta[i] + 1.0/autograd.numpy.sqrt(d)) ** 2 for i in range(d)])
-        f1 = 1 - autograd.numpy.exp(- sum1)
-        return f1
-
-    f2_dx = autograd.grad(f2)
-    
-    def __call__(self, **kwargs):
-        return f2(kwargs['parameters'])
-    
-
-    def gradient(self, **kwargs):
-        return f2_dx(kwargs['parameters'])
 

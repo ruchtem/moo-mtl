@@ -85,7 +85,7 @@ class CITYSCAPES(data.Dataset):
 
     val_identifiers = None
 
-    def __init__(self, split, root='data/cityscapes', dim=(3, 256, 512), ann_dim=(256, 512), val_size=0.1, **kwargs):
+    def __init__(self, split, root='data/cityscapes', dim=(3, 256, 512), ann_dim=(256, 512), val_size=0.1, ignore_index=255, **kwargs):
         """__init__
         :param root:
         :param split:
@@ -98,7 +98,7 @@ class CITYSCAPES(data.Dataset):
         self.split = split
         self.dim = dim
         self.ann_dim = ann_dim
-        self.n_classes = 19 + 1 # no classes + background
+        self.n_classes = 19
 
         self.depth_max = 32257
         self.depth_min = 0
@@ -152,8 +152,7 @@ class CITYSCAPES(data.Dataset):
                             'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train', \
                             'motorcycle', 'bicycle']
 
-        self.ignore_index = 0
-        self.valid_classes += [0]   # background
+        self.ignore_index = ignore_index
         self.class_map = dict(zip(self.valid_classes, range(self.n_classes)))
 
         if split == 'train':
