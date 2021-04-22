@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 
 from multi_objective.utils import num_parameters, calc_gradients, RunningMean
@@ -9,13 +10,14 @@ from .base import BaseMethod
 class Upsampler(nn.Module):
 
 
-    def __init__(self, K, child_model, input_dim, upsample_fraction=.75):
+    def __init__(self, K, child_model, input_dim, alpha, upsample_fraction=1.):
         """
         In case of tabular data: append the sampled rays to the data instances (no upsampling)
         In case of image data: use a transposed CNN for the sampled rays.
         """
         super().__init__()
         self.dim = input_dim
+        self.alpha = alpha
         self.fraction = upsample_fraction
 
         if len(input_dim) == 1:
@@ -40,13 +42,14 @@ class Upsampler(nn.Module):
         x = batch['data']
         
         b = x.shape[0]
-        a = batch['alpha'].repeat(b, 1)
+
+        a = batch['alpha']
 
         if self.tabular:
              result = torch.cat((x, a), dim=1)
         else:
             # use transposed convolution
-            a = a.reshape(b, len(batch['alpha']), 1, 1)
+            a = a.reshape(b, len(self.alpha), 1, 1)
             a = self.transposed_cnn(a)
 
             target_size = (int(self.dim[-2]*self.fraction), int(self.dim[-1]*self.fraction))
@@ -93,14 +96,17 @@ class COSMOSMethod(BaseMethod):
         if len(self.alpha) == 1:
             self.alpha = [self.alpha[0] for _ in self.task_ids]
 
+        for k in self.objectives:
+            self.objectives[k].reduction = 'none'
+
         dim = list(cfg.dim)
         dim[0] = dim[0] + self.K
 
-        self.data = RunningMean(20)     # should be updates per epoch
-        self.alphas = RunningMean(20)
+        self.data = RunningMean(2)     # should be updates per epoch
+        self.alphas = RunningMean(2)
 
         model.change_input_dim(dim[0])
-        self.model = Upsampler(self.K, model, dim).to(self.device)
+        self.model = Upsampler(self.K, model, dim, self.alpha).to(self.device)
 
         self.bn = {t: torch.nn.BatchNorm1d(1) for t in self.task_ids}
 
@@ -112,9 +118,9 @@ class COSMOSMethod(BaseMethod):
         return True
     
 
-    def new_epoch(self, e):
-        if e > 2:
-            data = np.array(self.data.queue)
+    # def new_epoch(self, e):
+    #     if e > 2:
+            # data = np.array(self.data.queue)
             # self.means.append(data.mean(axis=0))
             # self.stds.append(data.std(axis=0) + 1e-8)
 
@@ -133,70 +139,68 @@ class COSMOSMethod(BaseMethod):
 
 
     def step(self, batch):
+        b = batch['data'].shape[0]
         # step 1: sample alphas
-        
-        alpha = np.random.dirichlet(self.alpha, 1).flatten()
-
-        batch['alpha'] = torch.from_numpy(alpha.astype(np.float32)).to(self.device)
+        a = np.random.dirichlet(self.alpha, size=b)
+        a = torch.from_numpy(a.astype(np.float32)).to(self.device)
+        batch['alpha'] = a
 
         # step 2: calculate loss
         self.model.zero_grad()
         logits = self.model(batch)
         batch.update(logits)
-        loss_total = torch.tensor(0, device=self.device).float()
-        task_losses = []
-        task_losses_norm = []
-        g_norms = []
-        for i, (a, t) in enumerate(zip(batch['alpha'], self.task_ids)):
-            task_loss = self.objectives[t](**batch)
-            task_loss_norm = task_loss
-            if len(self.data) > 2:
-                # std = self.data.std(axis=0)[i]
-                # mean = self.data(axis=0)[i]
-                data = np.array(self.data.queue)
-                min = data.min(axis=0)[i]
-                max = data.max(axis=0)[i]
-                # task_loss_norm = (task_loss - mean) / std    # z normalization (normalize scale)
-                task_loss_norm = (task_loss - min) / (max - min + 1e-8)     # min max norm
-                task_loss_norm = torch.abs(task_loss_norm)
-
-                # scale to range of sampled alphas
-                min_a = np.array(self.alphas.queue).min(axis=0)[i]
-                max_a = np.array(self.alphas.queue).max(axis=0)[i]
-                task_loss_norm = (task_loss_norm * (max_a - min_a)) + min_a
-                # if task_loss_norm < -4:
-                #     task_loss_norm *= -4 / task_loss_norm
-                # if task_loss_norm > 4:
-                #     task_loss_norm *= 4 / task_loss_norm
-                # task_loss_norm = torch.sigmoid(task_loss_norm)
-                # g_norms.append(std)
-            loss_total += task_loss_norm * a
-            task_losses.append(task_loss.item())
-            task_losses_norm.append(task_loss_norm)
+        loss = torch.tensor(0, device=self.device).float()
         
-        # print(g_norms)
-        # print([l.item() for l in task_losses_norm])
-        # print([a.item() for a in batch['alpha']])
-        # print(task_losses)
+        task_losses = torch.stack(tuple(self.objectives[t](**batch) for t in self.task_ids)).T
         
-        loss_linearization = sum(task_losses)
-        # loss_linearization = sum(task_losses_norm).item()
+        test = torch.vstack((task_losses.detach(), *list(self.data.queue))) if len(self.data.queue) else task_losses
 
-        cossim = torch.nn.functional.cosine_similarity(torch.stack(task_losses_norm), batch['alpha'], dim=0)
-        loss_total -= self.lamda * cossim
+        min = test.min(dim=0).values
+        max = test.max(dim=0).values
+        # print(min, max)
+
+        task_losses = (task_losses - min) / (max - min + 1e-8)      # min max norm
+
+        min_a = a.min(dim=0).values.detach()
+        max_a = a.max(dim=0).values.detach()
+
+        task_losses = (task_losses * (max_a - min_a)) + min_a       # scale to range of sampled alphas
+
+        # if len(self.data) > 2:
+        #     data = np.vstack(tuple(a for a in self.data.queue))
+        #     min = torch.from_numpy(data.min(axis=0)).to(self.device)
+        #     max = torch.from_numpy(data.max(axis=0)).to(self.device)
+
+        #     task_losses = (task_losses - min) / (max - min + 1e-8)      # min max norm
+        #     task_losses = torch.abs(task_losses)
+                        
+        #     data = np.vstack(tuple(a for a in self.alphas.queue))
+        #     min_a = torch.from_numpy(data.min(axis=0)).to(self.device)
+        #     max_a = torch.from_numpy(data.max(axis=0)).to(self.device)
+            
+        #     task_losses = (task_losses * (max_a - min_a)) + min_a       # scale to range of sampled alphas
         
-        loss_total.backward()
         
-        self.data.append(task_losses)
-        self.alphas.append(batch['alpha'].cpu().detach().numpy())
+        loss = (a * task_losses).sum(dim=1)
+        loss_scalar = loss.mean().item()
 
-        n = np.array([l.item() for l in task_losses_norm])
+        cossim = F.cosine_similarity(task_losses, a)
+        loss -= self.lamda * cossim
 
-        return loss_linearization, cossim.item(), np.array2string(n, formatter={'float': '{: 0.3f}'.format})
+        loss = loss.mean()
+
+        loss.backward()
+        
+        self.data.append(task_losses.detach())
+        self.alphas.append(a.detach())
+
+        return loss_scalar, cossim.mean().item(), 0
 
 
     def eval_step(self, batch, preference_vector):
         self.model.eval()
         with torch.no_grad():
-            batch['alpha'] = torch.from_numpy(preference_vector).to(self.device).float()
+            b = batch['data'].shape[0]
+            a = torch.from_numpy(preference_vector).to(self.device).float()
+            batch['alpha'] = a.repeat(b, 1)
             return self.model(batch)
