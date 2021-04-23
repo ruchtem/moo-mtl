@@ -20,18 +20,19 @@ def from_objectives(obj_instances, metrics, objectives, task_ids=None, **kwargs)
     if len(task_ids) == 0:
         task_ids = list(obj_instances.keys())
     result = {
-        'loss': {t: scores[o](obj_instances[t].label_name, obj_instances[t].logits_name) for t, o in zip(task_ids, objectives)},
+        'loss': {t: scores[o](obj_instances[t].label_name, obj_instances[t].logits_name, **kwargs) for t, o in zip(task_ids, objectives)},
     }
     if metrics is not None:
-        result['metrics'] = {t: scores[o](obj_instances[t].label_name, obj_instances[t].logits_name) for t, o in zip(task_ids, metrics)}
+        result['metrics'] = {t: scores[o](obj_instances[t].label_name, obj_instances[t].logits_name, **kwargs) for t, o in zip(task_ids, metrics)}
     return result
 
 class BaseScore():
 
-    def __init__(self, label_name='labels', logits_name='logits'):
+    def __init__(self, label_name='labels', logits_name='logits', ignore_index=-100, **kwargs):
         super().__init__()
         self.label_name = label_name
         self.logits_name = logits_name
+        self.ignore_index = ignore_index
 
 
     @abstractmethod
@@ -45,7 +46,7 @@ class CrossEntropy(BaseScore):
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
         with torch.no_grad():
-            return torch.nn.functional.cross_entropy(logits, labels.long(), reduction='mean').item()
+            return torch.nn.functional.cross_entropy(logits, labels.long(), reduction='mean', ignore_index=self.ignore_index).item()
 
 
 class BinaryCrossEntropy(BaseScore):
