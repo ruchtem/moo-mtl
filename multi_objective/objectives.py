@@ -90,6 +90,10 @@ class L1Loss():
                     for l
                     in torch.split(loss, split_size_or_sections=mask.sum(dim=[1, 2, 3]).tolist())
                 ))
+
+                # images which are ignored due to mask
+                loss[torch.isnan(loss)] = 0
+                
         else:
             loss = F.l1_loss(logits, labels, reduction=self.reduction)
         
