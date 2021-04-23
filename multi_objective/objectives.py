@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn.functional as F
 
@@ -122,8 +123,16 @@ class L2Regularization():
 
 
 class DDPHyperbolicTangentRelaxation():
+    """See 
+    
+    Padh, K., Antognini, D., Glaude, E. L., Faltings, B., & Musat, C. (2020). 
+    Addressing Fairness in Classification with a Model-Agnostic Multi-Objective 
+    Algorithm. arXiv preprint arXiv:2009.04441.
+    
+    We could also use any other differentiable fairness metric.
+    """
 
-    def __init__(self, label_name='labels', logits_name='logits', s_name='sensible_attribute', c=1):
+    def __init__(self, label_name='labels', logits_name='logits', s_name='sensible_attribute', c=1, **kwargs):
         self.label_name = label_name
         self.logits_name = logits_name
         self.s_name = s_name
@@ -132,14 +141,34 @@ class DDPHyperbolicTangentRelaxation():
 
     def __call__(self, **kwargs):
         logits = kwargs[self.logits_name]
-        sensible_attribute = kwargs[self.s_name]
+        s = kwargs[self.s_name].bool()
 
         logits = torch.sigmoid(logits)
-        s_negative = logits[sensible_attribute.bool()]
-        s_positive = logits[~sensible_attribute.bool()]
+        tanh_convert = torch.tanh(self.c * torch.relu(logits))
 
+        reduced_loss = torch.abs(tanh_convert[s].mean() - tanh_convert[~s].mean())
         if self.reduction == 'mean':
-            return torch.abs(torch.tanh(self.c * torch.relu(s_positive)).mean() - torch.tanh(self.c * torch.relu(s_negative)).mean())
+            return reduced_loss
+        elif self.reduction == 'none':
+            # Our own adaption for instance-wise loss
+            
+            # hack for abs value
+            test = tanh_convert.clone().detach()
+            test[s] *= 1 / sum(s)
+            test[~s] *= -1 / sum(~s)
+
+            result = tanh_convert.clone()
+            if test.sum() <= 0.:
+                result[s] *= -1 / sum(s)
+                result[~s] *= 1 / sum(~s)
+            else:
+                # change the order
+                result[s] *= 1 / sum(s)
+                result[~s] *= -1 / sum(~s)
+            result = result * len(result)   # we reduce with mean instead of sum later
+
+            assert math.isclose(result.mean().item(), reduced_loss.item(), abs_tol=1e-6)
+            return result.squeeze()
         else:
             raise NotImplementedError()
 

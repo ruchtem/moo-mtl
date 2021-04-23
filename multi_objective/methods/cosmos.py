@@ -92,6 +92,7 @@ class COSMOSMethod(BaseMethod):
         self.K = len(objectives)
         self.alpha = cfg.cosmos.alpha
         self.lamda = cfg.cosmos.lamda
+        self.normalize = cfg.cosmos.normalize
 
         if len(self.alpha) == 1:
             self.alpha = [self.alpha[0] for _ in self.task_ids]
@@ -102,7 +103,7 @@ class COSMOSMethod(BaseMethod):
         dim = list(cfg.dim)
         dim[0] = dim[0] + self.K
 
-        self.data = RunningMean(2)     # should be updates per epoch
+        self.data = RunningMean(2)     # arbitrary
         self.alphas = RunningMean(2)
 
         model.change_input_dim(dim[0])
@@ -153,33 +154,18 @@ class COSMOSMethod(BaseMethod):
         
         task_losses = torch.stack(tuple(self.objectives[t](**batch) for t in self.task_ids)).T
         
-        test = torch.vstack((task_losses.detach(), *list(self.data.queue))) if len(self.data.queue) else task_losses
+        if self.normalize:
+            loss_history = torch.vstack((task_losses.detach(), *list(self.data.queue))) if len(self.data.queue) else task_losses.detach()
+            min = loss_history.min(dim=0).values
+            max = loss_history.max(dim=0).values
 
-        min = test.min(dim=0).values
-        max = test.max(dim=0).values
-        # print(min, max)
+            task_losses = (task_losses - min) / (max - min + 1e-8)      # min max norm
 
-        task_losses = (task_losses - min) / (max - min + 1e-8)      # min max norm
+            alpha_history = torch.vstack((a.detach(), *list(self.alphas.queue))) if len(self.alphas.queue) else a.detach()
+            min_a = alpha_history.min(dim=0).values
+            max_a = alpha_history.max(dim=0).values
 
-        min_a = a.min(dim=0).values.detach()
-        max_a = a.max(dim=0).values.detach()
-
-        task_losses = (task_losses * (max_a - min_a)) + min_a       # scale to range of sampled alphas
-
-        # if len(self.data) > 2:
-        #     data = np.vstack(tuple(a for a in self.data.queue))
-        #     min = torch.from_numpy(data.min(axis=0)).to(self.device)
-        #     max = torch.from_numpy(data.max(axis=0)).to(self.device)
-
-        #     task_losses = (task_losses - min) / (max - min + 1e-8)      # min max norm
-        #     task_losses = torch.abs(task_losses)
-                        
-        #     data = np.vstack(tuple(a for a in self.alphas.queue))
-        #     min_a = torch.from_numpy(data.min(axis=0)).to(self.device)
-        #     max_a = torch.from_numpy(data.max(axis=0)).to(self.device)
-            
-        #     task_losses = (task_losses * (max_a - min_a)) + min_a       # scale to range of sampled alphas
-        
+            task_losses = (task_losses * (max_a - min_a)) + min_a       # scale to range of sampled alphas
         
         loss = (a * task_losses).sum(dim=1)
         loss_scalar = loss.mean().item()
