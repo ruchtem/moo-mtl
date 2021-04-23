@@ -82,6 +82,14 @@ class L1Loss():
         if 'inst' in self.label_name:
             mask = labels != self.ignore_index
             loss = F.l1_loss(logits[mask], labels[mask], reduction=self.reduction)
+
+            if self.reduction == 'none':
+                # average per image
+                loss = torch.vstack(tuple(
+                    l.mean()
+                    for l
+                    in torch.split(loss, split_size_or_sections=mask.sum(dim=[1, 2, 3]).tolist())
+                ))
         else:
             loss = F.l1_loss(logits, labels, reduction=self.reduction)
         
