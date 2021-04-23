@@ -69,7 +69,7 @@ class L1Loss(BaseScore):
 
         with torch.no_grad():
             if 'inst' in self.label_name:
-                mask = labels != 0
+                mask = labels != self.ignore_index
                 return torch.nn.functional.l1_loss(logits[mask], labels[mask], reduction='mean').item()
             else:
                 return torch.nn.functional.l1_loss(logits, labels, reduction='mean').item()

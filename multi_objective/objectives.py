@@ -67,11 +67,12 @@ class L1Loss():
     Special loss for cityscapes
     """
 
-    def __init__(self, label_name='labels', logits_name='logits', **kwargs):
+    def __init__(self, label_name='labels', logits_name='logits', ignore_index=255, **kwargs):
         super().__init__()
         self.label_name = label_name
         self.logits_name = logits_name
         self.reduction = 'mean'
+        self.ignore_index = ignore_index
     
 
     def __call__(self, **kwargs):
@@ -79,7 +80,7 @@ class L1Loss():
         labels = kwargs[self.label_name]
 
         if 'inst' in self.label_name:
-            mask = labels != 255  # ignore index for instances
+            mask = labels != self.ignore_index
             loss = F.l1_loss(logits[mask], labels[mask], reduction=self.reduction)
         else:
             loss = F.l1_loss(logits, labels, reduction=self.reduction)
