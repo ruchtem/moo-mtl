@@ -198,7 +198,7 @@ def main(rank, world_size, method_name, cfg, tag=''):
     objectives = from_name(**cfg)
     scores = from_objectives(objectives, **cfg)
 
-    train_loader, val_loader, test_loader = utils.loaders_from_name(**cfg)
+    train_loader, val_loader, test_loader, sampler = utils.loaders_from_name(**cfg)
 
     rm1 = utils.RunningMean(len(train_loader))
     rm2 = utils.RunningMean(len(train_loader))
@@ -230,7 +230,12 @@ def main(rank, world_size, method_name, cfg, tag=''):
         scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
         
         for e in range(cfg['epochs']):
+            # Keep the gpus in sync, especially after evaluation
+            torch.distributed.barrier()
+
             tick = time.time()
+            if world_size > 1:
+                sampler.set_epoch(e)
             method.new_epoch(e)
 
             for b, batch in enumerate(train_loader):
@@ -339,6 +344,12 @@ if __name__ == "__main__":
     world_size = args.ngpus
     
     if world_size > 1:
+
+        # Rule of thumb to adapt lr as effectivly batch_size * world_size
+        cfg[args.method].lr *= world_size
+
+        # TODO: torch.distributed.launch
+
         mp.spawn(main,
             args=(world_size, args.method, cfg, tag),
             nprocs=world_size,

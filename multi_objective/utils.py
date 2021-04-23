@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import collections
 
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 from datetime import datetime
 from pymoo.factory import get_decomposition, get_reference_directions, get_performance_indicator
 from pymoo.visualization.radviz import Radviz
@@ -38,7 +39,7 @@ def dataset_from_name(dataset, **kwargs):
         raise ValueError("Unknown dataset: {}".format(dataset))
 
 
-def loaders_from_name(dataset, **kwargs):
+def loaders_from_name(dataset, seed, **kwargs):
     train = dataset_from_name(dataset, split='train', **kwargs)
     val = dataset_from_name(dataset, split='val', **kwargs)
     test = dataset_from_name(dataset, split='test', **kwargs)
@@ -53,10 +54,18 @@ def loaders_from_name(dataset, **kwargs):
     else:
         val_bs = kwargs['batch_size']
         test_bs = kwargs['batch_size']
+    
+    if torch.distributed.is_initialized():
+        # We are in distributed setting
+        sampler = DistributedSampler(train, shuffle=True, seed=seed)
+    else:
+        sampler = None
+
     return (
-        DataLoader(train, kwargs['batch_size'], shuffle=True, num_workers=kwargs['num_workers']),
+        DataLoader(train, kwargs['batch_size'], shuffle=(sampler is None), sampler=sampler, num_workers=kwargs['num_workers']),
         DataLoader(val, val_bs, num_workers=kwargs['num_workers']),
         DataLoader(test, test_bs, num_workers=kwargs['num_workers']),
+        sampler,
     )
 
 
