@@ -126,7 +126,6 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
                 data = [score[t](**batch) for t in task_ids]
                 score_values[eval_mode].update(data, 'single_point')
 
-
     # normalize scores and compute hyper-volume
     for v in score_values.values():
         v.normalize()
@@ -230,8 +229,9 @@ def main(rank, world_size, method_name, cfg, tag=''):
         scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
         
         for e in range(cfg['epochs']):
-            # Keep the gpus in sync, especially after evaluation
-            torch.distributed.barrier()
+            if world_size > 1:
+                # Keep the gpus in sync, especially after evaluation
+                torch.distributed.barrier()
 
             tick = time.time()
             if world_size > 1:

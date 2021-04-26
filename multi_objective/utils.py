@@ -285,7 +285,7 @@ class EvalResult():
 
             c_max = 0
             indices = None
-            for i, j in itertools.combinations(range(len(self.pf)), self.pf.shape[1]):
+            for i, j in itertools.combinations(range(len(self.pf)), r=2):
                 c = cosine(self.pf[i], self.pf[j])
                 if c > c_max:
                     c_max = c
