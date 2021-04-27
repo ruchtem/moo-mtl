@@ -1,10 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.linalg import norm
 import numpy as np
 
 from multi_objective.utils import num_parameters, calc_gradients, RunningMean
 from .base import BaseMethod
+
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
 
 
 class Upsampler(nn.Module):
@@ -50,7 +54,14 @@ class Upsampler(nn.Module):
         else:
             # use transposed convolution
             a = a.reshape(b, len(self.alpha), 1, 1)
-            a = self.transposed_cnn(a)
+            
+            # Lessons learned: Does not work with lagrangian multipliers
+            # a = self.transposed_cnn(a)
+
+            # plt.hist(a[0].view(-1).cpu().detach())
+            # plt.title(f"{batch['alpha'][0]}")
+            # plt.savefig('test2')
+            # plt.close()
 
             target_size = (int(self.dim[-2]*self.fraction), int(self.dim[-1]*self.fraction))
             a = torch.nn.functional.interpolate(a, target_size, mode='nearest')
@@ -71,6 +82,8 @@ class Upsampler(nn.Module):
                 result[:, channels:, height_start:-height_end, width_start:-width_end] = a
             else:
                 result[:, channels:] = a
+        
+        
 
         return self.child_model(dict(data=result))
 
@@ -103,7 +116,7 @@ class COSMOSMethod(BaseMethod):
         dim = list(cfg.dim)
         dim[0] = dim[0] + self.K
 
-        self.data = RunningMean(2)     # arbitrary
+        self.data = [RunningMean(300) for _ in range(5)]    # arbitrary
         self.alphas = RunningMean(2)
 
         model.change_input_dim(dim[0])
@@ -114,37 +127,57 @@ class COSMOSMethod(BaseMethod):
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
 
+        self.steps = 0
+        self.sample = np.random.dirichlet(self.alpha, size=5)
+        self.lagrangian = [torch.nn.parameter.Parameter(torch.zeros(2), requires_grad=False).cuda() for _ in range(5)]
+
 
     def preference_at_inference(self):
         return True
     
 
-    # def new_epoch(self, e):
-    #     if e > 2:
-            # data = np.array(self.data.queue)
-            # self.means.append(data.mean(axis=0))
-            # self.stds.append(data.std(axis=0) + 1e-8)
+    def new_epoch(self, e):
+        if e > 0:
 
-            # import matplotlib.pyplot as plt
-            # fig, axes = plt.subplots(ncols=3)
+            
+            data0 = torch.vstack(tuple(self.data[0].queue)).cpu().numpy().mean(axis=0)
+            # data1 = torch.vstack(tuple(self.data[1].queue)).cpu().numpy().mean(axis=0)
+            data2 = torch.vstack(tuple(self.data[2].queue)).cpu().numpy().mean(axis=0)
+            data3 = torch.vstack(tuple(self.data[3].queue)).cpu().numpy().mean(axis=0)
+            data4 = torch.vstack(tuple(self.data[4].queue)).cpu().numpy().mean(axis=0)
 
-            # axes[0].hist(data, bins=20, histtype='step')
+            for i, (x, y) in enumerate(self.sample):
+                plt.arrow(0, 0, x, y)
+                plt.text(x, y, f"{i}")
+            
+            plt.plot(data0[0], data0[1], "ro")
+            plt.text(data0[0], data0[1], "0")
+            # plt.plot(data1[0], data1[1], "ro")
+            # plt.text(data1[0], data1[1], "1")
+            plt.plot(data2[0], data2[1], "ro")
+            plt.text(data2[0], data2[1], "2")
+            plt.plot(data3[0], data3[1], "ro")
+            plt.text(data3[0], data3[1], "3")
+            plt.plot(data4[0], data4[1], "ro")
+            plt.text(data4[0], data4[1], "4")
 
-            # trans = (data-data.mean(axis=0)) / (data.std(axis=0) + 1e-8)
-            # axes[1].hist(trans, bins=20, histtype='step')
-
-            # sigm = 1/ (1 + np.exp(-trans))
-            # axes[2].hist(sigm, bins=20, histtype='step')
-            # plt.savefig(f'hist_{e}')
-            # plt.close()
+            plt.title(f"epoch {e}")
+            plt.savefig('test')
+            plt.close()
 
 
     def step(self, batch):
+
+        i = np.random.choice([0, 2, 3, 4])
+        # i = 0
+        
+
         b = batch['data'].shape[0]
         # step 1: sample alphas
-        a = np.random.dirichlet(self.alpha, size=b)
+        # a = np.random.dirichlet(self.alpha, size=b)
+        a = self.sample[i]
         a = torch.from_numpy(a.astype(np.float32)).to(self.device)
-        batch['alpha'] = a
+        batch['alpha'] = a.repeat(b, 1)  
 
         # step 2: calculate loss
         self.model.zero_grad()
@@ -159,28 +192,68 @@ class COSMOSMethod(BaseMethod):
             min = loss_history.min(dim=0).values
             max = loss_history.max(dim=0).values
 
-            task_losses = (task_losses - min) / (max - min + 1e-8)      # min max norm
+            task_losses_norm = (task_losses - min) / (max - min + 1e-8)      # min max norm
 
             alpha_history = torch.vstack((a.detach(), *list(self.alphas.queue))) if len(self.alphas.queue) else a.detach()
             min_a = alpha_history.min(dim=0).values
             max_a = alpha_history.max(dim=0).values
 
-            task_losses = (task_losses * (max_a - min_a)) + min_a       # scale to range of sampled alphas
+            task_losses_norm = (task_losses_norm * (max_a - min_a)) + min_a       # scale to range of sampled alphas
+        else:
+            task_losses_norm = task_losses
         
-        loss = (a * task_losses).sum(dim=1)
-        loss_scalar = loss.mean().item()
 
-        cossim = F.cosine_similarity(task_losses, a)
-        loss -= self.lamda * cossim
+        task_losses = task_losses.mean(dim=0)
+        g_i = (task_losses / norm(task_losses) - a / norm(a))
+        # g_i = F.cosine_similarity(task_losses, a, dim=-1)       # cossim = 1 for angle zero
 
-        loss = loss.mean()
-
+        loss = a.dot(task_losses.T) + sum(self.lagrangian[i] * g_i)
         loss.backward()
-        
-        self.data.append(task_losses.detach())
+
+        test = sum(self.lagrangian[i] * g_i).item()
+
+        # gradient ascent on lagrangian multipliers
+        lag_lr = 1e-1
+        self.lagrangian[i][0] += lag_lr * g_i[0].item()
+        self.lagrangian[i][1] += lag_lr * g_i[1].item()
+        print(self.lagrangian)
+        # print(g_i)
+
+
+
+        # task_losses_norm1 = task_losses / torch.linalg.norm(task_losses, dim=1).unsqueeze(1)
+        # a_norm = a / torch.linalg.norm(a, dim=1).unsqueeze(1)
+
+        # # loss = torch.linalg.norm(task_losses_norm1 - a_norm, dim=1)
+        # loss = torch.pow(task_losses_norm1 - a_norm, 2).sum(dim=1)
+
+
+        loss_scalar = task_losses.mean().item()
+
+        # task_losses_norm1 = task_losses / torch.linalg.norm(task_losses, dim=1).unsqueeze(1)
+        # a_norm = a / torch.linalg.norm(a, dim=1).unsqueeze(1)
+
+        # dist = torch.linalg.norm(task_losses_norm1 - a_norm, dim=1)
+
+
+
+        # cossim = F.cosine_similarity(task_losses, a)
+        # angular_dist = torch.arccos(cossim) / np.pi
+
+        # loss += self.lamda * dist
+
+
+        # loss = loss.mean()
+
+        # loss.backward()
+
+        self.data[i].append(task_losses.detach())
         self.alphas.append(a.detach())
 
-        return loss_scalar, cossim.mean().item(), 0
+
+
+        self.steps += 1
+        return loss_scalar, test, 0
 
 
     def eval_step(self, batch, preference_vector):

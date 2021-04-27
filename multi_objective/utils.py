@@ -47,6 +47,8 @@ def loaders_from_name(dataset, seed, **kwargs):
     # if dataset == 'cityscapes' or dataset == 'celeba':
     #     train = DebugDataset(val, size=2, replication=80)
     #     val = DebugDataset(val, size=2)
+    # train = DebugDataset(train, size=2560, replication=100)
+
 
     if dataset in ['adult', 'credit', 'compass', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']:
         val_bs = len(val)
@@ -275,23 +277,36 @@ class EvalResult():
             self.optimal_sol_idx, self.optimal_sol = optimal_solution(self.pf, weights)
 
 
-    def compute_angle(self):
+    def compute_cossim(self):
         if self.pf_available:
 
-            def cosine(a, b):
-                cosine_sim = np.inner(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-                assert cosine_sim >= 0 and cosine_sim <= 1
-                return 1 - cosine_sim
+            n_points, J = self.pf.shape
+            rays = get_reference_directions('uniform', n_points=n_points, n_dim=J)
 
-            c_max = 0
-            indices = None
-            for i, j in itertools.combinations(range(len(self.pf)), r=2):
-                c = cosine(self.pf[i], self.pf[j])
-                if c > c_max:
-                    c_max = c
-                    indices = (i, j)
+            # normalize the losses
+            min = self.pf.min(axis=0)
+            max = self.pf.max(axis=0)
+            pf_norm = (self.pf - min) / (max - min + 1e-8)
 
-            self.max_angle = c_max
+            # compute cosine similarity
+            c = [np.inner(r, p) / (np.linalg.norm(r) * np.linalg.norm(p)) for r, p in zip(rays, pf_norm)]
+            self.cossim = np.mean(c)
+
+            for i, (x, y) in enumerate(pf_norm):
+                plt.plot(x, y, "ro")
+                plt.text(x, y, f"{i}")
+
+
+            for i, (x, y) in enumerate(rays):
+                plt.arrow(0, 0, x, y)
+                plt.text(x, y, f"   {i}: {c[i]:.4f}")
+            
+            
+            # plt.plot(rays[:, 0], rays[:, 1],  "bo")
+            plt.title(f'cossim {self.cossim}')
+            plt.close()
+
+            print()
 
 
     def to_dict(self):
@@ -300,7 +315,7 @@ class EvalResult():
             result.update({
                 'pareto_front': self.pf.tolist(),
                 'hv': self.hv,
-                'max_angle': self.max_angle,
+                'cossim': float(self.cossim),
                 'optimal_solution': self.optimal_sol.tolist(),
                 'optimal_solution_idx': int(self.optimal_sol_idx),
             })
