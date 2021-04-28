@@ -106,78 +106,81 @@ class COSMOSMethod(BaseMethod):
         self.alpha = cfg.cosmos.alpha
         self.lamda = cfg.cosmos.lamda
         self.normalize = cfg.cosmos.normalize
+        self.instances = cfg.cosmos.instances
 
         if len(self.alpha) == 1:
             self.alpha = [self.alpha[0] for _ in self.task_ids]
 
-        for k in self.objectives:
-            self.objectives[k].reduction = 'none'
+        if self.instances:
+            for k in self.objectives:
+                self.objectives[k].reduction = 'none'
 
         dim = list(cfg.dim)
         dim[0] = dim[0] + self.K
 
-        self.data = [RunningMean(300) for _ in range(5)]    # arbitrary
-        self.alphas = RunningMean(2)
+        # self.data = [RunningMean(300) for _ in range(5)]
+
+        self.data = RunningMean(2 if self.instances else 350)
+        self.alphas = RunningMean(2 if self.instances else 350)
 
         model.change_input_dim(dim[0])
         self.model = Upsampler(self.K, model, dim, self.alpha).to(self.device)
-
-        self.bn = {t: torch.nn.BatchNorm1d(1) for t in self.task_ids}
 
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
 
         self.steps = 0
-        self.sample = np.random.dirichlet(self.alpha, size=5)
-        self.lagrangian = [torch.nn.parameter.Parameter(torch.zeros(2), requires_grad=False).cuda() for _ in range(5)]
+        # self.sample = np.random.dirichlet(self.alpha, size=5)
+        # self.lagrangian = [torch.nn.parameter.Parameter(torch.zeros(2), requires_grad=False).cuda() for _ in range(5)]
 
 
     def preference_at_inference(self):
         return True
     
 
-    def new_epoch(self, e):
-        if e > 0:
+    # def new_epoch(self, e):
+    #     if e > 0:
 
             
-            data0 = torch.vstack(tuple(self.data[0].queue)).cpu().numpy().mean(axis=0)
-            # data1 = torch.vstack(tuple(self.data[1].queue)).cpu().numpy().mean(axis=0)
-            data2 = torch.vstack(tuple(self.data[2].queue)).cpu().numpy().mean(axis=0)
-            data3 = torch.vstack(tuple(self.data[3].queue)).cpu().numpy().mean(axis=0)
-            data4 = torch.vstack(tuple(self.data[4].queue)).cpu().numpy().mean(axis=0)
+    #         data0 = torch.vstack(tuple(self.data[0].queue)).cpu().numpy().mean(axis=0)
+    #         # data1 = torch.vstack(tuple(self.data[1].queue)).cpu().numpy().mean(axis=0)
+    #         data2 = torch.vstack(tuple(self.data[2].queue)).cpu().numpy().mean(axis=0)
+    #         data3 = torch.vstack(tuple(self.data[3].queue)).cpu().numpy().mean(axis=0)
+    #         data4 = torch.vstack(tuple(self.data[4].queue)).cpu().numpy().mean(axis=0)
 
-            for i, (x, y) in enumerate(self.sample):
-                plt.arrow(0, 0, x, y)
-                plt.text(x, y, f"{i}")
+    #         for i, (x, y) in enumerate(self.sample):
+    #             plt.arrow(0, 0, x, y)
+    #             plt.text(x, y, f"{i}")
             
-            plt.plot(data0[0], data0[1], "ro")
-            plt.text(data0[0], data0[1], "0")
-            # plt.plot(data1[0], data1[1], "ro")
-            # plt.text(data1[0], data1[1], "1")
-            plt.plot(data2[0], data2[1], "ro")
-            plt.text(data2[0], data2[1], "2")
-            plt.plot(data3[0], data3[1], "ro")
-            plt.text(data3[0], data3[1], "3")
-            plt.plot(data4[0], data4[1], "ro")
-            plt.text(data4[0], data4[1], "4")
+    #         plt.plot(data0[0], data0[1], "ro")
+    #         plt.text(data0[0], data0[1], "0")
+    #         # plt.plot(data1[0], data1[1], "ro")
+    #         # plt.text(data1[0], data1[1], "1")
+    #         plt.plot(data2[0], data2[1], "ro")
+    #         plt.text(data2[0], data2[1], "2")
+    #         plt.plot(data3[0], data3[1], "ro")
+    #         plt.text(data3[0], data3[1], "3")
+    #         plt.plot(data4[0], data4[1], "ro")
+    #         plt.text(data4[0], data4[1], "4")
 
-            plt.title(f"epoch {e}")
-            plt.savefig('test')
-            plt.close()
+    #         plt.title(f"epoch {e}")
+    #         plt.savefig('test')
+    #         plt.close()
 
 
     def step(self, batch):
 
-        i = np.random.choice([0, 2, 3, 4])
+        # i = np.random.choice([0, 2, 3, 4])
         # i = 0
         
 
         b = batch['data'].shape[0]
         # step 1: sample alphas
-        # a = np.random.dirichlet(self.alpha, size=b)
-        a = self.sample[i]
+        a = np.random.dirichlet(self.alpha, size=b) if self.instances else np.random.dirichlet(self.alpha)
+        # a = np.random.dirichlet(self.alpha)
+        # a = self.sample[i]
         a = torch.from_numpy(a.astype(np.float32)).to(self.device)
-        batch['alpha'] = a.repeat(b, 1)  
+        batch['alpha'] = a if self.instances else a.repeat(b, 1)
 
         # step 2: calculate loss
         self.model.zero_grad()
@@ -203,51 +206,47 @@ class COSMOSMethod(BaseMethod):
             task_losses_norm = task_losses
         
 
-        task_losses = task_losses.mean(dim=0)
-        g_i = (task_losses / norm(task_losses) - a / norm(a))
+        # task_losses = task_losses.mean(dim=0)
+        # g_i = (task_losses / norm(task_losses) - a / norm(a))
         # g_i = F.cosine_similarity(task_losses, a, dim=-1)       # cossim = 1 for angle zero
 
-        loss = a.dot(task_losses.T) + sum(self.lagrangian[i] * g_i)
-        loss.backward()
+        # loss = a.dot(task_losses.T) + sum(self.lagrangian[i] * g_i)
+        # loss.backward()
 
-        test = sum(self.lagrangian[i] * g_i).item()
+        # test = sum(self.lagrangian[i] * g_i).item()
 
         # gradient ascent on lagrangian multipliers
-        lag_lr = 1e-1
-        self.lagrangian[i][0] += lag_lr * g_i[0].item()
-        self.lagrangian[i][1] += lag_lr * g_i[1].item()
-        print(self.lagrangian)
+        # lag_lr = 1e-1
+        # self.lagrangian[i][0] += lag_lr * g_i[0].item()
+        # self.lagrangian[i][1] += lag_lr * g_i[1].item()
+        # print(self.lagrangian)
         # print(g_i)
 
-
-
-        # task_losses_norm1 = task_losses / torch.linalg.norm(task_losses, dim=1).unsqueeze(1)
-        # a_norm = a / torch.linalg.norm(a, dim=1).unsqueeze(1)
-
-        # # loss = torch.linalg.norm(task_losses_norm1 - a_norm, dim=1)
-        # loss = torch.pow(task_losses_norm1 - a_norm, 2).sum(dim=1)
-
+        if self.instances:
+            dist = norm(task_losses / norm(task_losses, dim=1).unsqueeze(1) - a / norm(a, dim=1).unsqueeze(1), dim=1)
+        else:
+            dist = norm(task_losses / norm(task_losses) - a / norm(a))
 
         loss_scalar = task_losses.mean().item()
 
-        # task_losses_norm1 = task_losses / torch.linalg.norm(task_losses, dim=1).unsqueeze(1)
-        # a_norm = a / torch.linalg.norm(a, dim=1).unsqueeze(1)
-
-        # dist = torch.linalg.norm(task_losses_norm1 - a_norm, dim=1)
+        # loss = a.dot(task_losses.T)
+        loss = (a * task_losses).sum(dim=1) if self.instances else a.dot(task_losses.T)
 
 
 
-        # cossim = F.cosine_similarity(task_losses, a)
-        # angular_dist = torch.arccos(cossim) / np.pi
+        # dist = -F.cosine_similarity(task_losses, a)
 
-        # loss += self.lamda * dist
+        loss += self.lamda * dist
 
+        if self.instances:
+            loss = loss.mean()
 
-        # loss = loss.mean()
+        loss.backward()
 
-        # loss.backward()
+        test = dist.mean().item()
 
-        self.data[i].append(task_losses.detach())
+        # self.data[i].append(task_losses.detach())
+        self.data.append(task_losses.detach())
         self.alphas.append(a.detach())
 
 

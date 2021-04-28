@@ -132,7 +132,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
         if method.preference_at_inference():
             v.compute_hv(cfg['reference_point'])
             v.compute_optimal_sol()
-            v.compute_cossim()
+            v.compute_dist()
 
 
     # plot pareto front to pf
@@ -225,8 +225,8 @@ def main(rank, world_size, method_name, cfg, tag=''):
             val_results[f"start_{j}"] = {}
             test_results[f"start_{j}"] = {}
 
-        # optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr)
-        optimizer = torch.optim.SGD(method.model_params(), cfg[method_name].lr, weight_decay=1e-3)
+        optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr)
+        # optimizer = torch.optim.SGD(method.model_params(), cfg[method_name].lr, weight_decay=1e-3)
         scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
         
         for e in range(cfg['epochs']):
@@ -305,7 +305,7 @@ def main(rank, world_size, method_name, cfg, tag=''):
     
             epoch_results = val_results['start_0'][f'epoch_{e}']['loss']
             if 'hv' in epoch_results:
-                return epoch_results['hv'], epoch_results['cossim']
+                return epoch_results['hv'], epoch_results['dist']
             else:
                 # maximize the negative norm, i.e. min norm
                 return -np.linalg.norm(epoch_results['center_ray'])

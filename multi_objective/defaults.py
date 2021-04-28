@@ -120,6 +120,7 @@ _C.cosmos.lamda = 1.
 # Whether to normalize the losses to be on the same scale as alphas
 # Handle with care, highly affects setting of the other hyperparameters.
 _C.cosmos.normalize = True
+_C.cosmos.instances = True
 
 _C.cosmos.lr_scheduler = _C.lr_scheduler
 _C.cosmos.lr = _C.lr

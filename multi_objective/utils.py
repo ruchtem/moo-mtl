@@ -6,6 +6,7 @@ import random
 import matplotlib.pyplot as plt
 import collections
 
+from numpy.linalg import norm
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from datetime import datetime
@@ -277,36 +278,41 @@ class EvalResult():
             self.optimal_sol_idx, self.optimal_sol = optimal_solution(self.pf, weights)
 
 
-    def compute_cossim(self):
+    def compute_dist(self, normalize=False):
         if self.pf_available:
 
             n_points, J = self.pf.shape
             rays = get_reference_directions('uniform', n_points=n_points, n_dim=J)
 
             # normalize the losses
-            min = self.pf.min(axis=0)
-            max = self.pf.max(axis=0)
-            pf_norm = (self.pf - min) / (max - min + 1e-8)
+            if normalize:
+                min = self.pf.min(axis=0)
+                max = self.pf.max(axis=0)
+                pf = (self.pf - min) / (max - min + 1e-8)
+            else:
+                pf = self.pf
+
+            def dist(a, b):
+                return norm(a / norm(a) - b / norm(b))
 
             # compute cosine similarity
-            c = [np.inner(r, p) / (np.linalg.norm(r) * np.linalg.norm(p)) for r, p in zip(rays, pf_norm)]
-            self.cossim = np.mean(c)
+            c = [dist(r, p) for r, p in zip(rays, pf)]
+            self.dist = np.mean(c)
 
-            for i, (x, y) in enumerate(pf_norm):
-                plt.plot(x, y, "ro")
-                plt.text(x, y, f"{i}")
+            # for i, (x, y) in enumerate(pf):
+            #     plt.plot(x, y, "ro")
+            #     plt.text(x, y, f"{i}")
 
 
-            for i, (x, y) in enumerate(rays):
-                plt.arrow(0, 0, x, y)
-                plt.text(x, y, f"   {i}: {c[i]:.4f}")
+            # for i, (x, y) in enumerate(rays):
+            #     plt.arrow(0, 0, x, y)
+            #     plt.text(x, y, f"   {i}: {c[i]:.4f}")
             
             
-            # plt.plot(rays[:, 0], rays[:, 1],  "bo")
-            plt.title(f'cossim {self.cossim}')
-            plt.close()
-
-            print()
+            # # plt.plot(rays[:, 0], rays[:, 1],  "bo")
+            # plt.title(f'l2 norm dist {self.dist}')
+            # plt.savefig('dist.png')
+            # plt.close()
 
 
     def to_dict(self):
@@ -315,7 +321,7 @@ class EvalResult():
             result.update({
                 'pareto_front': self.pf.tolist(),
                 'hv': self.hv,
-                'cossim': float(self.cossim),
+                'dist': float(self.dist),
                 'optimal_solution': self.optimal_sol.tolist(),
                 'optimal_solution_idx': int(self.optimal_sol_idx),
             })
