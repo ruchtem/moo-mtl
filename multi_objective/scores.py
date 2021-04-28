@@ -81,32 +81,32 @@ class mIoU(BaseScore):
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
 
-        metric = RunningMetric(metric_type = 'IOU', n_classes=19)
+        # metric = RunningMetric(metric_type = 'IOU', n_classes=19)
 
-        metric.update(logits, labels)
+        # metric.update(logits, labels)
         
-        return metric.get_result()['mIOU']
+        # return metric.get_result()['mIOU']
 
 
 
 
-        # predictions = logits.max(dim=1)[1]
-        # ious = []
-        # for b in range(logits.shape[0]):
-        #     score = 0
-        #     j = 0
-        #     for i in range(logits.shape[1]):
-        #         mask_p = predictions[b] == i
-        #         mask_l = labels[b] == i
-        #         if mask_l.sum() > 0:
-        #             score += iou(
-        #                 [encode(np.asfortranarray(mask_p.cpu().numpy()))],
-        #                 [encode(np.asfortranarray(mask_l.cpu().numpy()))], 
-        #                 [False]
-        #             ).squeeze().item()
-        #             j += 1
-        #     ious.append(score / j)
-        # return sum(ious) / len(ious)
+        predictions = logits.max(dim=1)[1]
+        ious = []
+        for b in range(logits.shape[0]):
+            score = 0
+            j = 0
+            for i in range(logits.shape[1]):
+                mask_p = predictions[b] == i
+                mask_l = labels[b] == i
+                if mask_l.sum() > 0:
+                    score += iou(
+                        [encode(np.asfortranarray(mask_p.cpu().numpy()))],
+                        [encode(np.asfortranarray(mask_l.cpu().numpy()))], 
+                        [False]
+                    ).squeeze().item()
+                    j += 1
+            ious.append(score / j)
+        return sum(ious) / len(ious)
 
 
 

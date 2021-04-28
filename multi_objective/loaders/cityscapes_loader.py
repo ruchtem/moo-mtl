@@ -205,7 +205,7 @@ class CITYSCAPES(data.Dataset):
         }
 
 
-    def transform(self, img, lbl, ins_y, ins_x, depth):
+    def transform(self, img, lbl, ins_y, ins_x, disp):
 
         img = resize(img, self.dim[-2:], mode=Image.BICUBIC)
         img = img.transpose(2, 0, 1)
@@ -218,10 +218,15 @@ class CITYSCAPES(data.Dataset):
         lbl = resize(lbl, self.ann_dim)
         ins_y = resize(ins_y, self.ann_dim)
         ins_x = resize(ins_x, self.ann_dim)
-        depth = resize(depth, self.ann_dim)
+        disp = resize(disp, self.ann_dim)
 
-        # normalize depth
-        depth = (depth - self.depth_min) / self.depth_max
+        # normalize depth    https://github.com/mcordts/cityscapesScripts/issues/55#issuecomment-411486510
+        disp[disp > 0] = (disp[disp > 0] - 1) / 256
+        
+        # This is to get the real depth
+        # depth = (0.209313 * 2262.52) / disp
+        
+        # depth = (depth - self.depth_min) / self.depth_max
 
         # if not np.all(classes == np.unique(lbl)):
         #     print("WARN: resizing labels yielded fewer classes")
@@ -234,8 +239,8 @@ class CITYSCAPES(data.Dataset):
         img = torch.from_numpy(img).float()
         lbl = torch.from_numpy(lbl).long()
         ins = torch.from_numpy(ins).float()
-        depth = torch.from_numpy(depth).float()
-        return img, lbl, ins, depth
+        disp = torch.from_numpy(disp).float()
+        return img, lbl, ins, disp
 
     def decode_segmap(self, temp):
         r = temp.copy()
@@ -308,6 +313,6 @@ if __name__ == '__main__':
             d = depth[j]
             axarr[j][4].imshow(d.squeeze())
         # plt.show()
-        plt.savefig('cs.png')
+        plt.savefig('cs.png', dpi=600)
         plt.close()
-        break
+        

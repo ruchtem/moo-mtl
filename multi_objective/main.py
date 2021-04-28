@@ -187,6 +187,7 @@ def main(rank, world_size, method_name, cfg, tag=''):
 
     logger = setup_logger(os.path.join(logdir, 'exp.log'), name=__name__, distributed_rank=rank)
     logger.info(f"start experiment with settings: \n{cfg}")
+    logger.info(f"\n\n>>>> Running method {method_name} <<<<\n")
 
     torch.cuda.set_device(rank)
 
@@ -348,6 +349,7 @@ if __name__ == "__main__":
     if world_size > 1:
 
         # Rule of thumb to adapt lr as effectivly batch_size * world_size
+        print("Adapting learning rate to distributed training.")
         cfg[args.method].lr *= world_size
 
         # TODO: torch.distributed.launch

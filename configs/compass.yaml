@@ -7,8 +7,10 @@ eval_every: 1
 
 # results of hpo
 cosmos:
-  lamda: .5
-  alpha: [.2]
+  lamda: 0.
+  alpha: [1., 1.]
+  normalize: True
+  instances: False
 
 mgda:
   normalization_type: 'loss'
