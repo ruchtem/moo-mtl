@@ -100,7 +100,7 @@ def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
                 T_max = 100
             else:
                 raise ValueError()
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max, eta_min=1e-5)
     elif lr_scheduler == "MultiStep":
         # if cfg['scheduler_milestones'] is None:
         milestones = [int(.33 * cfg['epochs']), int(.66 * cfg['epochs'])]
@@ -117,9 +117,21 @@ def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
     return scheduler
 
 
-def reference_points(partitions, dim=2):
+def scale(a, new_max=1, new_min=0, axis=None):
+    # scale to 0, 1
+    a = (a - a.min(axis=axis)) / (a.max(axis=axis) - a.min(axis=axis))
+
+    new_min = np.array(new_min)
+    new_max = np.array(new_max)
+    a = a * (new_max - new_min) + new_min
+    return a
+
+
+def reference_points(partitions, dim=2, min=None):
     """generate evenly distributed preference vector"""
-    return get_reference_directions("uniform", dim, n_partitions=partitions)
+    d = get_reference_directions("uniform", dim, n_partitions=partitions)
+    return scale(d, new_min=min, axis=0)
+    
 
 
 def optimal_solution(pareto_front, weights=None):
@@ -178,7 +190,6 @@ def normalize_score_dict(d, divisor):
         elif isinstance(v, dict):
             d[k] = normalize_score_dict(v, divisor)
     return d
-
 
 
 def set_seed(seed):
@@ -415,12 +426,12 @@ class ParetoFront():
             plt.close()
 
         # plot radviz
-        p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
-        radviz_plot = Radviz().add(p_normalized)
-        if best_sol_idx is not None:
-            radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
-        radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
-        plt.close()
+        # p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
+        # radviz_plot = Radviz().add(p_normalized)
+        # if best_sol_idx is not None:
+        #     radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
+        # radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
+        # plt.close()
 
         norms = np.linalg.norm(p, axis=1)
 

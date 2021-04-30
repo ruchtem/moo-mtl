@@ -2,3 +2,6 @@ _BASE_: multi_mnist.yaml
 
 dataset: multi_fashion
 
+cosmos2:
+  lr: 0.0005
+  lr_scheduler: MultiStep

@@ -12,6 +12,11 @@ cosmos:
   normalize: False
   lr: 0.00584
 
+
+cosmos2:
+  lr: 0.1
+
+
 mgda:
   normalization_type: 'loss'
 

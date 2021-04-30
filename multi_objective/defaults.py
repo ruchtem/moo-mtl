@@ -125,6 +125,14 @@ _C.cosmos.instances = False
 _C.cosmos.lr_scheduler = _C.lr_scheduler
 _C.cosmos.lr = _C.lr
 
+
+_C.cosmos2 = CN()
+_C.cosmos2.lr_scheduler = _C.lr_scheduler
+_C.cosmos2.lr = _C.lr
+
+
+
+
 #
 # Misc
 #
