@@ -125,6 +125,19 @@ _C.cosmos.instances = False
 _C.cosmos.lr_scheduler = _C.lr_scheduler
 _C.cosmos.lr = _C.lr
 
+
+# NSGA-II
+_C.nsga2 = CN()
+
+
+_C.nsga2.pop_size=400
+_C.nsga2.n_offsprings=100
+
+# ignored in the code
+_C.nsga2.lr_scheduler = _C.lr_scheduler
+_C.nsga2.lr = _C.lr
+
+
 #
 # Misc
 #

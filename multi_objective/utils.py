@@ -236,8 +236,7 @@ def calc_gradients(batch, model, objectives):
 
 class EvalResult():
 
-    def __init__(self, J, n_test_rays, task_ids) -> None:
-        self.task_ids = task_ids
+    def __init__(self, J, n_test_rays) -> None:
         self.center = np.zeros(J)
         self.pf = np.zeros((n_test_rays, J))
         self.hv = None

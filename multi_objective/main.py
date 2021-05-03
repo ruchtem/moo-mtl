@@ -26,7 +26,7 @@ from rtb import log_every_n_seconds, log_first_n, setup_logger
 from multi_objective import defaults, utils
 from multi_objective.objectives import from_name
 
-from multi_objective.methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMethod, MGDAMethod, UniformScalingMethod
+from multi_objective.methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMethod, MGDAMethod, UniformScalingMethod, NSGA2Method
 from multi_objective.scores import from_objectives
 
 
@@ -56,6 +56,8 @@ def method_from_name(method, objectives, model, cfg):
         return HypernetMethod(objectives, model, cfg)
     elif method == 'mgda':
         return MGDAMethod(objectives, model, cfg)
+    elif method == 'nsga2':
+        return NSGA2Method(objectives, model, cfg)
     elif method == 'uniform':
         return UniformScalingMethod(objectives, model, **cfg)
     else:
@@ -102,29 +104,37 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
     log_first_n(logging.DEBUG, f"Number of test rays: {n_rays}", n=1)
     
     # gather the scores
-    score_values = {et: utils.EvalResult(J, n_rays, task_ids) for et in scores.keys()}
-    for b, batch in enumerate(data_loader):
-        log_every_n_seconds(logging.INFO, f"Eval {b} of {len(data_loader)}", n=5)
-        batch = utils.dict_to(batch, cfg['device'])
+    score_values = {et: utils.EvalResult(J, n_rays) for et in scores.keys()}
+    if hasattr(method, 'eval_all'):
+        # hack to handle nsga2
+        score_data = {t: method.eval_all(data_loader, scores[t]) for t in scores.keys()}
+        for k, v in score_data.items():
+            score_values[k].pf = v
+            score_values[k].j = 1
+            score_values[k].pf_available = True
+    else:
+        for b, batch in enumerate(data_loader):
+            log_every_n_seconds(logging.INFO, f"Eval {b} of {len(data_loader)}", n=5)
+            batch = utils.dict_to(batch, cfg['device'])
+                    
+            if method.preference_at_inference():
+                data = {et: np.zeros((n_rays, J)) for et in scores.keys()}
+                for i, ray in enumerate(pareto_rays):
+                    logits = method.eval_step(batch, preference_vector=ray)
+                    batch.update(logits)
+
+                    for eval_mode, score in scores.items():
+
+                        data[eval_mode][i] += np.array([score[t](**batch) for t in task_ids])
                 
-        if method.preference_at_inference():
-            data = {et: np.zeros((n_rays, J)) for et in scores.keys()}
-            for i, ray in enumerate(pareto_rays):
-                logits = method.eval_step(batch, preference_vector=ray)
-                batch.update(logits)
-
+                for eval_mode in scores:
+                    score_values[eval_mode].update(data[eval_mode], 'pareto_front')
+            else:
+                # Method gives just a single point
+                batch.update(method.eval_step(batch))
                 for eval_mode, score in scores.items():
-
-                    data[eval_mode][i] += np.array([score[t](**batch) for t in task_ids])
-            
-            for eval_mode in scores:
-                score_values[eval_mode].update(data[eval_mode], 'pareto_front')
-        else:
-            # Method gives just a single point
-            batch.update(method.eval_step(batch))
-            for eval_mode, score in scores.items():
-                data = [score[t](**batch) for t in task_ids]
-                score_values[eval_mode].update(data, 'single_point')
+                    data = [score[t](**batch) for t in task_ids]
+                    score_values[eval_mode].update(data, 'single_point')
 
     # normalize scores and compute hyper-volume
     for v in score_values.values():
@@ -264,7 +274,7 @@ def main(rank, world_size, method_name, cfg, tag=''):
 
             # run eval on train set (mainly for debugging)
             if rank == 0:
-                if cfg['train_eval_every'] > 0 and (e+1) % cfg['train_eval_every'] == 0:
+                if cfg['train_eval_every'] > 0 and (e+1) % cfg['train_eval_every'] == 0 and e > 1:
                     train_results = evaluate(j, e, method, scores, train_loader,
                         split='train',
                         result_dict=train_results,
@@ -274,7 +284,7 @@ def main(rank, world_size, method_name, cfg, tag=''):
                         logger=logger,)
 
                 
-                if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0:
+                if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0 and e > 1:
                     # Validation results
                     val_results = evaluate(j, e, method, scores, val_loader,
                         split='val',
