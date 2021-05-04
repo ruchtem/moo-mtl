@@ -119,7 +119,7 @@ _C.cosmos.lamda = 1.
 
 # Whether to normalize the losses to be on the same scale as alphas
 # Handle with care, highly affects setting of the other hyperparameters.
-_C.cosmos.normalize = True
+_C.cosmos.normalize = False
 _C.cosmos.instances = False
 
 _C.cosmos.lr_scheduler = _C.lr_scheduler
@@ -132,6 +132,8 @@ _C.nsga2 = CN()
 
 _C.nsga2.pop_size=400
 _C.nsga2.n_offsprings=100
+
+# 400 epochs are fine for nsga2
 
 # ignored in the code
 _C.nsga2.lr_scheduler = _C.lr_scheduler
