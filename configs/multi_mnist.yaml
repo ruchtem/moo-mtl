@@ -4,15 +4,17 @@ dim: [1, 36, 36]
 task_ids: [l, r]    # top left, bottom right
 objectives: [CrossEntropyLoss, CrossEntropyLoss]
 epochs: 100
-eval_every: 10
+eval_every: 2
 
 # results of hpo
 cosmos:
-  lamda: 3.
-  alpha: [1., 1.]
+  lamda: 3.7724
+  alpha: [0.3089, 1.0183]
   lr_scheduler: MultiStep
-  lr: 1e-2
+  lr: 0.000491
   normalize: false
+  instances: false
+
 
 mgda:
   normalization_type: 'loss'
