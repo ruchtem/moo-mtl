@@ -9,11 +9,7 @@ eval_every: 1
 
 # results of hpo, dont change!
 cosmos:
-  lamda: 0.           # we don't need lamda here as objectives are mutually exclusive
-  alpha: [1.0888, 0.3093]
-  normalize: True
   lr: 0.00035
-  instances: False    # true results in V-shaped pareto fronts
 
 
 cosmos2:

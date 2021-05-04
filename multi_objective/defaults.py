@@ -111,24 +111,15 @@ _C.single_task.lr = _C.lr
 #
 _C.cosmos = CN()
 
-# Diriclet sampling parameter
-_C.cosmos.alpha = [1.]
+_C.cosmos.n_train_rays = 5
+_C.cosmos.max_ray_range = 0.2  # between 0 and 1
 
-# Cosine similarity parameter
-_C.cosmos.lamda = 1.
-
-# Whether to normalize the losses to be on the same scale as alphas
-# Handle with care, highly affects setting of the other hyperparameters.
-_C.cosmos.normalize = True
-_C.cosmos.instances = False
+_C.cosmos.lambda_lr = 0.2
+_C.cosmos.lambda_clip = 5.0
 
 _C.cosmos.lr_scheduler = _C.lr_scheduler
 _C.cosmos.lr = _C.lr
 
-
-_C.cosmos2 = CN()
-_C.cosmos2.lr_scheduler = _C.lr_scheduler
-_C.cosmos2.lr = _C.lr
 
 
 
@@ -152,7 +143,7 @@ _C.eval_every=5
 _C.train_eval_every=0
 
 # Reference point for hyper-volume calculation
-_C.reference_point=[2, 2]
+_C.reference_point=[1, 1]
 
 # cuda or cpu
 _C.device='cuda'

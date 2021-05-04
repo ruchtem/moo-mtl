@@ -84,10 +84,18 @@ def model_from_dataset(dataset, **kwargs):
         #     return ResNet.from_name(**kwargs)
     elif dataset == 'cityscapes':
         return Pspnet(dim=kwargs['dim'])
-    # elif dataset == 'coco':
-    #     return MaskRCNN(**kwargs)
     else:
         raise ValueError("Unknown model name {}".format(dataset))
+
+
+def format_list(list, format='.4f'):
+    string = ""
+    for l in list:
+        if string == "":
+            string += f"{l:{format}}"
+        else:
+            string += f", {l:{format}}"
+    return string
 
 
 def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
@@ -100,7 +108,7 @@ def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
                 T_max = 100
             else:
                 raise ValueError()
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max, eta_min=1e-5)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max, eta_min=1e-6)
     elif lr_scheduler == "MultiStep":
         # if cfg['scheduler_milestones'] is None:
         milestones = [int(.33 * cfg['epochs']), int(.66 * cfg['epochs'])]

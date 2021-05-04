@@ -26,7 +26,7 @@ from rtb import log_every_n_seconds, log_first_n, setup_logger
 from multi_objective import defaults, utils
 from multi_objective.objectives import from_name
 
-from multi_objective.methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMethod, MGDAMethod, UniformScalingMethod, COSMOS2Method
+from multi_objective.methods import HypernetMethod, ParetoMTLMethod, SingleTaskMethod, COSMOSMethod, MGDAMethod, UniformScalingMethod
 from multi_objective.scores import from_objectives
 
 
@@ -49,8 +49,6 @@ def method_from_name(method, objectives, model, cfg):
         return ParetoMTLMethod(objectives, model, cfg)
     elif method == 'cosmos':
         return COSMOSMethod(objectives, model, cfg)
-    elif method == 'cosmos2':
-        return COSMOS2Method(objectives, model, cfg)
     elif method == 'single_task':
         return SingleTaskMethod(objectives, model, cfg)
     elif 'phn' in method:
@@ -228,7 +226,7 @@ def main(rank, world_size, method_name, cfg, tag=''):
             val_results[f"start_{j}"] = {}
             test_results[f"start_{j}"] = {}
 
-        optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr)
+        optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr, weight_decay=1e-3)
         # optimizer = torch.optim.SGD(method.model_params(), cfg[method_name].lr, weight_decay=1e-4)
         scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
         

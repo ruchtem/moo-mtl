@@ -8,11 +8,8 @@ eval_every: 10
 
 # results of hpo
 cosmos:
-  lamda: 3.
-  alpha: [1., 1.]
-  lr_scheduler: MultiStep
-  lr: 1e-2
-  normalize: false
+  lr_scheduler: CosineAnnealing
+  lr: 1e-3
 
 mgda:
   normalization_type: 'loss'
