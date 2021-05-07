@@ -134,7 +134,7 @@ class COSMOSMethod(BaseMethod):
     
 
     def new_epoch(self, e):
-        if e > 0:
+        if e > 0 and e % 2 == 0:
             data = []
             for i in range(len(self.data)):
                 data.append(np.array(self.data[i].queue).mean(axis=0))

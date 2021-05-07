@@ -3,18 +3,15 @@ dataset: compass
 dim: [20]
 objectives: [BinaryCrossEntropyLoss, ddp]
 epochs: 50
-eval_every: 1
+eval_every: 5
 
 # results of hpo
 cosmos:
-  lamda: 0.
-  alpha: [0.5257, 0.3169]
-  normalize: False
-  lr: 0.00584
+  lr: 0.005
+  loss_mins: [0.2, 0.0]
+  loss_maxs: [1, .1]
+  clipping: 50.
 
-
-cosmos2:
-  lr: 0.1
 
 
 mgda:

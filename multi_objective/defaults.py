@@ -112,8 +112,8 @@ _C.single_task.lr = _C.lr
 _C.cosmos = CN()
 
 _C.cosmos.n_train_rays = 5
-_C.cosmos.loss_mins = [.0, .0]
-_C.cosmos.loss_maxs = [1., 1.]
+_C.cosmos.loss_mins = [0.]  # will be repeated for all losses
+_C.cosmos.loss_maxs = [1.]
 
 _C.cosmos.clipping = 5.
 _C.cosmos.lambda_lr = 0.2
