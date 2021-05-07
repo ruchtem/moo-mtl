@@ -112,10 +112,12 @@ _C.single_task.lr = _C.lr
 _C.cosmos = CN()
 
 _C.cosmos.n_train_rays = 5
-_C.cosmos.max_ray_range = 0.2  # between 0 and 1
+_C.cosmos.loss_mins = [.0, .0]
+_C.cosmos.loss_maxs = [1., 1.]
 
+_C.cosmos.clipping = 5.
 _C.cosmos.lambda_lr = 0.2
-_C.cosmos.lambda_clip = 5.0
+_C.cosmos.dampening = 0.2
 
 _C.cosmos.lr_scheduler = _C.lr_scheduler
 _C.cosmos.lr = _C.lr

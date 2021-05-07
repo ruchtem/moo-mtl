@@ -126,6 +126,11 @@ def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
 
 
 def scale(a, new_max=1, new_min=0, axis=None):
+    if np.isscalar(new_max) or len(new_max) == 1:
+        new_max = np.repeat(new_max, a.shape[1])
+    if np.isscalar(new_min) or len(new_min) == 1:
+        new_min = np.repeat(new_min, a.shape[1])
+    assert all(m > n for m, n in zip(new_max, new_min)), 'Max > min violated!'
     # scale to 0, 1
     a = (a - a.min(axis=axis)) / (a.max(axis=axis) - a.min(axis=axis))
 
@@ -135,10 +140,19 @@ def scale(a, new_max=1, new_min=0, axis=None):
     return a
 
 
-def reference_points(partitions, dim=2, min=None):
+def reference_points(partitions, dim=2, min=0, max=1, tolerance=0.):
     """generate evenly distributed preference vector"""
     d = get_reference_directions("uniform", dim, n_partitions=partitions)
-    return scale(d, new_min=min, axis=0)
+
+    if np.isscalar(max) or len(max) == 1:
+        max = np.repeat(max, d.shape[1])
+    if np.isscalar(min) or len(min) == 1:
+        min = np.repeat(min, d.shape[1])
+
+    range = (max - min)
+    min = min + tolerance * range
+
+    return scale(d, new_min=min, new_max=max, axis=0)
     
 
 

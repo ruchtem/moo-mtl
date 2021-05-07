@@ -104,7 +104,10 @@ class COSMOSMethod(BaseMethod):
         super().__init__(objectives, model, cfg)
         self.K = len(objectives)
         self.lambda_lr = cfg.cosmos.lambda_lr
-        self.lambda_clip = cfg.cosmos.lambda_clip
+        self.dampening = cfg.cosmos.dampening
+        self.lambda_clip = cfg.cosmos.clipping
+        self.loss_mins = torch.tensor(cfg.cosmos.loss_mins, device=self.device)
+        self.loss_maxs = cfg.cosmos.loss_maxs
 
         n = cfg.cosmos.n_train_rays
 
@@ -120,8 +123,10 @@ class COSMOSMethod(BaseMethod):
         print("Number of parameters: {}".format(self.n_params))
 
         self.steps = 0
-        self.sample = reference_points(n, self.K, min=[cfg.cosmos.max_ray_range, cfg.cosmos.max_ray_range])
+        self.sample = reference_points(n, self.K, min=0, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=0.2)
         self.lagrangian = [torch.zeros(self.K).cuda() for _ in range(len(self.sample))]
+        
+        
 
 
     def preference_at_inference(self):
@@ -130,17 +135,11 @@ class COSMOSMethod(BaseMethod):
 
     def new_epoch(self, e):
         if e > 0:
-            self.gather = False
-            self.loss_mins = torch.stack(self.losses).mean(dim=0) * 0.025
-
-            if (e+1) % 10 == 0:
-                self.lagrangian = [torch.zeros(self.K).cuda() for _ in range(len(self.sample))]
-
             data = []
             for i in range(len(self.data)):
                 data.append(np.array(self.data[i].queue).mean(axis=0))
             
-
+            plt.figure(figsize=(8,8))
             for i, (x, y) in enumerate(self.sample):
                 plt.arrow(self.loss_mins[0], self.loss_mins[1], x, y)
                 plt.text(self.loss_mins[0] + x, self.loss_mins[1] + y, f"{i}")
@@ -155,73 +154,51 @@ class COSMOSMethod(BaseMethod):
             plt.title(f"epoch {e}")
             plt.savefig('test')
             plt.close()
-        else:
-            self.gather = True
-            self.losses = []
+
+            # can turn on this to avoid overshooting the constraints
+            # if (e+1) % 10 == 0:
+            #     self.lagrangian = [torch.zeros(self.K).cuda() for _ in range(len(self.sample))]
 
 
     def step(self, batch):
         b = batch['data'].shape[0]
-        if not self.gather:
+        
+        i = np.random.choice(list(range(len(self.sample))))
+        # i = 0
+        
+        
+        # step 1: sample alphas
+        a = self.sample[i]
+        a = torch.from_numpy(a.astype(np.float32)).to(self.device)
+        batch['alpha'] = a.repeat(b, 1)
 
-            # i = np.random.choice(list(range(len(self.sample))), p=[.1, .15, .25, .25, .15, .1])
-            i = np.random.choice(list(range(len(self.sample))))
-            # i = 0
-            
-            
-            # step 1: sample alphas
-            a = self.sample[i]
-            a = torch.from_numpy(a.astype(np.float32)).to(self.device)
-            batch['alpha'] = a.repeat(b, 1)
+        # step 2: calculate loss
+        self.model.zero_grad()
+        batch.update(self.model(batch))
+        task_losses = torch.stack(tuple(self.objectives[t](**batch) for t in self.task_ids)).T - self.loss_mins
+        
+        # This is the Modified Differential Method of Multipliers
+        # Platt & Barr: 1987 (NIPS)
 
-            # step 2: calculate loss
-            self.model.zero_grad()
-            logits = self.model(batch)
-            batch.update(logits)
-            loss = torch.tensor(0, device=self.device).float()
-            
-            task_losses = torch.stack(tuple(self.objectives[t](**batch) for t in self.task_ids)).T - self.loss_mins
+        g_i = task_losses / norm(task_losses) - a / norm(a)
 
-            # self.loss_mins.append(task_losses.tolist())
+        # thanks to the constraints we can also omit linear scalarization
+        loss = a.dot(task_losses.T) + sum(self.lagrangian[i] * g_i) + self.dampening / 2 * sum(g_i ** 2)
+        loss.backward()
 
-            # if self.steps > 10:
-            #     loss_mins = np.array(self.loss_mins.queue).min(axis=0)
-            #     task_losses -= torch.from_numpy(loss_mins).to(self.device)
-            
-            g_i = (task_losses / norm(task_losses) - a / norm(a))
+        # gradient ascent on lagrangian multipliers
+        for j, g_j in enumerate(g_i):
+            self.lagrangian[i][j] += self.lambda_lr * g_j.item()
 
-            loss = a.dot(task_losses.T) + sum(self.lagrangian[i] * g_i)
-            loss.backward()
-
-            test = sum(g_i.abs()).item()
-
-            # gradient ascent on lagrangian multipliers
-            for j, g_j in enumerate(g_i):
-                self.lagrangian[i][j] += self.lambda_lr * g_j.item()
-
-                if self.lagrangian[i][j] > self.lambda_clip:
-                    self.lagrangian[i][j] = self.lambda_clip
-                elif self.lagrangian[i][j] < -self.lambda_clip:
-                    self.lagrangian[i][j] = -self.lambda_clip
-
-            self.data[i].append(task_losses.tolist())
+            if self.lagrangian[i][j] > self.lambda_clip:
+                self.lagrangian[i][j] = self.lambda_clip
+            elif self.lagrangian[i][j] < -self.lambda_clip:
+                self.lagrangian[i][j] = -self.lambda_clip
 
 
-
-            self.steps += 1
-            return task_losses.sum().item(), test, 0
-        else:
-            with torch.no_grad():
-                a = torch.from_numpy(np.zeros((b, self.K)).astype(np.float32)).to(self.device)
-                batch['alpha'] = a
-
-                # step 2: calculate loss
-                logits = self.model(batch)
-                batch.update(logits)
-                
-                task_losses = torch.stack(tuple(self.objectives[t](**batch) for t in self.task_ids)).T
-                self.losses.append(task_losses)
-                return 0
+        self.data[i].append(task_losses.tolist())
+        self.steps += 1
+        return task_losses.sum().item()
 
 
 
