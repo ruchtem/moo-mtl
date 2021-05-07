@@ -5,15 +5,16 @@ objectives: [
   BinaryCrossEntropyLoss,
   ddp]
 epochs: 50
-eval_every: 1
+eval_every: 2
 
 # results of hpo, dont change!
 cosmos:
-  lamda: 0.           # we don't need lamda here as objectives are mutually exclusive
-  alpha: [1.0888, 0.3093]
-  normalize: True
-  lr: 0.00035
-  instances: False    # true results in V-shaped pareto fronts
+  lr: 0.0001
+  loss_mins: [0.25, 0.0]
+  loss_maxs: [1, .1]
+  clipping: 10.
+
+
 
 mgda:
   normalization_type: 'loss'

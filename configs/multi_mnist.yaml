@@ -8,13 +8,12 @@ eval_every: 2
 
 # results of hpo
 cosmos:
-  lamda: 3.7724
-  alpha: [0.3089, 1.0183]
-  lr_scheduler: MultiStep
-  lr: 0.000491
-  normalize: false
-  instances: false
+  loss_mins: [0.15, 0.2]
+  dampening: 0.
+  clipping: .3
 
+  lr_scheduler: CosineAnnealing
+  lr: 1e-3
 
 mgda:
   normalization_type: 'loss'

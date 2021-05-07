@@ -3,14 +3,15 @@ dataset: credit
 dim: [90]
 objectives: [BinaryCrossEntropyLoss, ddp]
 epochs: 50
-eval_every: 1
+eval_every: 2
+batch_size: 56
 
-# results of hpo
 cosmos:
-  lamda: 0.
-  alpha: [0.4614, 0.4575.]
-  normalize: False
-  lr: 0.00716
+  lr: 0.0005
+  loss_mins: [0.4, 0.0]
+  loss_maxs: [1, .1]
+  clipping: 10.
+  lambda_lr: 0.2
 
 mgda:
   normalization_type: 'loss'

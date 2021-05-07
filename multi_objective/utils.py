@@ -84,10 +84,18 @@ def model_from_dataset(dataset, **kwargs):
         #     return ResNet.from_name(**kwargs)
     elif dataset == 'cityscapes':
         return Pspnet(dim=kwargs['dim'])
-    # elif dataset == 'coco':
-    #     return MaskRCNN(**kwargs)
     else:
         raise ValueError("Unknown model name {}".format(dataset))
+
+
+def format_list(list, format='.4f'):
+    string = ""
+    for l in list:
+        if string == "":
+            string += f"{l:{format}}"
+        else:
+            string += f", {l:{format}}"
+    return string
 
 
 def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
@@ -100,7 +108,7 @@ def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
                 T_max = 100
             else:
                 raise ValueError()
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max, eta_min=1e-6)
     elif lr_scheduler == "MultiStep":
         # if cfg['scheduler_milestones'] is None:
         milestones = [int(.33 * cfg['epochs']), int(.66 * cfg['epochs'])]
@@ -117,9 +125,35 @@ def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
     return scheduler
 
 
-def reference_points(partitions, dim=2):
+def scale(a, new_max=1, new_min=0, axis=None):
+    if np.isscalar(new_max) or len(new_max) == 1:
+        new_max = np.repeat(new_max, a.shape[1])
+    if np.isscalar(new_min) or len(new_min) == 1:
+        new_min = np.repeat(new_min, a.shape[1])
+    assert all(m > n for m, n in zip(new_max, new_min)), 'Max > min violated!'
+    # scale to 0, 1
+    a = (a - a.min(axis=axis)) / (a.max(axis=axis) - a.min(axis=axis))
+
+    new_min = np.array(new_min)
+    new_max = np.array(new_max)
+    a = a * (new_max - new_min) + new_min
+    return a
+
+
+def reference_points(partitions, dim=2, min=0, max=1, tolerance=0.):
     """generate evenly distributed preference vector"""
-    return get_reference_directions("uniform", dim, n_partitions=partitions)
+    d = get_reference_directions("uniform", dim, n_partitions=partitions)
+
+    if np.isscalar(max) or len(max) == 1:
+        max = np.repeat(max, d.shape[1])
+    if np.isscalar(min) or len(min) == 1:
+        min = np.repeat(min, d.shape[1])
+
+    range = (max - min)
+    min = min + tolerance * range
+
+    return scale(d, new_min=min, new_max=max, axis=0)
+    
 
 
 def optimal_solution(pareto_front, weights=None):
@@ -178,7 +212,6 @@ def normalize_score_dict(d, divisor):
         elif isinstance(v, dict):
             d[k] = normalize_score_dict(v, divisor)
     return d
-
 
 
 def set_seed(seed):
@@ -414,12 +447,12 @@ class ParetoFront():
             plt.close()
 
         # plot radviz
-        p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
-        radviz_plot = Radviz().add(p_normalized)
-        if best_sol_idx is not None:
-            radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
-        radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
-        plt.close()
+        # p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
+        # radviz_plot = Radviz().add(p_normalized)
+        # if best_sol_idx is not None:
+        #     radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
+        # radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
+        # plt.close()
 
         norms = np.linalg.norm(p, axis=1)
 

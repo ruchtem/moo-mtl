@@ -47,7 +47,7 @@ def method_from_name(method, objectives, model, cfg):
     if method == 'pmtl':
         assert cfg.dataset not in ['celeba', 'cityscapes'], f"Not supported"
         return ParetoMTLMethod(objectives, model, cfg)
-    elif 'cosmos' in method:
+    elif method == 'cosmos':
         return COSMOSMethod(objectives, model, cfg)
     elif method == 'single_task':
         return SingleTaskMethod(objectives, model, cfg)
@@ -98,7 +98,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
         J = len(cfg['objectives'])
         task_ids = list(scores[list(scores)[0]].keys())
 
-    pareto_rays = utils.reference_points(cfg['n_partitions'], dim=J)
+    pareto_rays = utils.reference_points(cfg['n_partitions'], dim=J, min=[0.2, 0.2])
     n_rays = pareto_rays.shape[0]
     
     log_first_n(logging.DEBUG, f"Number of test rays: {n_rays}", n=1)
@@ -236,8 +236,8 @@ def main(rank, world_size, method_name, cfg, tag=''):
             val_results[f"start_{j}"] = {}
             test_results[f"start_{j}"] = {}
 
-        optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr)
-        # optimizer = torch.optim.SGD(method.model_params(), cfg[method_name].lr, weight_decay=1e-3)
+        optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr, weight_decay=1e-3)
+        # optimizer = torch.optim.SGD(method.model_params(), cfg[method_name].lr, weight_decay=1e-4)
         scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
         
         for e in range(cfg['epochs']):
