@@ -290,10 +290,10 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
                 optimizer.step()
 
                 # distribute method parameters
-                if rank == 0 and world_size > 1:
-                    for _, t in method.state_dict():
-                        t.data = dist.all_reduce(t, op=dist.ReduceOp.SUM) / world_size   # average
-                        dist.broadcast(t, src=0)
+                for t in method.state_dict().values():
+                    dist.reduce(t, dst=0, op=dist.ReduceOp.SUM)     # collect
+                    t.data /= world_size                            # average
+                    dist.broadcast(t, src=0)                        # re-distribute
 
                 assert not math.isnan(loss)
                 log_every_n_seconds(logging.INFO, 

@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch.linalg import norm
 import numpy as np
 
+from collections import OrderedDict
+
 from multi_objective.utils import num_parameters, RunningMean, reference_points, format_list
 from .base import BaseMethod
 
@@ -128,38 +130,42 @@ class COSMOSMethod(BaseMethod):
         
     
     def state_dict(self):
-        return {f'lamdas.{i}': l for i, l in enumerate(self.lagrangian)}
+        state = OrderedDict()
+        for i, l in enumerate(self.lagrangian):
+            state[f'lamdas.{i}'] = l
+        return state
 
     
     def load_state_dict(self, dict):
-        self.lagrangian = [dict[k] for k in sorted(dict)]
+        self.lagrangian = dict.values()
+        print('after load', self.lagrangian)
 
 
     def preference_at_inference(self):
         return True
     
 
-    def new_epoch(self, e):
-        if e > 0 and e % 2 == 0:
-            data = []
-            for i in range(len(self.data)):
-                data.append(np.array(self.data[i].queue).mean(axis=0))
+    # def new_epoch(self, e):
+    #     if e > 0 and e % 2 == 0:
+            # data = []
+            # for i in range(len(self.data)):
+            #     data.append(np.array(self.data[i].queue).mean(axis=0))
             
-            plt.figure(figsize=(8,8))
-            for i, (x, y) in enumerate(self.sample):
-                plt.arrow(self.loss_mins[0], self.loss_mins[1], x, y)
-                plt.text(self.loss_mins[0] + x, self.loss_mins[1] + y, f"{i}")
+            # plt.figure(figsize=(8,8))
+            # for i, (x, y) in enumerate(self.sample):
+            #     plt.arrow(self.loss_mins[0], self.loss_mins[1], x, y)
+            #     plt.text(self.loss_mins[0] + x, self.loss_mins[1] + y, f"{i}")
             
-            for i, d in enumerate(data):
-                if np.isscalar(d) and np.isnan(d):
-                    continue
-                d += self.loss_mins.cpu().numpy()
-                plt.plot(d[0], d[1], "ro")
-                plt.text(d[0], d[1], f"{i}: {format_list(self.lagrangian[i].tolist(), '.2f')}")
+            # for i, d in enumerate(data):
+            #     if np.isscalar(d) and np.isnan(d):
+            #         continue
+            #     d += self.loss_mins.cpu().numpy()
+            #     plt.plot(d[0], d[1], "ro")
+            #     plt.text(d[0], d[1], f"{i}: {format_list(self.lagrangian[i].tolist(), '.2f')}")
 
-            plt.title(f"epoch {e}")
-            plt.savefig('test')
-            plt.close()
+            # plt.title(f"epoch {e}")
+            # plt.savefig('test')
+            # plt.close()
 
             # can turn on this to avoid overshooting the constraints
             # if (e+1) % 10 == 0:
@@ -202,7 +208,7 @@ class COSMOSMethod(BaseMethod):
                 self.lagrangian[i][j] = -self.lambda_clip
 
 
-        self.data[i].append(task_losses.tolist())
+        # self.data[i].append(task_losses.tolist())
         self.steps += 1
         return task_losses.sum().item()
 
