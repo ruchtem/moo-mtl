@@ -126,7 +126,13 @@ class COSMOSMethod(BaseMethod):
         self.sample = reference_points(n, self.K, min=0, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=0.2)
         self.lagrangian = [torch.zeros(self.K).cuda() for _ in range(len(self.sample))]
         
-        
+    
+    def state_dict(self):
+        return {f'lamdas.{i}': l for i, l in enumerate(self.lagrangian)}
+
+    
+    def load_state_dict(self, dict):
+        self.lagrangian = [dict[k] for k in sorted(dict)]
 
 
     def preference_at_inference(self):

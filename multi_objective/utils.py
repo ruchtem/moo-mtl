@@ -229,21 +229,6 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
 
 
-def get_runname(settings):
-    slurm_job_id = os.environ['SLURM_JOB_ID'] if 'SLURM_JOB_ID' in os.environ else None
-    slurm_task_id = os.environ['SLURM_ARRAY_TASK_ID'] if 'SLURM_ARRAY_TASK_ID' in os.environ else None
-
-    if slurm_job_id:
-        runname = f"{slurm_job_id}"
-        if slurm_task_id:
-            runname += f"_{slurm_task_id}"
-    else:
-        runname = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    if 'task_id' in settings:
-        runname += f"_{settings['task_id']}"
-    return runname
-
-
 def calc_gradients(batch, model, objectives):
     # store gradients and objective values
     gradients = {t: {} for t in objectives}

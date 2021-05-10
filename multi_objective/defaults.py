@@ -35,7 +35,7 @@ _C.epochs = 10
 _C.num_workers = 4
 
 # Checkpoint period per epoch (0 for no checkpoints)
-_C.checkpoint_every = 0
+_C.checkpointing = False
 
 # We support 2 optional learing rate schedulers: 'MultiStep' and 'Cosine'. MultiStep is decaying 
 # the learing rate with 0.1 at 0.33 * epochs and 0.66 * epochs.

@@ -178,21 +178,35 @@ def setup(rank, world_size):
     os.environ['MASTER_PORT'] = '12355'
 
     # initialize the process group
-    dist.init_process_group("gloo", rank=rank, world_size=world_size)
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
 def cleanup():
     dist.destroy_process_group()
 
 
-def main(rank, world_size, method_name, cfg, tag=''):
+def save_checkpoint(savepath, **kwargs):
+    savedict = {}
+    for k, v in kwargs.items():
+        if hasattr(v, 'state_dict'):
+            savedict[k] = v.state_dict()
+        else:
+            savedict[k] = v
+    savedict['torch_rng_state'] = torch.get_rng_state()
+    savedict['np_rng_state'] = np.random.get_state()
+    savedict['random_rng_state'] = random.getstate()
+
+    torch.save(savedict, savepath)
+
+
+def main(rank, world_size, method_name, cfg, tag='', resume=False):
     cfg.freeze()
     if world_size > 1:
         setup(rank, world_size)
     print(rank, world_size)
 
     # create the experiment folders
-    logdir = os.path.join(cfg['logdir'], method_name, cfg['dataset'], utils.get_runname(cfg) + f'_{tag}')
+    logdir = os.path.join(cfg['logdir'], method_name, cfg['dataset'], f'{tag}_{cfg.task_id}' if 'task_id' in cfg else f'{tag}')
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
     logger = setup_logger(os.path.join(logdir, 'exp.log'), name=__name__, distributed_rank=rank)
@@ -211,7 +225,6 @@ def main(rank, world_size, method_name, cfg, tag=''):
     train_loader, val_loader, test_loader, sampler = utils.loaders_from_name(**cfg)
 
     rm1 = utils.RunningMean(len(train_loader))
-    rm2 = utils.RunningMean(len(train_loader))
     elapsed_time = 0
 
     model = utils.model_from_dataset(**cfg).to(cfg.device)
@@ -239,8 +252,27 @@ def main(rank, world_size, method_name, cfg, tag=''):
         optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr, weight_decay=1e-3)
         # optimizer = torch.optim.SGD(method.model_params(), cfg[method_name].lr, weight_decay=1e-4)
         scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
+        start_epoch = 0
+
+        if resume and os.path.exists(os.path.join(logdir, 'checkpoint.pth')):
+
+            map_location = {'cuda:%d' % 0: 'cuda:%d' % rank} if world_size > 1 else None
+            checkpoint = torch.load(os.path.join(logdir, 'checkpoint.pth'), map_location)
+
+            method.load_state_dict(checkpoint['method'])
+            model.load_state_dict(checkpoint['model'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            start_epoch = checkpoint['epoch'] + 1
+            train_results = checkpoint['train_results']
+            val_results = checkpoint['val_results']
+            test_results = checkpoint['test_results']
+
+            torch.set_rng_state(checkpoint['torch_rng_state'])
+            np.random.set_state(checkpoint['np_rng_state'])
+            random.setstate(checkpoint['random_rng_state'])
         
-        for e in range(cfg['epochs']):
+        for e in range(start_epoch, cfg['epochs']):
             if world_size > 1:
                 # Keep the gpus in sync, especially after evaluation
                 torch.distributed.barrier()
@@ -253,15 +285,19 @@ def main(rank, world_size, method_name, cfg, tag=''):
             for b, batch in enumerate(train_loader):
                 batch = utils.dict_to(batch, cfg.device)
                 optimizer.zero_grad()
-                stats = method.step(batch)
+                loss = method.step(batch)
                 
                 optimizer.step()
 
-                loss, sim, norm  = stats if isinstance(stats, tuple) else (stats, 0, 0)
-                assert not math.isnan(loss) and not math.isnan(sim)
+                # distribute method parameters
+                if rank == 0 and world_size > 1:
+                    for _, t in method.state_dict():
+                        t.data = dist.all_reduce(t, op=dist.ReduceOp.SUM) / world_size   # average
+                        dist.broadcast(t, src=0)
 
+                assert not math.isnan(loss)
                 log_every_n_seconds(logging.INFO, 
-                    f"Epoch {e:03d}, batch {b:03d}, train_loss {loss:.4f}, rm train_loss {rm1(loss):.3f}, rm sim {rm2(sim):.3f}",
+                    f"Epoch {e:03d}, batch {b:03d}, train_loss {loss:.4f}, rm train_loss {rm1(loss):.3f}",
                     n=5
                 )
 
@@ -303,17 +339,23 @@ def main(rank, world_size, method_name, cfg, tag=''):
                 #     settings=settings,)
 
             # Checkpoints
-            if rank == 0:
-                if cfg['checkpoint_every'] > 0 and (e+1) % cfg['checkpoint_every'] == 0:
-                    pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
-                    torch.save(method.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, e)))
+            if rank == 0 and cfg.checkpointing:
+                save_checkpoint(
+                    os.path.join(logdir, 'checkpoint.pth'),
+                    method=method,
+                    model=model,
+                    optimizer=optimizer,
+                    lr_scheduler=scheduler,
+                    epoch=e,
+                    train_results=train_results,
+                    val_results=val_results,
+                    test_results=test_results
+                )
+
         if world_size > 1:
             cleanup()
         
         if rank == 0:
-            pathlib.Path(os.path.join(logdir, 'checkpoints')).mkdir(parents=True, exist_ok=True)
-            torch.save(method.model.state_dict(), os.path.join(logdir, 'checkpoints', 'c_{}-{:03d}.pth'.format(j, 999999)))
-    
             epoch_results = val_results['start_0'][f'epoch_{e}']['loss']
             if 'hv' in epoch_results:
                 return epoch_results['hv'], epoch_results['dist']
@@ -326,8 +368,9 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default="", metavar="FILE", help="Config file.")
     parser.add_argument('--method', default='cosmos', type=str, help="The method to generate the Pareto front.")
-    parser.add_argument('--tag', default='', type=str, help="Experiment tag")
+    parser.add_argument('--tag', default='run', type=str, help="Experiment tag")
     parser.add_argument('--ngpus', default=1, type=int, help="num gpus for distributed training")
+    parser.add_argument('--resume', default=False, action='store_true', help='Resume from last checkpoint')
     parser.add_argument(
         "opts",
         help="Modify config options by adding 'KEY VALUE' pairs at the end of the command.",
@@ -365,10 +408,10 @@ if __name__ == "__main__":
         # TODO: torch.distributed.launch
 
         mp.spawn(main,
-            args=(world_size, args.method, cfg, tag),
+            args=(world_size, args.method, cfg, tag, args.resume),
             nprocs=world_size,
             join=True
         )
     else:
-        res = main(0, world_size, args.method, cfg, tag)
+        res = main(0, world_size, args.method, cfg, tag, args.resume)
         print(res)

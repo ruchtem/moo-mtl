@@ -20,6 +20,14 @@ class BaseMethod():
         return list(self.model.parameters())
 
     
+    def state_dict(self):
+        return {}
+
+    
+    def load_state_dict(self):
+        pass
+
+
     def new_epoch(self, e):
         self.model.train()
 
