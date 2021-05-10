@@ -137,8 +137,7 @@ class COSMOSMethod(BaseMethod):
 
     
     def load_state_dict(self, dict):
-        self.lagrangian = dict.values()
-        print('after load', self.lagrangian)
+        self.lagrangian = list(dict.values())
 
 
     def preference_at_inference(self):

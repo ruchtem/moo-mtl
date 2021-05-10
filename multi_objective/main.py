@@ -98,7 +98,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
         J = len(cfg['objectives'])
         task_ids = list(scores[list(scores)[0]].keys())
 
-    pareto_rays = utils.reference_points(cfg['n_partitions'], dim=J, min=[0.2, 0.2])
+    pareto_rays = utils.reference_points(cfg['n_partitions'], dim=J)
     n_rays = pareto_rays.shape[0]
     
     log_first_n(logging.DEBUG, f"Number of test rays: {n_rays}", n=1)
@@ -310,7 +310,7 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
 
             # run eval on train set (mainly for debugging)
             if rank == 0:
-                if cfg['train_eval_every'] > 0 and (e+1) % cfg['train_eval_every'] == 0 and e > 1:
+                if cfg['train_eval_every'] > 0 and (e+1) % cfg['train_eval_every'] == 0 and e > 0:
                     train_results = evaluate(j, e, method, scores, train_loader,
                         split='train',
                         result_dict=train_results,
@@ -320,7 +320,7 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
                         logger=logger,)
 
                 
-                if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0 and e > 1:
+                if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0 and e > 0:
                     # Validation results
                     val_results = evaluate(j, e, method, scores, val_loader,
                         split='val',
