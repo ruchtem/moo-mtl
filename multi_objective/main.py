@@ -21,7 +21,7 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 
-from rtb import log_every_n_seconds, log_first_n, setup_logger
+from rtb import log_every_n_seconds, log_first_n, setup_logger, save_checkpoint
 
 from multi_objective import defaults, utils
 from multi_objective.objectives import from_name
@@ -185,20 +185,6 @@ def cleanup():
     dist.destroy_process_group()
 
 
-def save_checkpoint(savepath, **kwargs):
-    savedict = {}
-    for k, v in kwargs.items():
-        if hasattr(v, 'state_dict'):
-            savedict[k] = v.state_dict()
-        else:
-            savedict[k] = v
-    savedict['torch_rng_state'] = torch.get_rng_state()
-    savedict['np_rng_state'] = np.random.get_state()
-    savedict['random_rng_state'] = random.getstate()
-
-    torch.save(savedict, savepath)
-
-
 def main(rank, world_size, method_name, cfg, tag='', resume=False):
     cfg.freeze()
     if world_size > 1:
@@ -290,10 +276,11 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
                 optimizer.step()
 
                 # distribute method parameters
-                for t in method.state_dict().values():
-                    dist.reduce(t, dst=0, op=dist.ReduceOp.SUM)     # collect
-                    t.data /= world_size                            # average
-                    dist.broadcast(t, src=0)                        # re-distribute
+                if world_size > 1:
+                    for t in method.state_dict().values():
+                        dist.reduce(t, dst=0, op=dist.ReduceOp.SUM)     # collect
+                        t.data /= world_size                            # average
+                        dist.broadcast(t, src=0)                        # re-distribute
 
                 assert not math.isnan(loss)
                 log_every_n_seconds(logging.INFO, 
@@ -342,6 +329,7 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
             if rank == 0 and cfg.checkpointing:
                 save_checkpoint(
                     os.path.join(logdir, 'checkpoint.pth'),
+                    use_torch=True,
                     method=method,
                     model=model,
                     optimizer=optimizer,
