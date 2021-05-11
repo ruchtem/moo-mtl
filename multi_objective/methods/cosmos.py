@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.linalg import norm
 import numpy as np
+import torch.distributed as dist
 
 from collections import OrderedDict
 
@@ -16,7 +17,7 @@ plt.switch_backend('agg')
 class Upsampler(nn.Module):
 
 
-    def __init__(self, K, child_model, input_dim, upsample_fraction=1.):
+    def __init__(self, K, child_model, input_dim, upsample_fraction=.75):
         """
         In case of tabular data: append the sampled rays to the data instances (no upsampling)
         In case of image data: use a transposed CNN for the sampled rays.
@@ -144,7 +145,9 @@ class COSMOSMethod(BaseMethod):
         return True
     
 
-    # def new_epoch(self, e):
+    def new_epoch(self, e):
+        if dist.is_initialized() and dist.get_rank() == 0:
+            print(f"lambda mean {torch.stack(self.lagrangian).mean():.04f} std {torch.stack(self.lagrangian).std():.04f}")
     #     if e > 0 and e % 2 == 0:
             # data = []
             # for i in range(len(self.data)):

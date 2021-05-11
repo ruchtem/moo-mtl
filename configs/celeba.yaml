@@ -24,7 +24,7 @@ reference_point: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 n_partitions: 3
 epochs: 100
 batch_size: 256
-eval_every: 1
+eval_every: 10
 checkpointing: True
 
 cosmos:

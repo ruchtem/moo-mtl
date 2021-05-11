@@ -6,6 +6,8 @@ import random
 import matplotlib.pyplot as plt
 import collections
 
+import torch.distributed as dist
+
 from numpy.linalg import norm
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
@@ -58,16 +60,20 @@ def loaders_from_name(dataset, seed, **kwargs):
         val_bs = kwargs['batch_size']
         test_bs = kwargs['batch_size']
     
-    if torch.distributed.is_initialized():
+    if dist.is_initialized():
         # We are in distributed setting
         sampler = DistributedSampler(train, shuffle=True, seed=seed)
+        sampler_val = DistributedSampler(val, shuffle=False, seed=seed)
+        sampler_test = DistributedSampler(test, shuffle=False, seed=seed)
     else:
         sampler = None
+        sampler_val = None
+        sampler_test = None
 
     return (
         DataLoader(train, kwargs['batch_size'], shuffle=(sampler is None), sampler=sampler, num_workers=kwargs['num_workers']),
-        DataLoader(val, val_bs, num_workers=kwargs['num_workers']),
-        DataLoader(test, test_bs, num_workers=kwargs['num_workers']),
+        DataLoader(val, val_bs, sampler=sampler_val, num_workers=kwargs['num_workers']),
+        DataLoader(test, test_bs, sampler=sampler_test, num_workers=kwargs['num_workers']),
         sampler,
     )
 
@@ -255,8 +261,8 @@ def calc_gradients(batch, model, objectives):
 class EvalResult():
 
     def __init__(self, J, n_test_rays) -> None:
-        self.center = np.zeros(J)
-        self.pf = np.zeros((n_test_rays, J))
+        self.center = torch.zeros(J).cuda()
+        self.pf = torch.zeros((n_test_rays, J)).cuda()
         self.hv = None
         self.max_angle = None
         self.pf_available = False
@@ -266,15 +272,23 @@ class EvalResult():
 
     def update(self, data, mode):
         if mode == 'single_point':
-            self.center += data
+            self.center += torch.from_numpy(data).cuda()
             self.i += 1
         elif mode == 'pareto_front':
             self.pf_available = True
-            self.pf += data
+            self.pf += torch.from_numpy(data).cuda()
             self.j += 1
         else:
             raise ValueError(f"Unknown eval mode {mode}")
 
+
+    def gather(self, world_size):
+        assert world_size > 1
+        dist.reduce(self.pf, dst=0, op=dist.ReduceOp.SUM)     # collect
+        self.pf.data /= world_size                            # average
+
+        dist.reduce(self.center, dst=0, op=dist.ReduceOp.SUM)     # collect
+        self.center.data /= world_size                            # average
         
     
     def normalize(self):
@@ -282,6 +296,9 @@ class EvalResult():
             self.center /= self.i
         if self.j > 0:
             self.pf /= self.j
+        
+        self.pf = self.pf.cpu().numpy()
+        self.center = self.center.cpu().numpy()
 
     
     def compute_hv(self, reference_point):
@@ -430,14 +447,19 @@ class ParetoFront():
             plt.grid()
             plt.savefig(os.path.join(self.logdir, "pf_{}.png".format(self.prefix)))
             plt.close()
+        else:
+            # plot radviz
+            # p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
+            p_normalized = p
+            radviz_plot = Radviz()
 
-        # plot radviz
-        # p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
-        # radviz_plot = Radviz().add(p_normalized)
-        # if best_sol_idx is not None:
-        #     radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
-        # radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
-        # plt.close()
+            radviz_plot.add(rays, color='grey', alpha=.5)
+            radviz_plot.add(p_normalized)
+            
+            if best_sol_idx is not None:
+                radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
+            radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
+            plt.close()
 
         norms = np.linalg.norm(p, axis=1)
 

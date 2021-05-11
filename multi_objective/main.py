@@ -114,12 +114,12 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
             score_values[k].pf_available = True
     else:
         for b, batch in enumerate(data_loader):
-            log_every_n_seconds(logging.INFO, f"Eval {b} of {len(data_loader)}", n=5)
             batch = utils.dict_to(batch, cfg['device'])
                     
             if method.preference_at_inference():
                 data = {et: np.zeros((n_rays, J)) for et in scores.keys()}
                 for i, ray in enumerate(pareto_rays):
+                    log_every_n_seconds(logging.INFO, f"Eval batch {b}/{len(data_loader)} Ray {i}/{n_rays}", n=5)
                     logits = method.eval_step(batch, preference_vector=ray)
                     batch.update(logits)
 
@@ -136,39 +136,50 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
                     data = [score[t](**batch) for t in task_ids]
                     score_values[eval_mode].update(data, 'single_point')
 
-    # normalize scores and compute hyper-volume
-    for v in score_values.values():
-        v.normalize()
-        if method.preference_at_inference():
-            v.compute_hv(cfg['reference_point'])
-            v.compute_optimal_sol()
-            v.compute_dist()
-
-
-    # plot pareto front to pf
-    for eval_mode, score in score_values.items():
-        pareto_front = utils.ParetoFront(
-            ["-".join([str(t), eval_mode]) for t in task_ids], 
-            logdir,
-            "{}_{}_{:03d}".format(eval_mode, split, e)
-        )
-        if score.pf_available:
-            pareto_front.plot(score.pf, best_sol_idx=score.optimal_sol_idx)
-        else:
-            pareto_front.plot(score.center)
-
-    result = {k: v.to_dict() for k, v in score_values.items()}
-    result.update({"training_time_so_far": train_time,})
-    result.update(method.log())
-
-    if f"epoch_{e}" in result_dict[f"start_{j}"]:
-        result_dict[f"start_{j}"][f"epoch_{e}"].update(result)
+    if dist.is_initialized():
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
     else:
-        result_dict[f"start_{j}"][f"epoch_{e}"] = result
+        rank = 0
+        world_size = 1
 
-    with open(pathlib.Path(logdir) / f"{split}_results.json", "w") as file:
-        json.dump(result_dict, file)
-    
+    if world_size > 1:
+        for v in score_values.values():
+            v.gather(world_size)
+
+    if rank == 0:
+        # normalize scores and compute hyper-volume
+        for v in score_values.values():
+            v.normalize()
+            if method.preference_at_inference():
+                # v.compute_hv(cfg['reference_point'])
+                v.compute_optimal_sol()
+                v.compute_dist()
+
+        # plot pareto front to pf
+        for eval_mode, score in score_values.items():
+            pareto_front = utils.ParetoFront(
+                ["-".join([str(t), eval_mode]) for t in task_ids], 
+                logdir,
+                "{}_{}_{:03d}".format(eval_mode, split, e)
+            )
+            if score.pf_available:
+                pareto_front.plot(score.pf, best_sol_idx=score.optimal_sol_idx, rays=pareto_rays)
+            else:
+                pareto_front.plot(score.center)
+
+        result = {k: v.to_dict() for k, v in score_values.items()}
+        result.update({"training_time_so_far": train_time,})
+        result.update(method.log())
+
+        if f"epoch_{e}" in result_dict[f"start_{j}"]:
+            result_dict[f"start_{j}"][f"epoch_{e}"].update(result)
+        else:
+            result_dict[f"start_{j}"][f"epoch_{e}"] = result
+
+        with open(pathlib.Path(logdir) / f"{split}_results.json", "w") as file:
+            json.dump(result_dict, file)
+        
     return result_dict
 
 
@@ -295,36 +306,6 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
                 val_results[f"start_{j}"][f"epoch_{e}"] = {'lr': scheduler.get_last_lr()[0]}
             scheduler.step()
 
-            # run eval on train set (mainly for debugging)
-            if rank == 0:
-                if cfg['train_eval_every'] > 0 and (e+1) % cfg['train_eval_every'] == 0 and e > 0:
-                    train_results = evaluate(j, e, method, scores, train_loader,
-                        split='train',
-                        result_dict=train_results,
-                        logdir=logdir,
-                        train_time=elapsed_time,
-                        cfg=cfg,
-                        logger=logger,)
-
-                
-                if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0 and e > 0:
-                    # Validation results
-                    val_results = evaluate(j, e, method, scores, val_loader,
-                        split='val',
-                        result_dict=val_results,
-                        logdir=logdir,
-                        train_time=elapsed_time,
-                        cfg=cfg,
-                        logger=logger,)
-
-                # Test results
-                # test_results = evaluate(j, e, method, scores, test_loader,
-                #     split='test',
-                #     result_dict=test_results,
-                #     logdir=logdir,
-                #     train_time=elapsed_time,
-                #     settings=settings,)
-
             # Checkpoints
             if rank == 0 and cfg.checkpointing:
                 save_checkpoint(
@@ -339,6 +320,35 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
                     val_results=val_results,
                     test_results=test_results
                 )
+
+            # run eval on train set (mainly for debugging)
+            if cfg['train_eval_every'] > 0 and (e+1) % cfg['train_eval_every'] == 0 and e > 0:
+                train_results = evaluate(j, e, method, scores, train_loader,
+                    split='train',
+                    result_dict=train_results,
+                    logdir=logdir,
+                    train_time=elapsed_time,
+                    cfg=cfg,
+                    logger=logger,)
+
+            
+            if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0 and e > 0:
+                # Validation results
+                val_results = evaluate(j, e, method, scores, val_loader,
+                    split='val',
+                    result_dict=val_results,
+                    logdir=logdir,
+                    train_time=elapsed_time,
+                    cfg=cfg,
+                    logger=logger,)
+
+            # Test results
+            # test_results = evaluate(j, e, method, scores, test_loader,
+            #     split='test',
+            #     result_dict=test_results,
+            #     logdir=logdir,
+            #     train_time=elapsed_time,
+            #     settings=settings,)
 
         if world_size > 1:
             cleanup()
