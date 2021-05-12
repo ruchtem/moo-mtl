@@ -3,9 +3,9 @@ _BASE_: multi_mnist.yaml
 dataset: multi_fashion
 
 cosmos:
-  lamda: 3.4526
-  alpha: [0.9691, 1.3758]
+  loss_mins: [0., 0.]
+  dampening: 0.
+  # clipping: .3
+  clipping: 3.
   lr_scheduler: CosineAnnealing
-  lr: 0.00131
-  normalize: false
-  instances: false
+  lr: 1e-3

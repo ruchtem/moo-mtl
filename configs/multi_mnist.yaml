@@ -8,9 +8,11 @@ eval_every: 2
 
 # results of hpo
 cosmos:
-  loss_mins: [0.15, 0.2]
+  # loss_mins: [0.15, 0.2]
+  loss_mins: [0., 0.]
   dampening: 0.
-  clipping: .3
+  # clipping: .3
+  clipping: 1.
 
   lr_scheduler: CosineAnnealing
   lr: 1e-3

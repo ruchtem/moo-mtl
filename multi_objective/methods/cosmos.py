@@ -1,4 +1,5 @@
 import torch
+from torch.distributed.distributed_c10d import is_initialized
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.linalg import norm
@@ -126,7 +127,7 @@ class COSMOSMethod(BaseMethod):
         print("Number of parameters: {}".format(self.n_params))
 
         self.steps = 0
-        self.sample = reference_points(n, self.K, min=0, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=0.2)
+        self.sample = reference_points(n, self.K, min=0, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=0.5)
         self.lagrangian = [torch.zeros(self.K).cuda() for _ in range(len(self.sample))]
         
     
@@ -146,28 +147,30 @@ class COSMOSMethod(BaseMethod):
     
 
     def new_epoch(self, e):
-        if dist.is_initialized() and dist.get_rank() == 0:
-            print(f"lambda mean {torch.stack(self.lagrangian).mean():.04f} std {torch.stack(self.lagrangian).std():.04f}")
-    #     if e > 0 and e % 2 == 0:
-            # data = []
-            # for i in range(len(self.data)):
-            #     data.append(np.array(self.data[i].queue).mean(axis=0))
+        if not dist.is_initialized() or (dist.is_initialized() and dist.get_rank() == 0):
+            data = torch.stack(self.lagrangian)
+            print(f"lambda mean {data.abs().mean():.04f} std {data.std():.04f} max {data.max()} min {data.min()}")
+        
+        if e > 0 and e % 2 == 0:
+            data = []
+            for i in range(len(self.data)):
+                data.append(np.array(self.data[i].queue).mean(axis=0))
             
-            # plt.figure(figsize=(8,8))
-            # for i, (x, y) in enumerate(self.sample):
-            #     plt.arrow(self.loss_mins[0], self.loss_mins[1], x, y)
-            #     plt.text(self.loss_mins[0] + x, self.loss_mins[1] + y, f"{i}")
+            plt.figure(figsize=(8,8))
+            for i, (x, y) in enumerate(self.sample):
+                plt.arrow(self.loss_mins[0], self.loss_mins[1], x, y)
+                plt.text(self.loss_mins[0] + x, self.loss_mins[1] + y, f"{i}")
             
-            # for i, d in enumerate(data):
-            #     if np.isscalar(d) and np.isnan(d):
-            #         continue
-            #     d += self.loss_mins.cpu().numpy()
-            #     plt.plot(d[0], d[1], "ro")
-            #     plt.text(d[0], d[1], f"{i}: {format_list(self.lagrangian[i].tolist(), '.2f')}")
+            for i, d in enumerate(data):
+                if np.isscalar(d) and np.isnan(d):
+                    continue
+                d += self.loss_mins.cpu().numpy()
+                plt.plot(d[0], d[1], "ro")
+                plt.text(d[0], d[1], f"{i}: {format_list(self.lagrangian[i].tolist(), '.2f')}")
 
-            # plt.title(f"epoch {e}")
-            # plt.savefig('test')
-            # plt.close()
+            plt.title(f"epoch {e}")
+            plt.savefig('test')
+            plt.close()
 
             # can turn on this to avoid overshooting the constraints
             # if (e+1) % 10 == 0:
@@ -210,7 +213,7 @@ class COSMOSMethod(BaseMethod):
                 self.lagrangian[i][j] = -self.lambda_clip
 
 
-        # self.data[i].append(task_losses.tolist())
+        self.data[i].append(task_losses.tolist())
         self.steps += 1
         return task_losses.sum().item()
 

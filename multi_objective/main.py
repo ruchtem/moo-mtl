@@ -213,7 +213,7 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
     torch.cuda.set_device(rank)
 
     # prepare
-    utils.set_seed(cfg['seed'])
+    utils.set_seed(cfg['seed'] + rank)
     lr_scheduler = cfg[method_name].lr_scheduler
 
     objectives = from_name(**cfg)
@@ -246,7 +246,7 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
             val_results[f"start_{j}"] = {}
             test_results[f"start_{j}"] = {}
 
-        optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr, weight_decay=1e-3)
+        optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr, weight_decay=1e-2)
         # optimizer = torch.optim.SGD(method.model_params(), cfg[method_name].lr, weight_decay=1e-4)
         scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
         start_epoch = 0
