@@ -30,7 +30,7 @@ from multi_objective.methods import HypernetMethod, ParetoMTLMethod, SingleTaskM
 from multi_objective.scores import from_objectives
 
 
-def method_from_name(method, objectives, model, cfg):
+def method_from_name(objectives, model, cfg):
     """
     Initializes the method specified in settings along with its configuration.
 
@@ -44,6 +44,7 @@ def method_from_name(method, objectives, model, cfg):
     Returns:
         Method. The configured method instance.
     """
+    method = cfg.method
     if method == 'pmtl':
         assert cfg.dataset not in ['celeba', 'cityscapes'], f"Not supported"
         return ParetoMTLMethod(objectives, model, cfg)
@@ -64,7 +65,7 @@ def method_from_name(method, objectives, model, cfg):
         raise ValueError("Unkown method {}".format(method))
 
 
-def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, train_time, cfg, logger):
+def evaluate(e, method, scores, data_loader, split, result_dict, logdir, train_time, cfg, logger):
     """
     Evaluate the method on a given dataset split. Calculates:
     - score for all the scores given in `scores`
@@ -152,7 +153,7 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
         for v in score_values.values():
             v.normalize()
             if method.preference_at_inference():
-                # v.compute_hv(cfg['reference_point'])
+                v.compute_hv(cfg['reference_point'])
                 v.compute_optimal_sol()
                 v.compute_dist()
 
@@ -172,10 +173,10 @@ def evaluate(j, e, method, scores, data_loader, split, result_dict, logdir, trai
         result.update({"training_time_so_far": train_time,})
         result.update(method.log())
 
-        if f"epoch_{e}" in result_dict[f"start_{j}"]:
-            result_dict[f"start_{j}"][f"epoch_{e}"].update(result)
+        if f"epoch_{e}" in result_dict:
+            result_dict[f"epoch_{e}"].update(result)
         else:
-            result_dict[f"start_{j}"][f"epoch_{e}"] = result
+            result_dict[f"epoch_{e}"] = result
 
         with open(pathlib.Path(logdir) / f"{split}_results.json", "w") as file:
             json.dump(result_dict, file)
@@ -196,25 +197,25 @@ def cleanup():
     dist.destroy_process_group()
 
 
-def main(rank, world_size, method_name, cfg, tag='', resume=False):
+def main(rank, world_size, cfg, tag='', resume=False):
     cfg.freeze()
     if world_size > 1:
         setup(rank, world_size)
     print(rank, world_size)
 
     # create the experiment folders
-    logdir = os.path.join(cfg['logdir'], method_name, cfg['dataset'], f'{tag}_{cfg.task_id}' if 'task_id' in cfg else f'{tag}')
+    logdir = os.path.join(cfg['logdir'], cfg.method, cfg['dataset'], f'{tag}_{cfg.task_id}' if 'task_id' in cfg else f'{tag}')
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
     logger = setup_logger(os.path.join(logdir, 'exp.log'), name=__name__, distributed_rank=rank)
     logger.info(f"start experiment with settings: \n{cfg}")
-    logger.info(f"\n\n>>>> Running method {method_name} <<<<\n")
+    logger.info(f"\n\n>>>> Running method {cfg.method} <<<<\n")
 
     torch.cuda.set_device(rank)
 
     # prepare
     utils.set_seed(cfg['seed'] + rank)
-    lr_scheduler = cfg[method_name].lr_scheduler
+    lr_scheduler = cfg.lr_scheduler
 
     objectives = from_name(**cfg)
     scores = from_objectives(objectives, **cfg)
@@ -225,7 +226,7 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
     elapsed_time = 0
 
     model = utils.model_from_dataset(**cfg).to(cfg.device)
-    method = method_from_name(method_name, objectives, model, cfg)
+    method = method_from_name(objectives, model, cfg)
 
     if world_size > 1:
         model = DistributedDataParallel(model, device_ids=[rank])
@@ -238,134 +239,126 @@ def main(rank, world_size, method_name, cfg, tag='', resume=False):
         with open(pathlib.Path(logdir) / "settings.json", "w") as file:
             json.dump(train_results, file)
 
+    optimizer = torch.optim.Adam(method.model_params(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    # optimizer = torch.optim.SGD(method.model_params(), cfg[method_name].lr, weight_decay=1e-4)
+    scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
+    start_epoch = 0
+
+    if resume and os.path.exists(os.path.join(logdir, 'checkpoint.pth')):
+
+        map_location = {'cuda:%d' % 0: 'cuda:%d' % rank} if world_size > 1 else None
+        checkpoint = torch.load(os.path.join(logdir, 'checkpoint.pth'), map_location)
+
+        method.load_state_dict(checkpoint['method'])
+        model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        scheduler.load_state_dict(checkpoint['lr_scheduler'])
+        start_epoch = checkpoint['epoch'] + 1
+        train_results = checkpoint['train_results']
+        val_results = checkpoint['val_results']
+        test_results = checkpoint['test_results']
+
+        torch.set_rng_state(checkpoint['torch_rng_state'])
+        np.random.set_state(checkpoint['np_rng_state'])
+        random.setstate(checkpoint['random_rng_state'])
+    
     # main
-    num_starts = cfg[method_name].num_starts if 'num_starts' in cfg[method_name] else 1
-    for j in range(num_starts):
-        if rank == 0:
-            train_results[f"start_{j}"] = {}
-            val_results[f"start_{j}"] = {}
-            test_results[f"start_{j}"] = {}
+    for e in range(start_epoch, cfg['epochs']):
+        if world_size > 1:
+            # Keep the gpus in sync, especially after evaluation
+            torch.distributed.barrier()
 
-        optimizer = torch.optim.Adam(method.model_params(), cfg[method_name].lr, weight_decay=1e-2)
-        # optimizer = torch.optim.SGD(method.model_params(), cfg[method_name].lr, weight_decay=1e-4)
-        scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
-        start_epoch = 0
+        tick = time.time()
+        if world_size > 1:
+            sampler.set_epoch(e)
+        method.new_epoch(e)
 
-        if resume and os.path.exists(os.path.join(logdir, 'checkpoint.pth')):
-
-            map_location = {'cuda:%d' % 0: 'cuda:%d' % rank} if world_size > 1 else None
-            checkpoint = torch.load(os.path.join(logdir, 'checkpoint.pth'), map_location)
-
-            method.load_state_dict(checkpoint['method'])
-            model.load_state_dict(checkpoint['model'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            scheduler.load_state_dict(checkpoint['lr_scheduler'])
-            start_epoch = checkpoint['epoch'] + 1
-            train_results = checkpoint['train_results']
-            val_results = checkpoint['val_results']
-            test_results = checkpoint['test_results']
-
-            torch.set_rng_state(checkpoint['torch_rng_state'])
-            np.random.set_state(checkpoint['np_rng_state'])
-            random.setstate(checkpoint['random_rng_state'])
-        
-        for e in range(start_epoch, cfg['epochs']):
-            if world_size > 1:
-                # Keep the gpus in sync, especially after evaluation
-                torch.distributed.barrier()
-
-            tick = time.time()
-            if world_size > 1:
-                sampler.set_epoch(e)
-            method.new_epoch(e)
-
-            for b, batch in enumerate(train_loader):
-                batch = utils.dict_to(batch, cfg.device)
-                optimizer.zero_grad()
-                loss = method.step(batch)
-                
-                optimizer.step()
-
-                # distribute method parameters
-                if world_size > 1:
-                    for t in method.state_dict().values():
-                        dist.reduce(t, dst=0, op=dist.ReduceOp.SUM)     # collect
-                        t.data /= world_size                            # average
-                        dist.broadcast(t, src=0)                        # re-distribute
-
-                assert not math.isnan(loss)
-                log_every_n_seconds(logging.INFO, 
-                    f"Epoch {e:03d}, batch {b:03d}, train_loss {loss:.4f}, rm train_loss {rm1(loss):.3f}",
-                    n=5
-                )
-
-            tock = time.time()
-            elapsed_time += (tock - tick)
-
-            if rank == 0:
-                val_results[f"start_{j}"][f"epoch_{e}"] = {'lr': scheduler.get_last_lr()[0]}
-            scheduler.step()
-
-            # Checkpoints
-            if rank == 0 and cfg.checkpointing:
-                save_checkpoint(
-                    os.path.join(logdir, 'checkpoint.pth'),
-                    use_torch=True,
-                    method=method,
-                    model=model,
-                    optimizer=optimizer,
-                    lr_scheduler=scheduler,
-                    epoch=e,
-                    train_results=train_results,
-                    val_results=val_results,
-                    test_results=test_results
-                )
-
-            # run eval on train set (mainly for debugging)
-            if cfg['train_eval_every'] > 0 and (e+1) % cfg['train_eval_every'] == 0 and e > 0:
-                train_results = evaluate(j, e, method, scores, train_loader,
-                    split='train',
-                    result_dict=train_results,
-                    logdir=logdir,
-                    train_time=elapsed_time,
-                    cfg=cfg,
-                    logger=logger,)
-
+        for b, batch in enumerate(train_loader):
+            batch = utils.dict_to(batch, cfg.device)
+            optimizer.zero_grad()
+            loss = method.step(batch)
             
-            if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0 and e > 0:
-                # Validation results
-                val_results = evaluate(j, e, method, scores, val_loader,
-                    split='val',
-                    result_dict=val_results,
-                    logdir=logdir,
-                    train_time=elapsed_time,
-                    cfg=cfg,
-                    logger=logger,)
+            optimizer.step()
+
+            # distribute method parameters
+            if world_size > 1:
+                for t in method.state_dict().values():
+                    dist.reduce(t, dst=0, op=dist.ReduceOp.SUM)     # collect
+                    t.data /= world_size                            # average
+                    dist.broadcast(t, src=0)                        # re-distribute
+
+            assert not math.isnan(loss)
+            log_every_n_seconds(logging.INFO, 
+                f"Epoch {e:03d}, batch {b:03d}, train_loss {loss:.4f}, rm train_loss {rm1(loss):.3f}",
+                n=5
+            )
+
+        tock = time.time()
+        elapsed_time += (tock - tick)
+
+        if rank == 0:
+            val_results[f"epoch_{e}"] = {'lr': scheduler.get_last_lr()[0]}
+        scheduler.step()
+
+        # Checkpoints
+        if rank == 0 and cfg.checkpointing:
+            save_checkpoint(
+                os.path.join(logdir, 'checkpoint.pth'),
+                use_torch=True,
+                method=method,
+                model=model,
+                optimizer=optimizer,
+                lr_scheduler=scheduler,
+                epoch=e,
+                train_results=train_results,
+                val_results=val_results,
+                test_results=test_results
+            )
+
+        # run eval on train set (mainly for debugging)
+        if cfg['train_eval_every'] > 0 and (e+1) % cfg['train_eval_every'] == 0 and e > 0:
+            train_results = evaluate(e, method, scores, train_loader,
+                split='train',
+                result_dict=train_results,
+                logdir=logdir,
+                train_time=elapsed_time,
+                cfg=cfg,
+                logger=logger,)
+
+        
+        if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0 and e > 0:
+            # Validation results
+            val_results = evaluate(e, method, scores, val_loader,
+                split='val',
+                result_dict=val_results,
+                logdir=logdir,
+                train_time=elapsed_time,
+                cfg=cfg,
+                logger=logger,)
 
             # Test results
-            # test_results = evaluate(j, e, method, scores, test_loader,
+            # test_results = evaluate(e, method, scores, test_loader,
             #     split='test',
             #     result_dict=test_results,
             #     logdir=logdir,
             #     train_time=elapsed_time,
             #     settings=settings,)
 
-        if world_size > 1:
-            cleanup()
-        
-        if rank == 0:
-            epoch_results = val_results['start_0'][f'epoch_{e}']['loss']
-            if 'hv' in epoch_results:
-                return epoch_results['hv'], epoch_results['dist']
-            else:
-                # maximize the negative norm, i.e. min norm
-                return -np.linalg.norm(epoch_results['center_ray'])
+    if world_size > 1:
+        cleanup()
+    
+    if rank == 0:
+        epoch_results = val_results[f'epoch_{e}']['loss']
+        if 'hv' in epoch_results:
+            return epoch_results['hv'], epoch_results['dist']
+        else:
+            # maximize the negative norm, i.e. min norm
+            return -np.linalg.norm(epoch_results['center_ray'])
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default="", metavar="FILE", help="Config file.")
-    parser.add_argument('--method', default='cosmos', type=str, help="The method to generate the Pareto front.")
     parser.add_argument('--tag', default='run', type=str, help="Experiment tag")
     parser.add_argument('--ngpus', default=1, type=int, help="num gpus for distributed training")
     parser.add_argument('--resume', default=False, action='store_true', help='Resume from last checkpoint')
@@ -377,10 +370,7 @@ def parse_args():
     )
     args = parser.parse_args()
 
-    tag = args.tag
-    if args.method == 'single_task':
-        tag += str(cfg.single_task.task_id)
-    return args, tag
+    return args, args.tag
 
     
 def get_config(config_file, opts=[]):
@@ -406,10 +396,10 @@ if __name__ == "__main__":
         # TODO: torch.distributed.launch
 
         mp.spawn(main,
-            args=(world_size, args.method, cfg, tag, args.resume),
+            args=(world_size, cfg, tag, args.resume),
             nprocs=world_size,
             join=True
         )
     else:
-        res = main(0, world_size, args.method, cfg, tag, args.resume)
+        res = main(0, world_size, cfg, tag, args.resume)
         print(res)

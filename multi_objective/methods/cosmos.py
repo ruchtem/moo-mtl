@@ -11,6 +11,8 @@ from collections import OrderedDict
 from multi_objective.utils import num_parameters, RunningMean, reference_points, format_list
 from .base import BaseMethod
 
+from pymoo.visualization.radviz import Radviz
+
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
@@ -35,11 +37,6 @@ class Upsampler(nn.Module):
             # image data
             assert input_dim[-2] % 4 == 0 and input_dim[-1] % 4 == 0, 'Spatial image dim must be dividable by 4.'
             self.tabular = False
-            self.transposed_cnn = nn.Sequential(
-                nn.ConvTranspose2d(K, K, kernel_size=4, stride=1, padding=0, bias=False),
-                nn.ReLU(inplace=True),
-                nn.ConvTranspose2d(K, K, kernel_size=6, stride=2, padding=1, bias=False),
-            )
         else:
             raise ValueError(f"Unknown dataset structure, expected 1 or 3 dimensions, got {input_dim}")
 
@@ -60,12 +57,6 @@ class Upsampler(nn.Module):
             a = a.reshape(b, self.K, 1, 1)
             
             # Lessons learned: Does not work with lagrangian multipliers
-            # a = self.transposed_cnn(a)
-
-            # plt.hist(a[0].view(-1).cpu().detach())
-            # plt.title(f"{batch['alpha'][0]}")
-            # plt.savefig('test2')
-            # plt.close()
 
             target_size = (int(self.dim[-2]*self.fraction), int(self.dim[-1]*self.fraction))
             a = torch.nn.functional.interpolate(a, target_size, mode='nearest')
@@ -107,18 +98,17 @@ class COSMOSMethod(BaseMethod):
         """
         super().__init__(objectives, model, cfg)
         self.K = len(objectives)
-        self.lambda_lr = cfg.cosmos.lambda_lr
-        self.dampening = cfg.cosmos.dampening
-        self.lambda_clip = cfg.cosmos.clipping
-        self.loss_mins = torch.tensor(cfg.cosmos.loss_mins, device=self.device)
-        self.loss_maxs = cfg.cosmos.loss_maxs
+        self.lambda_lr = cfg.lambda_lr
+        self.dampening = cfg.dampening
+        self.lambda_clip = cfg.lambda_clipping
+        self.loss_mins = torch.tensor(cfg.loss_mins, device=self.device)
+        self.loss_maxs = cfg.loss_maxs
 
-        n = cfg.cosmos.n_train_rays
+        n = cfg.n_train_rays_cosmos
+        train_ray_mildening = cfg.train_ray_mildening
 
         dim = list(cfg.dim)
         dim[0] = dim[0] + self.K
-
-        self.data = [RunningMean(300) for _ in range(n+1)]
 
         model.change_input_dim(dim[0])
         self.model = Upsampler(self.K, model, dim).to(self.device)
@@ -126,63 +116,59 @@ class COSMOSMethod(BaseMethod):
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
 
-        self.steps = 0
-        self.sample = reference_points(n, self.K, min=0, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=0.5)
+        self.sample = reference_points(n, self.K, min=0, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=train_ray_mildening)
         self.lagrangian = [torch.zeros(self.K).cuda() for _ in range(len(self.sample))]
+
+        # for debugging
+        self.data = [RunningMean(300) for _ in range(len(self.sample))]
+        
+        if len(self.loss_mins) != self.K:
+            self.loss_mins = self.loss_mins.repeat(self.K)
+        
+        if len(self.loss_maxs) != self.K:
+            self.loss_maxs = [self.loss_maxs[0] for _ in range(self.K)]
         
     
-    def state_dict(self):
-        state = OrderedDict()
-        for i, l in enumerate(self.lagrangian):
-            state[f'lamdas.{i}'] = l
-        return state
-
-    
-    def load_state_dict(self, dict):
-        self.lagrangian = list(dict.values())
-
-
-    def preference_at_inference(self):
-        return True
-    
-
     def new_epoch(self, e):
         if not dist.is_initialized() or (dist.is_initialized() and dist.get_rank() == 0):
             data = torch.stack(self.lagrangian)
             print(f"lambda mean {data.abs().mean():.04f} std {data.std():.04f} max {data.max()} min {data.min()}")
         
-        if e > 0 and e % 2 == 0:
-            data = []
-            for i in range(len(self.data)):
-                data.append(np.array(self.data[i].queue).mean(axis=0))
-            
-            plt.figure(figsize=(8,8))
-            for i, (x, y) in enumerate(self.sample):
-                plt.arrow(self.loss_mins[0], self.loss_mins[1], x, y)
-                plt.text(self.loss_mins[0] + x, self.loss_mins[1] + y, f"{i}")
-            
-            for i, d in enumerate(data):
-                if np.isscalar(d) and np.isnan(d):
-                    continue
-                d += self.loss_mins.cpu().numpy()
-                plt.plot(d[0], d[1], "ro")
-                plt.text(d[0], d[1], f"{i}: {format_list(self.lagrangian[i].tolist(), '.2f')}")
+            if e > 0:
+                data = []
+                for i in range(len(self.data)):
+                    data.append(np.array(self.data[i].queue).mean(axis=0))
+                
+                if len(data[0]) == 2:
+                    # 2 dimensions
+                    plt.figure(figsize=(8,8))
+                    for i, (x, y) in enumerate(self.sample):
+                        plt.arrow(self.loss_mins[0], self.loss_mins[1], x, y)
+                        plt.text(self.loss_mins[0] + x, self.loss_mins[1] + y, f"{i}")
+                    
+                    for i, d in enumerate(data):
+                        if np.isscalar(d) and np.isnan(d):
+                            continue
+                        d += self.loss_mins.cpu().numpy()
+                        plt.plot(d[0], d[1], "ro")
+                        plt.text(d[0], d[1], f"{i}: {format_list(self.lagrangian[i].tolist(), '.2f')}")
 
-            plt.title(f"epoch {e}")
-            plt.savefig('test')
-            plt.close()
+                    plt.title(f"epoch {e}")
+                    plt.savefig('test')
+                    plt.close()
+                
+                else:
+                    radviz_plot = Radviz()
 
-            # can turn on this to avoid overshooting the constraints
-            # if (e+1) % 10 == 0:
-            #     self.lagrangian = [torch.zeros(self.K).cuda() for _ in range(len(self.sample))]
+                    radviz_plot.add(self.sample, color='grey', alpha=.5)
+                    radviz_plot.add(np.stack(data))
+                    radviz_plot.save('test')
+                    plt.close()
 
 
     def step(self, batch):
         b = batch['data'].shape[0]
-        
         i = np.random.choice(list(range(len(self.sample))))
-        # i = 0
-        
         
         # step 1: sample alphas
         a = self.sample[i]
@@ -196,10 +182,9 @@ class COSMOSMethod(BaseMethod):
         
         # This is the Modified Differential Method of Multipliers
         # Platt & Barr: 1987 (NIPS)
-
         g_i = task_losses / norm(task_losses) - a / norm(a)
 
-        # thanks to the constraints we can also omit linear scalarization
+        # thanks to the constraints we could also omit linear scalarization
         loss = a.dot(task_losses.T) + sum(self.lagrangian[i] * g_i) + self.dampening / 2 * sum(g_i ** 2)
         loss.backward()
 
@@ -214,7 +199,6 @@ class COSMOSMethod(BaseMethod):
 
 
         self.data[i].append(task_losses.tolist())
-        self.steps += 1
         return task_losses.sum().item()
 
 
@@ -226,3 +210,17 @@ class COSMOSMethod(BaseMethod):
             a = torch.from_numpy(preference_vector).to(self.device).float()
             batch['alpha'] = a.repeat(b, 1)
             return self.model(batch)
+
+    def state_dict(self):
+        state = OrderedDict()
+        for i, l in enumerate(self.lagrangian):
+            state[f'lamdas.{i}'] = l
+        return state
+
+    
+    def load_state_dict(self, dict):
+        self.lagrangian = list(dict.values())
+
+
+    def preference_at_inference(self):
+        return True

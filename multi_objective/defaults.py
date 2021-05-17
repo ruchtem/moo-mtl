@@ -44,84 +44,64 @@ _C.lr_scheduler = 'none'
 # learning rate
 _C.lr = 1e-3
 
+# weight decay (l2 regularization)
+_C.weight_decay = 1e-3
+
 # batch size
 _C.batch_size = 256
 
+# method to generate pareto front. One of 'cosmos', 'phn', 'mgda', 'single_task', 'uniform'
+_C.method = 'cosmos'
+
 #
-# Methods
+# Method specific
 #
 
 # Pareto Multi-Task Learning
 #
 # Lin, X., Zhen, H. L., Li, Z., Zhang, Q., & Kwong, S. (2019).
 # Pareto multi-task learning. arXiv preprint arXiv:1912.12854.
-_C.pmtl = CN()
 
 # Number of points on the pareto front (i.e. num of models)
-_C.pmtl.num_starts = 5
-
-_C.pmtl.lr_scheduler = _C.lr_scheduler
-_C.pmtl.lr = _C.lr
+_C.num_models = 5
 
 
 # Multiple Gradient Descent Algorithm
 
 # Sener, O., & Koltun, V. (2018). Multi-task learning as 
 # multi-objective optimization. arXiv preprint arXiv:1810.04650.
-_C.mgda = CN()
 
-
-# Use the approximation by Sener and Koltun
-_C.mgda.approximate_norm_solution = False
+# Use the approximation
+_C.approximate_mgda = False
 
 # Gradient normalization. One of 'none', 'loss', 'loss+', 'l2'
-_C.mgda.normalization_type='none'
-
-_C.mgda.lr_scheduler = _C.lr_scheduler
-_C.mgda.lr = _C.lr
+_C.normalization_type='none'
 
 
 # Pareto HyperNetworks
 #
 # Navon, A., Shamsian, A., Chechik, G., & Fetaya, E. (2020). 
 # Learning the Pareto Front with Hypernetworks. arXiv preprint arXiv:2010.04104.
-_C.phn = CN()
 
 # Dirichlet sampling
-_C.phn.alpha=.2
+_C.alpha=.2
 
 # 'epo' or 'linear'
-_C.phn.internal_solver='linear'
+_C.internal_solver_phn='linear'
 
-_C.phn.lr_scheduler = _C.lr_scheduler
-_C.phn.lr = _C.lr
-
-
-# Single Task
-#
-_C.single_task = CN()
-
-# This is dataset specific.
-_C.single_task.task_id = None
-
-_C.single_task.lr_scheduler = _C.lr_scheduler
-_C.single_task.lr = _C.lr
 
 # COSMOS
 #
 _C.cosmos = CN()
 
-_C.cosmos.n_train_rays = 5
-_C.cosmos.loss_mins = [0.]  # will be repeated for all losses
-_C.cosmos.loss_maxs = [1.]
+_C.n_train_rays_cosmos = 5
+_C.loss_mins = [0.]  # will be repeated for all losses
+_C.loss_maxs = [1.]
 
-_C.cosmos.clipping = 5.
-_C.cosmos.lambda_lr = 0.2
-_C.cosmos.dampening = 0.2
-
-_C.cosmos.lr_scheduler = _C.lr_scheduler
-_C.cosmos.lr = _C.lr
-
+_C.lambda_clipping = 5.
+_C.lambda_lr = 0.2
+_C.dampening = 0.2
+_C.train_ray_mildening = 0.5
 
 
 
