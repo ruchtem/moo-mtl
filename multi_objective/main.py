@@ -391,7 +391,7 @@ if __name__ == "__main__":
 
         # Rule of thumb to adapt lr as effectivly batch_size * world_size
         print("Adapting learning rate to distributed training.")
-        cfg[args.method].lr *= world_size
+        cfg.lr *= world_size
 
         # TODO: torch.distributed.launch
 

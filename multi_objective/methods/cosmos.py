@@ -8,7 +8,7 @@ import torch.distributed as dist
 
 from collections import OrderedDict
 
-from multi_objective.utils import num_parameters, RunningMean, reference_points, format_list
+from multi_objective.utils import num_parameters, RunningMean, reference_points, format_list, scale
 from .base import BaseMethod
 
 from pymoo.visualization.radviz import Radviz
@@ -54,15 +54,20 @@ class Upsampler(nn.Module):
              result = torch.cat((x, a), dim=1)
         else:
             # use transposed convolution
-            a = a.reshape(b, self.K, 1, 1)
-            
             # Lessons learned: Does not work with lagrangian multipliers
 
+            # a_noise = torch.stack([
+            #     torch.normal(mean=0, std=.5, size=(b, self.dim[-2], self.dim[-1]), device=x.device)
+            #     for a_i in a[0].tolist()
+            # ], dim=1)
+
+            a = a.reshape(b, self.K, 1, 1)
+            
             target_size = (int(self.dim[-2]*self.fraction), int(self.dim[-1]*self.fraction))
             a = torch.nn.functional.interpolate(a, target_size, mode='nearest')
         
             # Random padding to avoid issues with subsequent batch norm layers.
-            result = torch.randn(b, *self.dim, device=x.device)
+            result = torch.normal(mean=-1, std=1., size=(b, *self.dim), device=x.device)
             
             # Write x into result tensor
             channels = x.shape[1]
@@ -77,7 +82,8 @@ class Upsampler(nn.Module):
                 result[:, channels:, height_start:-height_end, width_start:-width_end] = a
             else:
                 result[:, channels:] = a
-        
+
+            # result[:, channels:] += a_noise
         
 
         return self.child_model(dict(data=result))
@@ -105,22 +111,23 @@ class COSMOSMethod(BaseMethod):
         self.loss_maxs = cfg.loss_maxs
 
         n = cfg.n_train_rays_cosmos
-        train_ray_mildening = cfg.train_ray_mildening
+        self.train_ray_mildening = cfg.train_ray_mildening
 
         dim = list(cfg.dim)
         dim[0] = dim[0] + self.K
 
         model.change_input_dim(dim[0])
-        self.model = Upsampler(self.K, model, dim).to(self.device)
+        self.model = Upsampler(self.K, model, dim, cfg.upsample_ratio).to(self.device)
 
         self.n_params = num_parameters(self.model)
         print("Number of parameters: {}".format(self.n_params))
 
-        self.sample = reference_points(n, self.K, min=0, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=train_ray_mildening)
+        self.sample = reference_points(n, self.K, min=0, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=self.train_ray_mildening)
         self.lagrangian = [torch.zeros(self.K).cuda() for _ in range(len(self.sample))]
 
         # for debugging
         self.data = [RunningMean(300) for _ in range(len(self.sample))]
+        self.constraints = [RunningMean(1) for _ in range(len(self.sample))]
         
         if len(self.loss_mins) != self.K:
             self.loss_mins = self.loss_mins.repeat(self.K)
@@ -133,37 +140,64 @@ class COSMOSMethod(BaseMethod):
         if not dist.is_initialized() or (dist.is_initialized() and dist.get_rank() == 0):
             data = torch.stack(self.lagrangian)
             print(f"lambda mean {data.abs().mean():.04f} std {data.std():.04f} max {data.max()} min {data.min()}")
-        
+
             if e > 0:
-                data = []
-                for i in range(len(self.data)):
-                    data.append(np.array(self.data[i].queue).mean(axis=0))
-                
-                if len(data[0]) == 2:
-                    # 2 dimensions
-                    plt.figure(figsize=(8,8))
-                    for i, (x, y) in enumerate(self.sample):
-                        plt.arrow(self.loss_mins[0], self.loss_mins[1], x, y)
-                        plt.text(self.loss_mins[0] + x, self.loss_mins[1] + y, f"{i}")
+                try:
+                    data = []
+                    for i in range(len(self.data)):
+                        data.append(np.array(self.data[i].queue).mean(axis=0))
                     
-                    for i, d in enumerate(data):
-                        if np.isscalar(d) and np.isnan(d):
-                            continue
-                        d += self.loss_mins.cpu().numpy()
-                        plt.plot(d[0], d[1], "ro")
-                        plt.text(d[0], d[1], f"{i}: {format_list(self.lagrangian[i].tolist(), '.2f')}")
+                    const = []
+                    for i in range(len(self.constraints)):
+                        const.append(list(self.constraints[i].queue)[0])
+                    
+                    data2 = np.array(const)
+                    print(f"constraints mean {np.abs(data2).mean():.04f} std {data2.std():.04f} max {data2.max()} min {data2.min()}")
+                    
+                    if self.K == 2:
+                        # 2 dimensions
+                        plt.figure(figsize=(8,8))
+                        for i, (x, y) in enumerate(self.sample):
+                            plt.arrow(self.loss_mins[0], self.loss_mins[1], x, y)
+                            plt.text(self.loss_mins[0] + x, self.loss_mins[1] + y, f"{i}")
+                        
+                        for i, d in enumerate(data):
+                            if np.isscalar(d) and np.isnan(d):
+                                continue
+                            d += self.loss_mins.cpu().numpy()
+                            plt.plot(d[0], d[1], "ro")
+                            plt.text(d[0], d[1], f"{i}: {const[i]:.04f}")
 
-                    plt.title(f"epoch {e}")
-                    plt.savefig('test')
-                    plt.close()
-                
-                else:
-                    radviz_plot = Radviz()
+                        plt.title(f"epoch {e}")
+                        plt.savefig('test')
+                        plt.close()
+                    
+                    else:
+                        radviz_plot = Radviz()
 
-                    radviz_plot.add(self.sample, color='grey', alpha=.5)
-                    radviz_plot.add(np.stack(data))
-                    radviz_plot.save('test')
-                    plt.close()
+                        rays = self.sample
+                        
+                        valid = []
+                        for i, d in enumerate(data):
+                            if np.isscalar(d) and np.isnan(d):
+                                continue
+                            else:
+                                valid.append(d)
+                        valid = np.array(valid)
+
+                        all = np.vstack((rays, valid))
+                        all = scale(all, axis=0)
+
+                        rays = all[:len(rays)]
+                        valid = all[len(rays):]
+
+                        radviz_plot.add(rays, color='grey', alpha=.5)
+                        radviz_plot.add(valid)
+                        radviz_plot.save('test')
+                        plt.close()
+                        
+                except:
+                    pass
 
 
     def step(self, batch):
@@ -188,6 +222,8 @@ class COSMOSMethod(BaseMethod):
         loss = a.dot(task_losses.T) + sum(self.lagrangian[i] * g_i) + self.dampening / 2 * sum(g_i ** 2)
         loss.backward()
 
+        const = sum(self.lagrangian[i] * g_i).item()
+
         # gradient ascent on lagrangian multipliers
         for j, g_j in enumerate(g_i):
             self.lagrangian[i][j] += self.lambda_lr * g_j.item()
@@ -199,6 +235,7 @@ class COSMOSMethod(BaseMethod):
 
 
         self.data[i].append(task_losses.tolist())
+        self.constraints[i].append(const)
         return task_losses.sum().item()
 
 

@@ -1,0 +1,5 @@
+mgda:
+  lr_scheduler: MultiStep
+  lr: 0.0001
+  normalization_type: 'loss+'
+  approximate_norm_solution: True

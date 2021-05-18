@@ -303,8 +303,9 @@ class EvalResult():
     
     def compute_hv(self, reference_point):
         if self.pf_available:
-            hv = get_performance_indicator("hv", ref_point=np.array(reference_point))
-            self.hv = hv.calc(self.pf)
+            if self.pf.shape[1] < 5:
+                hv = get_performance_indicator("hv", ref_point=np.array(reference_point))
+                self.hv = hv.calc(self.pf)
 
 
     def compute_optimal_sol(self, weights=None):
@@ -439,9 +440,9 @@ class ParetoFront():
         # plot 2d pf
         if p.shape[1] == 2:
             plt.plot(p[:, 0], p[:, 1], 'o')
-            if rays:
-                for r in rays:
-                    plt.plot([0, r[0]], [0, r[1]], color='black')
+            # if rays is not None:
+            #     for r in rays:
+            #         plt.plot([0, r[0]], [0, r[1]], color='black')
             plt.xlabel(self.labels[0])
             plt.ylabel(self.labels[1])
             plt.grid()
