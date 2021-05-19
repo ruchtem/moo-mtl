@@ -6,14 +6,9 @@ from .base import BaseMethod
 
 class UniformScalingMethod(BaseMethod):
 
-    def __init__(self, objectives, **kwargs):
-        self.objectives = objectives
+    def __init__(self, objectives, model, cfg):
+        super().__init__(objectives, model, cfg)
         self.J = len(objectives)
-        self.model = model_from_dataset(method='uniform_scaling', **kwargs).cuda()
-
-
-    def model_params(self):
-        return list(self.model.parameters())
 
     
     def new_epoch(self, e):
@@ -22,12 +17,12 @@ class UniformScalingMethod(BaseMethod):
 
     def step(self, batch):
         batch.update(self.model(batch))
-        loss = sum([1/self.J * o(**batch) for o in self.objectives])
+        loss = sum([1/self.J * o(**batch) for o in self.objectives.values()])
         loss.backward()
         return loss.item()
 
 
-    def eval_step(self, batch, test_rays=None):
+    def eval_step(self, batch):
         self.model.eval()
         with torch.no_grad():
-            return[self.model(batch)]
+            return self.model(batch)
