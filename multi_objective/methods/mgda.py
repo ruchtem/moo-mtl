@@ -13,8 +13,8 @@ class MGDAMethod(BaseMethod):
 
     def __init__(self, objectives, model, cfg) -> None:
         super().__init__(objectives, model, cfg)
-        self.approximate_norm_solution = cfg.mgda.approximate_norm_solution
-        self.normalization_type = cfg.mgda.normalization_type
+        self.approximate_norm_solution = cfg.approximate_mgda
+        self.normalization_type = cfg.normalization_type
 
 
     def step(self, batch):

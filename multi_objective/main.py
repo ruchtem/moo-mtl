@@ -60,7 +60,7 @@ def method_from_name(objectives, model, cfg):
     elif method == 'nsga2':
         return NSGA2Method(objectives, model, cfg)
     elif method == 'uniform':
-        return UniformScalingMethod(objectives, model, **cfg)
+        return UniformScalingMethod(objectives, model, cfg)
     else:
         raise ValueError("Unkown method {}".format(method))
 
