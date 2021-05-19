@@ -52,7 +52,7 @@ def method_from_name(objectives, model, cfg):
         return COSMOSMethod(objectives, model, cfg)
     elif method == 'single_task':
         return SingleTaskMethod(objectives, model, cfg)
-    elif 'phn' in method:
+    elif method == 'phn':
         assert cfg.dataset not in ['celeba', 'cityscapes'], f"Not supported"
         return HypernetMethod(objectives, model, cfg)
     elif method == 'mgda':

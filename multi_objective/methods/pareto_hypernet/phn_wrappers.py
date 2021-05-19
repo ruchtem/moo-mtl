@@ -88,7 +88,7 @@ class HypernetMethod(BaseMethod):
 
     def __init__(self, objectives, model, cfg):
         super().__init__(objectives, model, cfg)
-        self.alpha = cfg.phn.alpha
+        self.alpha = cfg.alpha
         self.K = len(objectives)
 
         if len(cfg.dim) == 1:
@@ -107,10 +107,12 @@ class HypernetMethod(BaseMethod):
         self.model = hnet.to(self.device)
         self.net = net.to(self.device)
 
-        if cfg.phn.internal_solver == 'linear':
+        if cfg.internal_solver_phn == 'linear':
             self.solver = LinearScalarizationSolver(n_tasks=len(objectives))
-        elif cfg.phn.internal_solver == 'epo':
+        elif cfg.internal_solver_phn == 'epo':
             self.solver = EPOSolver(n_tasks=len(objectives), n_params=num_parameters(hnet))
+        else:
+            raise ValueError("unknown solver")
 
 
     def preference_at_inference(self):

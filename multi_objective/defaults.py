@@ -102,7 +102,8 @@ _C.lambda_clipping = 5.
 _C.lambda_lr = 0.2
 _C.dampening = 0.2
 
-_C.upsample_ratio = 0.75
+
+_C.upsample_ratio = 1
 
 
 # cosmos and pmtl
