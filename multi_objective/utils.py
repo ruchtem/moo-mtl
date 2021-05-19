@@ -306,6 +306,9 @@ class EvalResult():
             if self.pf.shape[1] < 5:
                 hv = get_performance_indicator("hv", ref_point=np.array(reference_point))
                 self.hv = hv.calc(self.pf)
+        else:
+            hv = get_performance_indicator("hv", ref_point=np.array(reference_point))
+            self.hv = hv.calc(self.center)
 
 
     def compute_optimal_sol(self, weights=None):
@@ -351,11 +354,13 @@ class EvalResult():
 
 
     def to_dict(self):
-        result = {'center_ray': self.center.tolist(),}
+        result = {
+            'center_ray': self.center.tolist(),
+            'hv': self.hv,
+        }
         if self.pf_available:
             result.update({
                 'pareto_front': self.pf.tolist(),
-                'hv': self.hv,
                 'dist': float(self.dist),
                 'optimal_solution': self.optimal_sol.tolist(),
                 'optimal_solution_idx': int(self.optimal_sol_idx),

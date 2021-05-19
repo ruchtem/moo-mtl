@@ -1,5 +1,6 @@
 import torch
-
+import numpy as np
+from copy import deepcopy
 from .base import BaseMethod
 
 
@@ -7,32 +8,39 @@ class SingleTaskMethod(BaseMethod):
 
     def __init__(self, objectives, model, cfg):
         super().__init__(objectives, model, cfg)
-        
-        assert cfg.single_task.task_id is not None, f"Please provide a task id. Options: {tuple(self.objectives.keys())}"
-        self.task_id = cfg.single_task.task_id
-            # self.task_ids = None
-        # else:
-        #     self.task_ids = iter(self.task_ids)
+        self.models = [deepcopy(model).cpu() for _ in self.task_ids]
+        self.optimizers = [torch.optim.Adam(m.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay) for m in self.models]
 
     
-    # def new_epoch(self, e):
-    #     self.model.train()
-    #     if e == 0 and self.task_ids is not None:
-    #         self.task_id = next(self.task_ids)
+    def new_epoch(self, e):
+        for m in self.models:
+            m.train()
 
 
     def step(self, batch):
-        batch.update(self.model(batch))
-        loss = self.objectives[self.task_id](**batch)
+        losses = []
+        for t, optim, model in zip(self.task_ids, self.optimizers, self.models):
+            optim.zero_grad()
+            model = model.to(self.device)
+
+            result = self._step(batch, model, t)
+            optim.step()
+
+            losses.append(result)
+        return np.mean(losses).item()
+
+
+    def _step(self, batch, model, task_id):
+        batch.update(model(batch))
+        loss = self.objectives[task_id](**batch)
         loss.backward()
         return loss.item()
-    
-
-    def log(self):
-        return {"task": self.task_id}
 
 
-    def eval_step(self, batch, preference_vector=None):
-        self.model.eval()
+    def eval_step(self, batch):
         with torch.no_grad():
-            return self.model(batch)
+            for t, m in zip(self.task_ids, self.models):
+                m.eval()
+                result = m(batch)
+                batch[f'logits_{t}'] = result[f'logits_{t}']
+        return batch

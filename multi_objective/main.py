@@ -134,7 +134,7 @@ def evaluate(e, method, scores, data_loader, split, result_dict, logdir, train_t
                 # Method gives just a single point
                 batch.update(method.eval_step(batch))
                 for eval_mode, score in scores.items():
-                    data = [score[t](**batch) for t in task_ids]
+                    data = np.array([score[t](**batch) for t in task_ids])
                     score_values[eval_mode].update(data, 'single_point')
 
     if dist.is_initialized():
@@ -152,8 +152,8 @@ def evaluate(e, method, scores, data_loader, split, result_dict, logdir, train_t
         # normalize scores and compute hyper-volume
         for v in score_values.values():
             v.normalize()
+            v.compute_hv(cfg['reference_point'])
             if method.preference_at_inference():
-                v.compute_hv(cfg['reference_point'])
                 v.compute_optimal_sol()
                 v.compute_dist()
 
