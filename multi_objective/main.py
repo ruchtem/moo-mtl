@@ -244,6 +244,9 @@ def main(rank, world_size, cfg, tag='', resume=False):
     scheduler = utils.get_lr_scheduler(lr_scheduler, optimizer, cfg, tag)
     start_epoch = 0
 
+    best_hv_sofar = 0.
+    best_idx_sofar = -1
+
     if resume and os.path.exists(os.path.join(logdir, 'checkpoint.pth')):
 
         map_location = {'cuda:%d' % 0: 'cuda:%d' % rank} if world_size > 1 else None
@@ -336,6 +339,12 @@ def main(rank, world_size, cfg, tag='', resume=False):
                 cfg=cfg,
                 logger=logger,)
 
+
+            e_results = val_results[f'epoch_{e}']['loss']
+            if 'hv' in e_results and e_results['hv'] > best_hv_sofar:
+                best_hv_sofar = e_results['hv']
+                best_idx_sofar = e
+
             # Test results
             # test_results = evaluate(e, method, scores, test_loader,
             #     split='test',
@@ -348,12 +357,7 @@ def main(rank, world_size, cfg, tag='', resume=False):
         cleanup()
     
     if rank == 0:
-        epoch_results = val_results[f'epoch_{e}']['loss']
-        if 'hv' in epoch_results:
-            return epoch_results['hv'], epoch_results['dist']
-        else:
-            # maximize the negative norm, i.e. min norm
-            return -np.linalg.norm(epoch_results['center_ray'])
+        return best_hv_sofar, best_idx_sofar
 
 
 def parse_args():
