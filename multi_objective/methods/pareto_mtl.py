@@ -1,4 +1,5 @@
 import torch
+from copy import deepcopy
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.autograd import Variable
@@ -108,38 +109,39 @@ class ParetoMTLMethod(BaseMethod):
         super().__init__(objectives, model, cfg)
         
         assert len(self.objectives) <= 2
-        self.num_pareto_points = cfg.pmtl.num_starts
-        self.init_solution_found = False
+        assert cfg.num_models == cfg.n_partitions + 1
+        self.n = cfg.num_models
+
+        self.models = [deepcopy(model).cpu() for _ in range(self.n)]
+        self.optimizers = [torch.optim.Adam(m.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay) for m in self.models]
+        self.init_sol_found = [False for _ in range(self.n)]
 
         self.pref_idx = -1
         # the original ref_vec can be obtained by circle_points(self.num_pareto_points, min_angle=0.0, max_angle=0.5 * np.pi)
         # we use the same min angle / max angle as for the other methods for comparison.
-        self.ref_vec = torch.Tensor(reference_points(self.num_pareto_points)).to(cfg.device).float()
+        self.ref_points = reference_points(self.n - 1, tolerance=cfg.train_ray_mildening)
+        self.ref_vec = torch.Tensor(self.ref_points).to(cfg.device).float()
 
 
     def new_epoch(self, e):
-        if e == 0:
-            # we're restarting
-            self.pref_idx += 1
-            reset_weights(self.model)
-            self.init_solution_found = False
+        for m in self.models:
+            m.train()
         self.e = e
-        self.model.train()
 
 
     def log(self):
         return {"train_ray": self.ref_vec[self.pref_idx].cpu().numpy().tolist()}
 
 
-    def _find_initial_solution(self, batch):
+    def _find_initial_solution(self, batch, model, pref_idx):
 
         grads = {}
         losses_vec = []
         
         # obtain and store the gradient value
-        for i in range(len(self.objectives)):
-            self.model.zero_grad()
-            batch.update(self.model(batch))
+        for i in self.task_ids:
+            model.zero_grad()
+            batch.update(model(batch))
             task_loss = self.objectives[i](**batch) 
             losses_vec.append(task_loss.data)
             
@@ -149,52 +151,66 @@ class ParetoMTLMethod(BaseMethod):
             
             # can use scalable method proposed in the MOO-MTL paper for large scale problem
             # but we keep use the gradient of all parameters in this experiment
-            for name, param in self.model.named_parameters():
-                if param.grad is not None:
+            for name, param in model.named_parameters():
+                if param.grad is not None and param.grad.abs().sum() != 0:
                     grads[i].append(Variable(param.grad.data.clone().flatten(), requires_grad=False))
 
         
-        grads_list = [torch.cat([g for g in grads[i]]) for i in range(len(grads))]
+        grads_list = [torch.cat([g for g in grads[i]]) for i in grads]
         grads = torch.stack(grads_list)
         
         # calculate the weights
         losses_vec = torch.stack(losses_vec)
-        self.init_solution_found, weight_vec = get_d_paretomtl_init(grads, losses_vec, self.ref_vec, self.pref_idx)
+        init_solution_found, weight_vec = get_d_paretomtl_init(grads, losses_vec, self.ref_vec, pref_idx)
         
-        if self.init_solution_found:
+
+
+        if init_solution_found:
             print("Initial solution found")
+
+        self.init_sol_found[pref_idx] = init_solution_found
         
         # optimization step
-        self.model.zero_grad()
-        for i in range(len(self.objectives)):
-            batch.update(self.model(batch))
-            task_loss = self.objectives[i](**batch) 
-            if i == 0:
-                loss_total = weight_vec[i] * task_loss
-            else:
-                loss_total = loss_total + weight_vec[i] * task_loss
+        model.zero_grad()
+        batch.update(model(batch))
+        
+        loss_total = sum(w * self.objectives[i](**batch) for w, i in zip(weight_vec, self.task_ids))
         
         loss_total.backward()
         return loss_total.item()
 
 
     def step(self, batch):
+        losses = []
+        for idx, (optim, model) in enumerate(zip(self.optimizers, self.models)):
+            model = model.to(self.device)
+            model.train()
 
-        if self.e < 2 and not self.init_solution_found:
+            result = self._step(batch, model, idx)
+            optim.step()
+
+
+            losses.append(result)
+        return np.mean(losses).item()
+
+
+    def _step(self, batch, model, pref_idx):
+
+        if self.e < 2 and not self.init_sol_found[pref_idx]:
             # run at most 2 epochs to find the initial solution
             # stop early once a feasible solution is found 
             # usually can be found with a few steps
-            return self._find_initial_solution(batch)
+            return self._find_initial_solution(batch, model, pref_idx)
         else:
             # run normal update
-            gradients, obj_values = calc_gradients(batch, self.model, self.objectives)
+            gradients, obj_values = calc_gradients(batch, model, self.objectives)
             
             grads = [torch.cat([torch.flatten(v) for k, v in sorted(gradients[t].items())]) for t in self.task_ids]
             grads = torch.stack(grads)
             
             # calculate the weights
             losses_vec = torch.Tensor([obj_values[t] for t in self.task_ids]).to(self.device)
-            weight_vec = get_d_paretomtl(grads, losses_vec, self.ref_vec, self.pref_idx)
+            weight_vec = get_d_paretomtl(grads, losses_vec, self.ref_vec, pref_idx)
             
             normalize_coeff = len(self.objectives) / torch.sum(torch.abs(weight_vec))
             weight_vec = weight_vec * normalize_coeff
@@ -202,7 +218,7 @@ class ParetoMTLMethod(BaseMethod):
             # optimization step
             loss_total = None
             for a, t in zip(weight_vec, self.task_ids):
-                logits = self.model(batch)
+                logits = model(batch)
                 batch.update(logits)
                 task_loss = self.objectives[t](**batch)
 
@@ -212,6 +228,18 @@ class ParetoMTLMethod(BaseMethod):
             return loss_total.item()
             
     
-    def eval_step(self, batch):
-        self.model.eval()
-        return self.model(batch)
+    def eval_step(self, batch, preference_vector):
+        with torch.no_grad():
+            for i, ref_p in enumerate(self.ref_points):
+                if all(ref_p == preference_vector):
+                    model = self.models[i].cuda()
+                    model.eval()
+                    result = model(batch)
+                    model.cpu()
+                    return result
+        
+        raise ValueError("trying inference on different pref vec")
+    
+
+    def preference_at_inference(self):
+        return True

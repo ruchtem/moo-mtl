@@ -101,10 +101,12 @@ _C.loss_maxs = [1.]
 _C.lambda_clipping = 5.
 _C.lambda_lr = 0.2
 _C.dampening = 0.2
-_C.train_ray_mildening = 0.5
+
 _C.upsample_ratio = 0.75
 
 
+# cosmos and pmtl
+_C.train_ray_mildening = 0.5
 
 
 #
