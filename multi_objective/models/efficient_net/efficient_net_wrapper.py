@@ -8,7 +8,7 @@ class EfficientNetWrapper(EfficientNet):
 
 
     def __init__(self, blocks_args, global_params):
-        # global_params = global_params._replace(batch_norm_layer=torch.nn.Identity)
+        global_params = global_params._replace(batch_norm_layer=torch.nn.Identity)
         super().__init__(blocks_args, global_params)
 
         self.task_layers = torch.nn.ModuleDict({

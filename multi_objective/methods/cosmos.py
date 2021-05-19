@@ -16,6 +16,7 @@ from pymoo.visualization.radviz import Radviz
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
+np.set_printoptions(precision=2, suppress=True)
 
 class Upsampler(nn.Module):
 
@@ -56,11 +57,6 @@ class Upsampler(nn.Module):
             # use transposed convolution
             # Lessons learned: Does not work with lagrangian multipliers
 
-            # a_noise = torch.stack([
-            #     torch.normal(mean=0, std=.5, size=(b, self.dim[-2], self.dim[-1]), device=x.device)
-            #     for a_i in a[0].tolist()
-            # ], dim=1)
-
             a = a.reshape(b, self.K, 1, 1)
             
             target_size = (int(self.dim[-2]*self.fraction), int(self.dim[-1]*self.fraction))
@@ -82,9 +78,6 @@ class Upsampler(nn.Module):
                 result[:, channels:, height_start:-height_end, width_start:-width_end] = a
             else:
                 result[:, channels:] = a
-
-            # result[:, channels:] += a_noise
-        
 
         return self.child_model(dict(data=result))
 
@@ -140,9 +133,10 @@ class COSMOSMethod(BaseMethod):
         if not dist.is_initialized() or (dist.is_initialized() and dist.get_rank() == 0):
             data = torch.stack(self.lagrangian)
             print(f"lambda mean {data.abs().mean():.04f} std {data.std():.04f} max {data.max()} min {data.min()}")
+            print("dimensionality", data.shape)
 
             if e > 0:
-                try:
+                try:    
                     data = []
                     for i in range(len(self.data)):
                         data.append(np.array(self.data[i].queue).mean(axis=0))
@@ -153,7 +147,9 @@ class COSMOSMethod(BaseMethod):
                     
                     data2 = np.array(const)
                     print(f"constraints mean {np.abs(data2).mean():.04f} std {data2.std():.04f} max {data2.max()} min {data2.min()}")
-                    
+
+                    print(np.hstack((np.array(data), data2.reshape(-1, 1))))
+                
                     if self.K == 2:
                         # 2 dimensions
                         plt.figure(figsize=(8,8))
@@ -184,21 +180,13 @@ class COSMOSMethod(BaseMethod):
                             else:
                                 valid.append(d)
                         valid = np.array(valid)
-
-                        all = np.vstack((rays, valid))
-                        all = scale(all, axis=0)
-
-                        rays = all[:len(rays)]
-                        valid = all[len(rays):]
-
-                        radviz_plot.add(rays, color='grey', alpha=.5)
+                        
                         radviz_plot.add(valid)
                         radviz_plot.save('test')
                         plt.close()
                         
                 except:
-                    pass
-
+                    print("Not all rays sampled yet.")
 
     def step(self, batch):
         b = batch['data'].shape[0]
