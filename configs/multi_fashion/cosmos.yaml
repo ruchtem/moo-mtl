@@ -1,0 +1,10 @@
+_BASE_: _base.yaml
+
+method: cosmos
+
+train_ray_mildening: 0.3
+dampening: 0.
+lambda_clipping: 5.
+lr_scheduler: CosineAnnealing
+lr: 5e-4
+weight_decay: 1e-2

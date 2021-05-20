@@ -1,4 +1,0 @@
-_BASE_: multi_fashion.yaml
-
-dataset: multi_fashion_mnist
-

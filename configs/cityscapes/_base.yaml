@@ -1,0 +1,18 @@
+
+dataset: cityscapes
+dim: [3, 256, 512]
+task_ids: [segm, inst, depth]
+ignore_index: 255
+objectives: [CrossEntropyLoss, L1Loss, L1Loss]
+metrics: [mIoU, L1Loss, L1Loss]
+n_partitions: 5
+reference_point: [1, 1, 1]
+
+batch_size: 8
+epochs: 250
+
+eval_every: 25
+checkpointing: True
+# num_workers: 0
+
+

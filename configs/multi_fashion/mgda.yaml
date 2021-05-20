@@ -1,0 +1,9 @@
+_BASE_: _base.yaml
+
+method: mgda
+
+normalization_type: loss
+
+lr_scheduler: CosineAnnealing
+lr: 1e-3
+weight_decay: 1e-2

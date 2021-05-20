@@ -1,0 +1,11 @@
+_BASE_: _base.yaml
+
+method: phn
+
+alpha: .2
+internal_solver_phn: linear
+
+lr_scheduler: CosineAnnealing
+lr: 1e-3
+weight_decay: 0.
+

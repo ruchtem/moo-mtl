@@ -339,11 +339,11 @@ def main(rank, world_size, cfg, tag='', resume=False):
                 cfg=cfg,
                 logger=logger,)
 
-
-            e_results = val_results[f'epoch_{e}']['loss']
-            if 'hv' in e_results and e_results['hv'] > best_hv_sofar:
-                best_hv_sofar = e_results['hv']
-                best_idx_sofar = e
+            if rank == 0:
+                e_results = val_results[f'epoch_{e}']['loss']
+                if 'hv' in e_results and e_results['hv'] > best_hv_sofar:
+                    best_hv_sofar = e_results['hv']
+                    best_idx_sofar = e
 
             # Test results
             # test_results = evaluate(e, method, scores, test_loader,
@@ -351,7 +351,8 @@ def main(rank, world_size, cfg, tag='', resume=False):
             #     result_dict=test_results,
             #     logdir=logdir,
             #     train_time=elapsed_time,
-            #     settings=settings,)
+            #     cfg=cfg,
+            #     logger=logger,)
 
     if world_size > 1:
         cleanup()

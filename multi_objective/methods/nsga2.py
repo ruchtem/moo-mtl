@@ -89,7 +89,7 @@ class NSGA2Method(BaseMethod):
             pop_size=cfg.population_size,
             n_offsprings=cfg.n_offsprings,
             sampling=get_sampling("real_random"),
-            crossover=None, #get_crossover("real_sbx", prob=0.9, eta=15),
+            crossover=get_crossover("real_sbx", prob=0.9, eta=15),
             mutation=get_mutation("real_pm", eta=20),
             eliminate_duplicates=True
         )
