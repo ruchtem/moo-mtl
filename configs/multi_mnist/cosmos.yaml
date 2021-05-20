@@ -2,11 +2,9 @@ _BASE_: _base.yaml
 
 method: cosmos
 
-# loss_mins: [0.15, 0.2]
-# loss_mins: [0., 0.]
+train_ray_mildening: 0.3
 dampening: 0.
 lambda_clipping: 5.
-
 lr_scheduler: CosineAnnealing
-lr: 1e-3
+lr: 5e-4
 weight_decay: 1e-2
