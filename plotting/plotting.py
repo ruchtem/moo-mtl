@@ -6,7 +6,6 @@ from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from pathlib import Path
 import re
-from multi_objective.hv import HyperVolume
 
 
 #
@@ -22,8 +21,15 @@ def natural_sort(l):
 def get_early_stop(epoch_data, key='hv'):
     assert key in ['hv', 'score', 'last']
     if key == 'hv':
-        last_epoch = epoch_data[natural_sort(epoch_data.keys())[-1]]
-        return last_epoch['max_epoch_so_far']
+        best_hv = 0
+        best_idx = None
+        for e in natural_sort(epoch_data.keys()):
+            if 'epoch' in e and 'loss' in epoch_data[e]:
+                hv = epoch_data[e]['loss']['hv']
+                if hv > best_hv:
+                    best_hv = hv
+                    best_idx = e
+        return best_idx
     elif key == 'score':
         min_score = 1e15
         min_epoch = -1
@@ -115,7 +121,7 @@ def process_non_pareto_front(data_val, data_test):
     result_i['test_scores'] = fix_scores_dim(result_i['test_scores'])
 
     # compute hypervolume
-    hv = HyperVolume(reference_points[dataset])
+    hv = -1 #HyperVolume(reference_points[dataset])
     result_i['val_hv'] = hv.compute(result_i['val_scores'])
     result_i['test_hv'] = hv.compute(result_i['test_scores'])
     return result_i
@@ -128,46 +134,24 @@ def process_non_pareto_front(data_val, data_test):
 font_size = 12
 figsize=(14, 3.5)
 
-dirname = '../results_plot/results_final_paper'
-
-datasets = ['adult', 'compas', 'credit', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
-methods = ['SingleTask', 'hyper_epo', 'hyper_ln', 'ParetoMTL',  'cosmos_ln']
-
-generating_pareto_front = ['cosmos_ln', 'hyper_ln', 'hyper_epo']
-
-stop_key = {
-    'SingleTask': 'score', 
-    'hyper_epo': 'hv', 
-    'hyper_ln': 'hv', 
-    'cosmos_ln': 'hv', 
-    'ParetoMTL': 'hv', 
-}
-
-early_stop = ['hyper_ln', 'hyper_epo', 'SingleTask', 'ParetoMTL']
-
-reference_points = {
-    'adult': [2, 2], 'compas': [2, 2], 'credit': [2, 2], 
-    'multi_mnist': [2, 2], 'multi_fashion': [2, 2], 'multi_fashion_mnist': [2, 2],
-}
-
 plt.rcParams.update({'font.size': font_size})
 plt.tight_layout()
 
 markers = {
-    'hyper_epo': '.', 
-    'hyper_ln': 'x', 
-    'cosmos_ln': 'd', 
-    'cosmos_2_pf': 'd', 
+    'mgda': 'x', 
+    'uniform': '^',
+    'hyper': '.', 
+    'cosmos': 'd', 
     'ParetoMTL': '*'
 }
 
 colors = {
-    'SingleTask': '#1f77b4', 
-    'hyper_epo': '#ff7f0e', 
-    'hyper_ln': '#2ca02c',
-    'cosmos_ln': '#d62728',
-    'cosmos_2_pf': '#d62728',
-    'ParetoMTL': '#9467bd', 
+    'single_task': '#1f77b4', 
+    'mgda': '#ff7f0e', 
+    'phn': '#2ca02c',
+    'cosmos': '#d62728',
+    'pmtl': '#9467bd', 
+    'uniform': '#9467bd', 
 }
 
 titles = {
@@ -189,11 +173,11 @@ ax_lables = {
 }
 
 method_names = {
-    'SingleTask': 'Single Task', 
-    'hyper_epo': 'PHN-EPO', 
-    'hyper_ln': 'PHN-LS',
-    'cosmos_ln': 'COSMOS',
-    'ParetoMTL': 'ParetoMTL', 
+    'single_task': 'Single Task', 
+    'phn': 'PHN',
+    'cosmos': 'COSMOS',
+    'pmtl': 'ParetoMTL', 
+    'uniform': 'Uniform',
 }
 
 limits_baselines = {
@@ -201,7 +185,7 @@ limits_baselines = {
     'adult': [.3, .6, -0.01, .14],
     'compas': [0, 1.5, -.01, .35],
     'credit': [.42, .65, -0.001, .017],
-    'multi_mnist': [.24, .5, .3, .5], 
+    'multi_mnist': [.2, .5, .2, .5], 
     'multi_fashion': [.45, .75, .47, .75], 
     'multi_fashion_mnist': [.18, .6, .4, .6],
 }
@@ -211,114 +195,135 @@ limits_baselines = {
 # Load the data
 #
 
+dirname = 'results'
+
+datasets = ['multi_mnist', ]#'adult', 'compas', 'credit', , 'multi_fashion', 'multi_fashion_mnist']
+methods = ['cosmos', 'uniform']#'single_task', 'phn', 'pmtl', 'mgda', ]
+
 p = Path(dirname)
 results = {}
 
 for dataset in datasets:
     results[dataset] = {}
     for method in methods:
-        # ignore folders that start with underscore
-        val_file = list(sorted(p.glob(f'**/{method}/{dataset}/**/val*.json')))
-        test_file = list(sorted(p.glob(f'**/{method}/{dataset}/**/test*.json')))
-        train_file = list(sorted(p.glob(f'**/{method}/{dataset}/**/train*.json')))
+        val_file = list(sorted(p.glob(f'**/{method}/{dataset}/result_*/val*.json')))
+        test_file = list(sorted(p.glob(f'**/{method}/{dataset}/result_*/test*.json')))
 
+        print('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')
+        test_file = val_file
+
+
+        if len(val_file) == 0:
+            continue
         assert len(val_file) == len(test_file)
 
         data_val = load_files(val_file)
         data_test = load_files(test_file)
 
-        if len(val_file) == 0:
-            continue
-        elif len(val_file) == 1:
-            data_val = data_val[0]
-            data_test = data_test[0]
-        elif len(val_file) > 1:
-            compare_settings(data_val)
-            compare_settings(data_test)
+        test_scores = []
+        test_hv = []
+        training_time = []
 
-        result_i = {}
-        if method in generating_pareto_front:
+        for val_run, test_run in zip(data_val, data_test):
+            e = get_early_stop(val_run)
+            
+            
+            
+            r = val_run[e]
+            # r = test_run[e]
+
+
+
+
+            test_scores.append(r['loss']['pareto_front'] if 'pareto_front' in r['loss'] else r['loss']['center_ray'])
+            test_hv.append(r['loss']['hv'])
+            training_time.append(r['training_time_so_far'])
+
+        results[dataset][method] = {
+            'test_scores': mean_and_std(test_scores),
+            'test_hv': mean_and_std(test_hv),
+            'train_time': mean_and_std(training_time),
+            'num_parameters': test_run['num_parameters'],
+        }
+        
+
+
+        # if method in generating_pareto_front:
 
             
-            s = 'start_0'
-            if isinstance(data_val, list):
-                result_i['num_parameters'] = data_val[0]['num_parameters']
-                # we have multiple runs of the same method
-                early_stop_epoch = []
-                val_scores = []
-                test_scores = []
-                val_hv = []
-                test_hv = []
-                training_time = []
-                for val_run, test_run in zip(data_val, data_test):
-                    e = "epoch_{}".format(get_early_stop(val_run[s], key=stop_key[method]))
-                    val_results = val_run[s][e]
-                    test_results = test_run[s][e]
-
-                    early_stop_epoch.append(int(e.replace('epoch_', '')))
-                    val_scores.append(val_results['scores'])
-                    test_scores.append(test_results['scores'])
-                    val_hv.append(val_results['hv'])
-                    test_hv.append(test_results['hv'])
-                    training_time.append(test_results['training_time_so_far'])
+        #     s = 'start_0'
+        #     if isinstance(data_val, list):
+        #         result_i['num_parameters'] = data_val[0]['num_parameters']
+        #         # we have multiple runs of the same method
+        #         early_stop_epoch = []
+        #         val_scores = []
                 
-                result_i['early_stop_epoch'] = mean_and_std(early_stop_epoch)
-                result_i['val_scores'] = mean_and_std(val_scores)
-                result_i['test_scores'] = mean_and_std(test_scores)
-                result_i['val_hv'] = mean_and_std(val_hv)
-                result_i['test_hv'] = mean_and_std(test_hv)
-                result_i['training_time'] = mean_and_std(training_time)
-            else:
-                # we have just a single run of the method
-                assert len([True for k in data_val.keys() if 'start_' in k]) == 1
-                result_i['num_parameters'] = data_val['num_parameters']
-                e = "epoch_{}".format(get_early_stop(data_val[s], key=stop_key[method]))
-                val_results = data_val[s][e]
-                test_results = data_test[s][e]
+        #         val_hv = []
+        #         test_hv = []
+        #         training_time = []
+        #         for val_run, test_run in zip(data_val, data_test):
+        #             e = "epoch_{}".format(get_early_stop(val_run[s], key=stop_key[method]))
+        #             val_results = val_run[s][e]
+        #             test_results = test_run[s][e]
 
-                result_i['early_stop_epoch'] = int(e.replace('epoch_', ''))
-                result_i['val_scores'] = val_results['scores']
-                result_i['test_scores'] = test_results['scores']
-                result_i['val_hv'] = val_results['hv']
-                result_i['test_hv'] = test_results['hv']
-                result_i['training_time'] = test_results['training_time_so_far']
-
-        else:
-
-            if isinstance(data_val, list):
-                early_stop_epoch = []
-                val_scores = []
-                test_scores = []
-                val_hv = []
-                test_hv = []
-                training_time = []
-                for val_run, test_run in zip(data_val, data_test):
-                    result_i = process_non_pareto_front(val_run, test_run)
-                    early_stop_epoch.append(result_i['early_stop_epoch'])
-                    val_scores.append(result_i['val_scores'])
-                    test_scores.append(result_i['test_scores'])
-                    val_hv.append(result_i['val_hv'])
-                    test_hv.append(result_i['test_hv'])
-                    training_time.append(result_i['training_time'])
+        #             early_stop_epoch.append(int(e.replace('epoch_', '')))
+        #             val_scores.append(val_results['scores'])
+        #             test_scores.append(test_results['scores'])
+        #             val_hv.append(val_results['hv'])
+        #             test_hv.append(test_results['hv'])
+        #             training_time.append(test_results['training_time_so_far'])
                 
-                result_i['num_parameters'] = data_val[0]['num_parameters']
-                result_i['early_stop_epoch'] = mean_and_std(early_stop_epoch)
-                result_i['val_scores'] = mean_and_std(val_scores)
-                result_i['test_scores'] = mean_and_std(test_scores)
-                result_i['val_hv'] = mean_and_std(val_hv)
-                result_i['test_hv'] = mean_and_std(test_hv)
-                result_i['training_time'] = mean_and_std(training_time)
-            else:
-                result_i['num_parameters'] = data_val['num_parameters']
-                result_i = process_non_pareto_front(data_val, data_test)
+        #         result_i['early_stop_epoch'] = mean_and_std(early_stop_epoch)
+        #         result_i['val_scores'] = mean_and_std(val_scores)
+        #         result_i['test_scores'] = mean_and_std(test_scores)
+        #         result_i['val_hv'] = mean_and_std(val_hv)
+        #         result_i['test_hv'] = mean_and_std(test_hv)
+        #         result_i['training_time'] = mean_and_std(training_time)
+        #     else:
+        #         # we have just a single run of the method
+        #         assert len([True for k in data_val.keys() if 'start_' in k]) == 1
+        #         result_i['num_parameters'] = data_val['num_parameters']
+        #         e = "epoch_{}".format(get_early_stop(data_val[s], key=stop_key[method]))
+        #         val_results = data_val[s][e]
+        #         test_results = data_test[s][e]
 
+        #         result_i['early_stop_epoch'] = int(e.replace('epoch_', ''))
+        #         result_i['val_scores'] = val_results['scores']
+        #         result_i['test_scores'] = test_results['scores']
+        #         result_i['val_hv'] = val_results['hv']
+        #         result_i['test_hv'] = test_results['hv']
+        #         result_i['training_time'] = test_results['training_time_so_far']
 
+        # else:
 
-        results[dataset][method] = result_i
-
-
-with open('results.json', 'w') as outfile:
-    json.dump(results, outfile)
+        #     if isinstance(data_val, list):
+        #         early_stop_epoch = []
+        #         val_scores = []
+        #         test_scores = []
+        #         val_hv = []
+        #         test_hv = []
+        #         training_time = []
+        #         for val_run, test_run in zip(data_val, data_test):
+        #             result_i = process_non_pareto_front(val_run, test_run)
+        #             early_stop_epoch.append(result_i['early_stop_epoch'])
+        #             val_scores.append(result_i['val_scores'])
+        #             test_scores.append(result_i['test_scores'])
+        #             val_hv.append(result_i['val_hv'])
+        #             test_hv.append(result_i['test_hv'])
+        #             training_time.append(result_i['training_time'])
+                
+        #         result_i['num_parameters'] = data_val[0]['num_parameters']
+        #         result_i['early_stop_epoch'] = mean_and_std(early_stop_epoch)
+        #         result_i['val_scores'] = mean_and_std(val_scores)
+        #         result_i['test_scores'] = mean_and_std(test_scores)
+        #         result_i['val_hv'] = mean_and_std(val_hv)
+        #         result_i['test_hv'] = mean_and_std(test_hv)
+        #         result_i['training_time'] = mean_and_std(training_time)
+        #     else:
+        #         result_i['num_parameters'] = data_val['num_parameters']
+        #         result_i = process_non_pareto_front(data_val, data_test)
+# with open('results.json', 'w') as outfile:
+#     json.dump(results, outfile)
 
 #
 # Generate the plots and tables
@@ -336,8 +341,10 @@ def plot_row(datasets, methods, limits, prefix):
                 continue
             r = results[dataset][method]
             # we take the mean only
-            s = np.array(r['test_scores'][0]) if isinstance(r['test_scores'], tuple) else np.array(r['test_scores'])
-            if method == 'SingleTask':
+            s = np.array(r['test_scores'][0])
+            if s.ndim == 1:
+                s = np.expand_dims(s, 0)
+            if method == 'single_task':
                 s = np.squeeze(s)
                 ax.axvline(x=s[0], color=colors[method], linestyle='-.')
                 ax.axhline(y=s[1], color=colors[method], linestyle='-.', label="{}".format(method_names[method]))
@@ -351,21 +358,21 @@ def plot_row(datasets, methods, limits, prefix):
                     label="{}".format(method_names[method])
                 )
                 
-                if dataset == 'multi_fashion' and method == 'cosmos_ln' and prefix == 'cosmos':
-                    axins = zoomed_inset_axes(ax, 7, loc='upper right')
-                    axins.plot(
-                        s[:, 0], 
-                        s[:, 1], 
-                        color=colors[method],
-                        marker=markers[method],
-                        linestyle='--' if method != 'ParetoMTL' else '',
-                        label="{}".format(method_names[method])
-                    )
-                    axins.set_xlim(.4658, .492)
-                    axins.set_ylim(.488, .513)
-                    axins.set_yticklabels([])
-                    axins.set_xticklabels([])
-                    mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+                # if dataset == 'multi_fashion' and method == 'cosmos_ln' and prefix == 'cosmos':
+                #     axins = zoomed_inset_axes(ax, 7, loc='upper right')
+                #     axins.plot(
+                #         s[:, 0], 
+                #         s[:, 1], 
+                #         color=colors[method],
+                #         marker=markers[method],
+                #         linestyle='--' if method != 'ParetoMTL' else '',
+                #         label="{}".format(method_names[method])
+                #     )
+                #     axins.set_xlim(.4658, .492)
+                #     axins.set_ylim(.488, .513)
+                #     axins.set_yticklabels([])
+                #     axins.set_xticklabels([])
+                #     mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
         lim = limits[dataset]
         ax.set_xlim(left=lim[0], right=lim[1])
         ax.set_ylim(bottom=lim[2], top=lim[3])
@@ -383,15 +390,13 @@ def plot_row(datasets, methods, limits, prefix):
 
 
 datasets1 = ['adult', 'compas', 'credit']
-methods1 = ['hyper_epo', 'hyper_ln', 'ParetoMTL', 'cosmos_ln']
 datasets2 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
-methods2 = ['SingleTask', 'cosmos_ln']
 
-plot_row(datasets1, methods1, limits_baselines, prefix='baselines')
-plot_row(datasets2, methods1, limits_baselines, prefix='baselines')
+# plot_row(datasets1, methods1, limits_baselines, prefix='baselines')
+plot_row(datasets2, methods, limits_baselines, prefix='baselines')
 
-plot_row(datasets1, methods2, limits_baselines, prefix='cosmos')
-plot_row(datasets2, methods2, limits_baselines, prefix='cosmos')
+# plot_row(datasets1, methods2, limits_baselines, prefix='cosmos')
+# plot_row(datasets2, methods2, limits_baselines, prefix='cosmos')
 
 
 #

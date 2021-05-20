@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem 65000 # memory pool for each core (4GB)
 #SBATCH -t 0-24:00 # time (D-HH:MM)
-#SBATCH -c 64 # number of cores
+#SBATCH -c 8 # number of cores
 #SBATCH -o tmp/log/%x.%j.out # stdout and stderr
 #SBATCH --mail-type=END,FAIL # (recive mails about end and timeouts/crashes of your job)
 
