@@ -1,0 +1,8 @@
+_BASE_: _base.yaml
+
+lr: 0.001
+lambda_clipping: 5.
+train_ray_mildening: 0.1
+dampening: 0.0
+
+weight_decay: 0.001
