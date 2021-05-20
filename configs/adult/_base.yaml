@@ -1,0 +1,11 @@
+
+dataset: adult
+dim: [88]
+objectives: [
+  BinaryCrossEntropyLoss,
+  ddp]
+epochs: 50
+eval_every: 2
+
+loss_mins: [0.25, 0.0]
+loss_maxs: [1, .1]

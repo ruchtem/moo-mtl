@@ -112,6 +112,9 @@ class ParetoMTLMethod(BaseMethod):
         assert cfg.num_models == cfg.n_partitions + 1
         self.n = cfg.num_models
 
+        self.loss_mins = torch.tensor(cfg.loss_mins, device=self.device)
+        self.loss_maxs = cfg.loss_maxs
+
         self.models = [deepcopy(model).cpu() for _ in range(self.n)]
         self.optimizers = [torch.optim.Adam(m.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay) for m in self.models]
         self.init_sol_found = [False for _ in range(self.n)]
@@ -119,14 +122,17 @@ class ParetoMTLMethod(BaseMethod):
         self.pref_idx = -1
         # the original ref_vec can be obtained by circle_points(self.num_pareto_points, min_angle=0.0, max_angle=0.5 * np.pi)
         # we use the same min angle / max angle as for the other methods for comparison.
-        self.ref_points = reference_points(self.n - 1, tolerance=cfg.train_ray_mildening)
+        self.ref_points = reference_points(self.n - 1, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=cfg.train_ray_mildening)
         self.ref_vec = torch.Tensor(self.ref_points).to(cfg.device).float()
+
+        self.eval_calls = 0
 
 
     def new_epoch(self, e):
         for m in self.models:
             m.train()
         self.e = e
+        self.eval_calls = 0
 
 
     def log(self):
@@ -230,15 +236,22 @@ class ParetoMTLMethod(BaseMethod):
     
     def eval_step(self, batch, preference_vector):
         with torch.no_grad():
-            for i, ref_p in enumerate(self.ref_points):
-                if all(ref_p == preference_vector):
-                    model = self.models[i].cuda()
-                    model.eval()
-                    result = model(batch)
-                    model.cpu()
-                    return result
+            model = self.models[self.eval_calls]
+            model.eval()
+            result = model(batch)
+            self.eval_calls += 1
+            return result
+            
+            
+            # for i, ref_p in enumerate(self.ref_points):
+            #     if all(ref_p == preference_vector):
+            #         model = self.models[i].cuda()
+            #         model.eval()
+            #         result = model(batch)
+            #         model.cpu()
+            #         return result
         
-        raise ValueError("trying inference on different pref vec")
+        # raise ValueError("trying inference on different pref vec")
     
 
     def preference_at_inference(self):

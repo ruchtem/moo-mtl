@@ -1,0 +1,8 @@
+_BASE_: _base.yaml
+
+method: mgda
+
+normalization_type: loss
+
+lr: 1e-3
+weight_decay: 1e-2
