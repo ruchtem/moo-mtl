@@ -80,14 +80,16 @@ class NSGA2Method(BaseMethod):
     def __init__(self, objectives, model, cfg) -> None:
         super().__init__(objectives, model, cfg)
 
+        print(utils.num_parameters(model))
+
         # the model is the problem to solve in pymoo terminology
         self.problem = ModelWrapper(model, objectives, self.task_ids, self.device)
 
         self.algorithm = NSGA2(
-            pop_size=cfg.nsga2.pop_size,
-            n_offsprings=cfg.nsga2.n_offsprings,
+            pop_size=cfg.population_size,
+            n_offsprings=cfg.n_offsprings,
             sampling=get_sampling("real_random"),
-            crossover=get_crossover("real_sbx", prob=0.9, eta=15),
+            crossover=None, #get_crossover("real_sbx", prob=0.9, eta=15),
             mutation=get_mutation("real_pm", eta=20),
             eliminate_duplicates=True
         )
@@ -125,7 +127,7 @@ class NSGA2Method(BaseMethod):
         if self.algorithm.opt is not None:
             params = self.algorithm.opt.get('X')
             self.problem.data = [batch for batch in val_loader]
-            return self.problem.eval(params, scores)
+            return torch.from_numpy(self.problem.eval(params, scores))
         else:
             return None
 

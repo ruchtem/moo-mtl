@@ -110,6 +110,11 @@ _C.upsample_ratio = 1
 _C.train_ray_mildening = 0.5
 
 
+# NSGA-II
+_C.population_size = 100
+_C.n_offsprings = 20
+
+
 #
 # Misc
 #
