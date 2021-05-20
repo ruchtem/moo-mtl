@@ -8,10 +8,10 @@ class PspNetWrapper(torch.nn.Module):
     def __init__(self, dim) -> None:
         super().__init__()
 
-        self.encoder = get_segmentation_encoder()
-        self.segm_head = SegmentationDecoder(dim[-2:], num_class=19, task_type='C')
-        self.inst_head = SegmentationDecoder(dim[-2:], num_class=2, task_type='R')
-        self.depth_head = SegmentationDecoder(dim[-2:], num_class=1, task_type='R')
+        self.encoder = get_segmentation_encoder(batch_norm_layer=torch.nn.Identity)
+        self.segm_head = SegmentationDecoder(dim[-2:], num_class=19, task_type='C', batch_norm_layer=torch.nn.Identity)
+        self.inst_head = SegmentationDecoder(dim[-2:], num_class=2, task_type='R', batch_norm_layer=torch.nn.Identity)
+        self.depth_head = SegmentationDecoder(dim[-2:], num_class=1, task_type='R', batch_norm_layer=torch.nn.Identity)
     
 
     def forward(self, data):

@@ -20,19 +20,19 @@ model_urls = {
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=1, bias=False)
+                     padding=1, bias=True)
 
 
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, batch_norm_layer=nn.BatchNorm2d):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = nn.BatchNorm2d(planes)
+        self.bn1 = batch_norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
-        self.bn2 = nn.BatchNorm2d(planes)
+        self.bn2 = batch_norm_layer(planes)
         self.downsample = downsample
         self.stride = stride
 
@@ -58,15 +58,15 @@ class BasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, batch_norm_layer=nn.BatchNorm2d):
         super(Bottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=True)
+        self.bn1 = batch_norm_layer(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, planes * self.expansion, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * self.expansion)
+                               padding=1, bias=True)
+        self.bn2 = batch_norm_layer(planes)
+        self.conv3 = nn.Conv2d(planes, planes * self.expansion, kernel_size=1, bias=True)
+        self.bn3 = batch_norm_layer(planes * self.expansion)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
@@ -96,27 +96,27 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000, deep_base=False):
+    def __init__(self, block, layers, num_classes=1000, deep_base=False, batch_norm_layer=nn.BatchNorm2d):
         super(ResNet, self).__init__()
         self.deep_base = deep_base
         if not self.deep_base:
             self.inplanes = 64
             self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
-            self.bn1 = nn.BatchNorm2d(64)
+            self.bn1 = batch_norm_layer(64)
         else:
             self.inplanes = 128
             self.conv1 = conv3x3(3, 64, stride=2)
-            self.bn1 = nn.BatchNorm2d(64)
+            self.bn1 = batch_norm_layer(64)
             self.conv2 = conv3x3(64, 64)
-            self.bn2 = nn.BatchNorm2d(64)
+            self.bn2 = batch_norm_layer(64)
             self.conv3 = conv3x3(64, 128)
-            self.bn3 = nn.BatchNorm2d(128)
+            self.bn3 = batch_norm_layer(128)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.layer1 = self._make_layer(block, 64, layers[0], batch_norm_layer=batch_norm_layer)
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, batch_norm_layer=batch_norm_layer)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, batch_norm_layer=batch_norm_layer)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, batch_norm_layer=batch_norm_layer)
         self.avgpool = nn.AvgPool2d(7, stride=1)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
@@ -127,26 +127,25 @@ class ResNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def _make_layer(self, block, planes, blocks, stride=1):
+    def _make_layer(self, block, planes, blocks, stride=1, batch_norm_layer=nn.BatchNorm2d):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion),
+                          kernel_size=1, stride=stride, bias=True),
+                batch_norm_layer(planes * block.expansion),
             )
 
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers.append(block(self.inplanes, planes, stride, downsample, batch_norm_layer=batch_norm_layer))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
+            layers.append(block(self.inplanes, planes, batch_norm_layer=batch_norm_layer))
 
         return nn.Sequential(*layers)
 
     def forward(self, x):
         x = self.relu(self.bn1(self.conv1(x)))
-        # x = self.relu(self.conv1(x))
         if self.deep_base:
             x = self.relu(self.bn2(self.conv2(x)))
             x = self.relu(self.bn3(self.conv3(x)))
@@ -193,7 +192,7 @@ def resnet50(pretrained=False, **kwargs):
     """
     model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet50']), strict=False)
         # model_path = './initmodel/resnet50_v2.pth'
         # model.load_state_dict(torch.load(model_path), strict=False)
     return model

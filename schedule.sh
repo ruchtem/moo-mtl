@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p alldlc_gpu-rtx2080
-#SBATCH --gres=gpu:8
+#SBATCH --gres=gpu:1
 #SBATCH --mem 65000 # memory pool for each core (4GB)
 #SBATCH -t 0-24:00 # time (D-HH:MM)
 #SBATCH -c 64 # number of cores
@@ -13,7 +13,7 @@ source $HOME/dev/venvs/base/bin/activate
 IFS='-'; arrIN=($SLURM_JOB_NAME); unset IFS;
 
 
-COMMAND="python -u multi_objective/main.py --config configs/${arrIN[0]}/${arrIN[1]}.yaml --tag ${arrIN[2]} --ngpus 8";
+COMMAND="python -u multi_objective/main.py --config configs/${arrIN[0]}/${arrIN[1]}.yaml --tag ${arrIN[2]} --ngpus 1";
 echo "Workingdir: $PWD";
 echo "Started at $(date) on host $SLURMD_NODENAME";
 echo "Executing $COMMAND";

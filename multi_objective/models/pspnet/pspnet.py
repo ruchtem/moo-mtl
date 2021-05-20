@@ -8,8 +8,8 @@ import torchvision
 from .resnet import resnet50
 
 
-def get_segmentation_encoder():
-    orig_resnet = resnet50(pretrained=True)
+def get_segmentation_encoder(batch_norm_layer=nn.BatchNorm2d):
+    orig_resnet = resnet50(pretrained=True, batch_norm_layer=batch_norm_layer)
     return ResnetDilated(orig_resnet, dilate_scale=8)
     
 
@@ -67,7 +67,6 @@ class ResnetDilated(nn.Module):
 
     def forward(self, x):
         x = self.relu1(self.bn1(self.conv1(x)))
-        # x = self.relu1(self.conv1(x))
         x = self.maxpool(x)
 
         x = self.layer1(x) 
@@ -78,7 +77,7 @@ class ResnetDilated(nn.Module):
 
 # pyramid pooling, bilinear upsample
 class SegmentationDecoder(nn.Module):
-    def __init__(self, out_dim, num_class=21, fc_dim=2048, pool_scales=(1, 2, 3, 6), task_type='C'):
+    def __init__(self, out_dim, num_class=21, fc_dim=2048, pool_scales=(1, 2, 3, 6), task_type='C', batch_norm_layer=nn.BatchNorm2d):
         super(SegmentationDecoder, self).__init__()
         self.out_dim = out_dim
         self.task_type = task_type
@@ -87,19 +86,16 @@ class SegmentationDecoder(nn.Module):
         for scale in pool_scales:
             self.ppm.append(nn.Sequential(
                 nn.AdaptiveAvgPool2d(scale),
-                nn.Conv2d(fc_dim, 512, kernel_size=1, bias=False),
-                # nn.Conv2d(fc_dim, 512, kernel_size=1, bias=True),
-                nn.BatchNorm2d(512),
+                nn.Conv2d(fc_dim, 512, kernel_size=1, bias=True),
+                batch_norm_layer(512),
                 nn.ReLU(inplace=True)
             ))
         self.ppm = nn.ModuleList(self.ppm)
 
         self.conv_last = nn.Sequential(
-            # nn.Conv2d(fc_dim+len(pool_scales)*512, 512,
-                    #   kernel_size=3, padding=1, bias=True),
             nn.Conv2d(fc_dim+len(pool_scales)*512, 512,
                       kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(512),
+            batch_norm_layer(512),
             nn.ReLU(inplace=True),
             nn.Conv2d(512, num_class, kernel_size=1)
         )

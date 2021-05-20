@@ -1,0 +1,34 @@
+
+_BASE_: _base.yaml
+
+method: cosmos
+
+dampening: 0. #000001
+lambda_clipping: 1.
+lambda_lr: 3.   # .2 * 8 gpus
+n_train_rays_cosmos: 2
+train_ray_mildening: 0.6
+upsample_ratio: 1.
+
+
+lr_scheduler: MultiStep
+lr: 0.0005
+n_train_rays: 3
+
+
+
+
+
+
+
+# mgda:
+#   normalization_type: l2
+#   approximate_norm_solution: True
+#   lr_scheduler: none
+#   lr: 0.00001
+  
+# single_task:
+#   lr_scheduler: none
+#   lr: 0.01
+
+
