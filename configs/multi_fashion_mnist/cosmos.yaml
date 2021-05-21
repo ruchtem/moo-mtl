@@ -4,7 +4,8 @@ method: cosmos
 
 train_ray_mildening: 0.3
 dampening: 0.
-lambda_clipping: 5.
+lambda_clipping: 10.0
+
 lr_scheduler: CosineAnnealing
-lr: 5e-4
-weight_decay: 1e-2
+lr: 0.001
+weight_decay: 0.01
