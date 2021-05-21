@@ -2,6 +2,6 @@ _BASE_: _base.yaml
 
 method: single_task
 
-lr_scheduler: CosineAnnealing
-lr: 1e-3
-weight_decay: 1e-2
+lr_scheduler: none
+lr: 0.001
+weight_decay: 0.01
