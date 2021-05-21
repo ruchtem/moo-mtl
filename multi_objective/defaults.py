@@ -130,8 +130,9 @@ _C.n_partitions=24
 # Evaluation period for val and test sets (0 for no evaluation)
 _C.eval_every=5
 
-# Evaluation period for train set (0 for no evaluation)
+# Evaluation period for train and test set (0 for no evaluation)
 _C.train_eval_every=0
+_C.test_eval_every=0
 
 # Reference point for hyper-volume calculation
 _C.reference_point=[1, 1]

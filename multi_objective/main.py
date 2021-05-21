@@ -327,7 +327,6 @@ def main(rank, world_size, cfg, tag='', resume=False):
                 train_time=elapsed_time,
                 cfg=cfg,
                 logger=logger,)
-
         
         if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0 and e > 0:
             # Validation results
@@ -345,14 +344,15 @@ def main(rank, world_size, cfg, tag='', resume=False):
                     best_hv_sofar = e_results['hv']
                     best_idx_sofar = e
 
+        if cfg['test_eval_every'] > 0 and (e+1) % cfg['test_eval_every'] == 0 and e > 0:
             # Test results
-            # test_results = evaluate(e, method, scores, test_loader,
-            #     split='test',
-            #     result_dict=test_results,
-            #     logdir=logdir,
-            #     train_time=elapsed_time,
-            #     cfg=cfg,
-            #     logger=logger,)
+            test_results = evaluate(e, method, scores, test_loader,
+                split='test',
+                result_dict=test_results,
+                logdir=logdir,
+                train_time=elapsed_time,
+                cfg=cfg,
+                logger=logger,)
 
     if world_size > 1:
         cleanup()
