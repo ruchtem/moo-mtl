@@ -303,7 +303,8 @@ class EvalResult():
     
     def compute_hv(self, reference_point):
         if self.pf_available:
-            if self.pf.shape[1] < 5:
+            if self.pf.shape[1] <= 5:
+                assert self.pf.shape[1] == len(reference_point)
                 hv = get_performance_indicator("hv", ref_point=np.array(reference_point))
                 self.hv = hv.calc(self.pf)
         else:
@@ -424,7 +425,8 @@ class RunningMean():
     def __len__(self):
         return len(self.queue)
 
-
+from colour import Color
+import matplotlib as mpl
 class ParetoFront():
 
 
@@ -454,16 +456,37 @@ class ParetoFront():
             plt.savefig(os.path.join(self.logdir, "pf_{}.png".format(self.prefix)))
             plt.close()
         else:
+            n_colors = 100
             # plot radviz
             # p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
             p_normalized = p
+            dists = norm(p_normalized, axis=1)
+            _, bins = np.histogram(dists, bins=n_colors-2)
+            color_idx = np.digitize(dists, bins)
+            colors = list(Color("red").range_to(Color("blue"), n_colors))
+
             radviz_plot = Radviz()
 
-            radviz_plot.add(rays, color='grey', alpha=.5)
-            radviz_plot.add(p_normalized)
+            # radviz_plot.add(rays, color='grey', alpha=.5)
+            for p, i in zip(p_normalized, color_idx):
+                radviz_plot.add(p, color=colors[i].rgb)
+
+            radviz_plot.plot_if_not_done_yet()
+
+            cbaxes = plt.gcf().add_axes([0.8, 0.25, 0.02, 0.5]) 
+
+            cmap= mpl.colors.ListedColormap([c.rgb for c in colors])
+            cnorm = mpl.colors.Normalize(vmin=dists.min(), vmax=dists.max())
+            cb1 = mpl.colorbar.ColorbarBase(cbaxes, cmap=cmap,
+                                norm=cnorm,
+                                orientation='vertical')
+            cb1.set_label('Distance to origin')
             
-            if best_sol_idx is not None:
-                radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
+
+            # radviz_plot.add(p_normalized)
+            
+            # if best_sol_idx is not None:
+            #     radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
             radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
             plt.close()
 
