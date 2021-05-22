@@ -459,13 +459,13 @@ class ParetoFront():
             n_colors = 100
             # plot radviz
             # p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
-            p_normalized = p
+            p_normalized = scale(p, axis=0)
             dists = norm(p_normalized, axis=1)
             _, bins = np.histogram(dists, bins=n_colors-2)
             color_idx = np.digitize(dists, bins)
             colors = list(Color("red").range_to(Color("blue"), n_colors))
 
-            radviz_plot = Radviz()
+            radviz_plot = CustomRadviz()
 
             # radviz_plot.add(rays, color='grey', alpha=.5)
             for p, i in zip(p_normalized, color_idx):
@@ -481,6 +481,8 @@ class ParetoFront():
                                 norm=cnorm,
                                 orientation='vertical')
             cb1.set_label('Distance to origin')
+
+            print(radviz_plot.points)
             
 
             # radviz_plot.add(p_normalized)
@@ -490,13 +492,44 @@ class ParetoFront():
             radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
             plt.close()
 
-        norms = np.linalg.norm(p, axis=1)
+        # norms = np.linalg.norm(p, axis=1)
 
         # plt.plot(norms, 'o')
         # if best_sol_idx is not None:
         #     plt.plot(norms[best_sol_idx], 'ro')
         # plt.savefig(os.path.join(self.logdir, "norm_{}.png".format(self.prefix)))
         # plt.close()
+
+from pymoo.visualization.util import plot_circle, plot_radar_line, plot_axis_labels, equal_axis, no_ticks, \
+    get_uniform_points_around_circle
+class CustomRadviz(Radviz):
+
+    def _do(self):
+
+        # initial a figure with a single plot
+        self.init_figure()
+
+        # equal axis length and no ticks
+        equal_axis(self.ax)
+        no_ticks(self.ax)
+
+        V = get_uniform_points_around_circle(self.n_dim)
+        plot_axis_labels(self.ax, V, self.get_labels(), **self.axis_label_style)
+
+        # draw the outer circle and radar lines
+        plot_circle(self.ax, **self.axis_style)
+        plot_radar_line(self.ax, V, **self.axis_style)
+
+        # draw the endpoints of each objective
+        if self.endpoint_style:
+            self.ax.scatter(V[:, 0], V[:, 1], **self.endpoint_style)
+
+        # plot all the points
+        self.points = []
+        for k, (F, kwargs) in enumerate(self.to_plot):
+            N = (F[..., None] * V).sum(axis=1) / F.sum(axis=1)[:, None]
+            self.ax.scatter(N[:, 0], N[:, 1], **kwargs)
+            self.points.append(N)
 
 
 
