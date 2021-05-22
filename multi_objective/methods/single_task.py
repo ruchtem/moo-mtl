@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from copy import deepcopy
+from collections import OrderedDict
 from .base import BaseMethod
 from multi_objective import utils
 
@@ -17,7 +18,24 @@ class SingleTaskMethod(BaseMethod):
 
         print('num models:', len(self.models))
 
+        
+    def state_dict(self):
+        state = OrderedDict()
+        for i, (m, o, s) in enumerate(zip(self.models, self.optimizers, self.schedulers)):
+            state[f'model.{i}'] = m.state_dict()
+            state[f'optimizer.{i}'] = o.state_dict()
+            state[f'lr_scheduler.{i}'] = s.state_dict()
+        return state
+
     
+    def load_state_dict(self, dict):
+        for i in range(len(self.models)):
+            self.models[i].load_state_dict(dict[f'model.{i}'])
+            self.optimizers[i].load_state_dict(dict[f'optimizer.{i}'])
+            self.schedulers[i].load_state_dict(dict[f'lr_scheduler.{i}'])
+
+
+
     def new_epoch(self, e):
         for m in self.models:
             m.train()
