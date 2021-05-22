@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from copy import deepcopy
 from .base import BaseMethod
+from multi_objective import utils
 
 
 class SingleTaskMethod(BaseMethod):
@@ -12,11 +13,15 @@ class SingleTaskMethod(BaseMethod):
         # Create copies for second to last task. First is handled by main
         self.models = [deepcopy(model) for _ in self.task_ids[1:]]        
         self.optimizers = [torch.optim.Adam(m.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay) for m in self.models]
+        self.schedulers = [utils.get_lr_scheduler(cfg.lr_scheduler, o, cfg, '') for o in self.optimizers]
 
     
     def new_epoch(self, e):
         for m in self.models:
             m.train()
+        if e>0:
+            for s in self.schedulers:
+                s.step()
 
 
     def step(self, batch):
