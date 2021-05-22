@@ -459,7 +459,7 @@ class ParetoFront():
             n_colors = 100
             # plot radviz
             p_normalized = scale(p, axis=0)
-            dists = norm(p_normalized, axis=1)
+            dists = norm(p, axis=1)
             _, bins = np.histogram(dists, bins=n_colors-2)
             color_idx = np.digitize(dists, bins)
             colors = list(Color("red").range_to(Color("blue"), n_colors))

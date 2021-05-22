@@ -15,6 +15,8 @@ class SingleTaskMethod(BaseMethod):
         self.optimizers = [torch.optim.Adam(m.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay) for m in self.models]
         self.schedulers = [utils.get_lr_scheduler(cfg.lr_scheduler, o, cfg, '') for o in self.optimizers]
 
+        print('num models:', len(self.models))
+
     
     def new_epoch(self, e):
         for m in self.models:

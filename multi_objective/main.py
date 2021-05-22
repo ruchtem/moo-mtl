@@ -135,6 +135,7 @@ def evaluate(e, method, scores, data_loader, split, result_dict, logdir, train_t
                 for eval_mode in scores:
                     score_values[eval_mode].update(data[eval_mode], 'pareto_front')
             else:
+                log_every_n_seconds(logging.INFO, f"Eval batch {b}/{len(data_loader)}", n=5)
                 # Method gives just a single point
                 batch.update(method.eval_step(batch))
                 for eval_mode, score in scores.items():
