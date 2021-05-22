@@ -53,7 +53,7 @@ def loaders_from_name(dataset, seed, **kwargs):
     # train = DebugDataset(train, size=2560, replication=100)
 
 
-    if dataset in ['adult', 'credit', 'compass', 'multi_mnist', 'multi_fashion', 'multi_fashion_mnist']:
+    if dataset in ['adult', 'credit', 'compass']:
         val_bs = len(val)
         test_bs = len(test)
     else:

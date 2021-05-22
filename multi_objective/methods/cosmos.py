@@ -103,7 +103,7 @@ class COSMOSMethod(BaseMethod):
         self.loss_mins = torch.tensor(cfg.loss_mins, device=self.device)
         self.loss_maxs = cfg.loss_maxs
 
-        n = cfg.n_train_rays_cosmos
+        n = cfg.n_train_partitions_cosmos
         self.train_ray_mildening = cfg.train_ray_mildening
 
         dim = list(cfg.dim)

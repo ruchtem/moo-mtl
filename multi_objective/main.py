@@ -99,7 +99,11 @@ def evaluate(e, method, scores, data_loader, split, result_dict, logdir, train_t
         J = len(cfg['objectives'])
         task_ids = list(scores[list(scores)[0]].keys())
 
-    pareto_rays = utils.reference_points(cfg['n_partitions'], dim=J, tolerance=cfg.train_ray_mildening)
+    pareto_rays = utils.reference_points(
+        cfg['n_partitions'], 
+        dim=J, 
+        max=np.array(cfg.loss_maxs) - np.array(cfg.loss_mins),
+        tolerance=cfg.train_ray_mildening)
     n_rays = pareto_rays.shape[0]
     
     log_first_n(logging.DEBUG, f"Number of test rays: {n_rays}", n=1)

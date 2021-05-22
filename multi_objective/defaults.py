@@ -25,6 +25,13 @@ _C.ignore_index = -100
 
 
 #
+# Model
+#
+
+_C.channel_multiplier = 1
+
+
+#
 # Training
 #
 
@@ -92,9 +99,8 @@ _C.internal_solver_phn='linear'
 
 # COSMOS
 #
-_C.cosmos = CN()
 
-_C.n_train_rays_cosmos = 5
+_C.n_train_partitions_cosmos = 8
 _C.loss_mins = [0.]  # will be repeated for all losses
 _C.loss_maxs = [1.]
 
