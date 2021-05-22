@@ -458,7 +458,6 @@ class ParetoFront():
         else:
             n_colors = 100
             # plot radviz
-            # p_normalized = (p - p.min(axis=0)) / (p.max(axis=0) - p.min(axis=0) + 1e-8)
             p_normalized = scale(p, axis=0)
             dists = norm(p_normalized, axis=1)
             _, bins = np.histogram(dists, bins=n_colors-2)
@@ -482,23 +481,14 @@ class ParetoFront():
                                 orientation='vertical')
             cb1.set_label('Distance to origin')
 
-            print(radviz_plot.points)
+            sort_idx = np.argsort(dists)[:2]
+            coordinates = np.squeeze(np.array(radviz_plot.points))
+            for (x, y), d in zip(coordinates[sort_idx], dists[sort_idx]):
+                radviz_plot.ax.annotate(f"{d :.4f}", (x, y), xytext=(x+.1, y+.1), arrowprops={'arrowstyle': '->'})
             
-
-            # radviz_plot.add(p_normalized)
-            
-            # if best_sol_idx is not None:
-            #     radviz_plot.add(p_normalized[best_sol_idx], color="red", s=70, label="Solution A")
             radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
             plt.close()
 
-        # norms = np.linalg.norm(p, axis=1)
-
-        # plt.plot(norms, 'o')
-        # if best_sol_idx is not None:
-        #     plt.plot(norms[best_sol_idx], 'ro')
-        # plt.savefig(os.path.join(self.logdir, "norm_{}.png".format(self.prefix)))
-        # plt.close()
 
 from pymoo.visualization.util import plot_circle, plot_radar_line, plot_axis_labels, equal_axis, no_ticks, \
     get_uniform_points_around_circle
