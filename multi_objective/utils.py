@@ -16,8 +16,8 @@ from pymoo.factory import get_decomposition, get_reference_directions, get_perfo
 from pymoo.visualization.radviz import Radviz
 
 
-from .loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader, coco_loader
-from .models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet#, MaskRCNN
+from .loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader, coco_loader, movielens_loader
+from .models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet, MultiVAE
 
 def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':
@@ -38,6 +38,8 @@ def dataset_from_name(dataset, **kwargs):
         return cityscapes_loader.CITYSCAPES(**kwargs)
     elif dataset == 'coco':
         return coco_loader.COCO(**kwargs)
+    elif dataset == 'movielens':
+        return movielens_loader.MovieLens(**kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
 
@@ -46,12 +48,6 @@ def loaders_from_name(dataset, seed, **kwargs):
     train = dataset_from_name(dataset, split='train', **kwargs)
     val = dataset_from_name(dataset, split='val', **kwargs)
     test = dataset_from_name(dataset, split='test', **kwargs)
-    
-    # if dataset == 'cityscapes' or dataset == 'celeba':
-    #     train = DebugDataset(val, size=2, replication=80)
-    #     val = DebugDataset(val, size=2)
-    # train = DebugDataset(train, size=2560, replication=100)
-
 
     if dataset in ['adult', 'credit', 'compass']:
         val_bs = len(val)
@@ -90,6 +86,8 @@ def model_from_dataset(dataset, **kwargs):
         #     return ResNet.from_name(**kwargs)
     elif dataset == 'cityscapes':
         return Pspnet(dim=kwargs['dim'])
+    elif dataset == 'movielens':
+        return MultiVAE(**kwargs)
     else:
         raise ValueError("Unknown model name {}".format(dataset))
 
@@ -144,6 +142,66 @@ def scale(a, new_max=1, new_min=0, axis=None):
     new_max = np.array(new_max)
     a = a * (new_max - new_min) + new_min
     return a
+
+
+def find_top_k_binary(values, k):
+    """
+    taken from https://github.com/swisscom/ai-research-mamo-framework/tree/master/metric
+    and adapted
+    
+    Finds the top k values for each row of a matrix and returns a binary
+    mask on their positions.
+
+    The method masks the k input values with the highest numerical value in
+    every row of the input 2D numpy array.
+
+    Args:
+        values: A PyTorch tensor of values.
+        k: An integer that denotes the number of values to obtain from the
+            ranking of the values. The method masks the k values with the
+            highest scores.
+
+    Returns:
+        A binary mask in the form of a 2D Pytorch tensor that outputs the
+        top k values per row from the input values.
+        For example:
+
+        values = tensor([[0.5, 0.7, 0.3],
+                                [0.4, 0.1, 0.7]])
+        k = 2
+        find_top_k_binary returns:
+
+        tensor([[ True, True, False],
+                [ True, False, True]])
+
+    Raises:
+        TypeError: An error occured while accessing the arguments -
+            one of the arguments is NoneType.
+        ValueError: An error occured when checking the dimensions of the
+            values argument. It is not a 2D tensor. Or if k is smaller
+            than 0.
+    """
+    if values is None:
+        raise TypeError('Argument: values must be set.')
+    if k is None:
+        raise TypeError('Argument: k must be set.')
+    if not isinstance(k, int):
+        raise TypeError('Argument: k must be an integer.')
+    if not torch.is_tensor(values):
+        raise TypeError('Argument: values must be a PyTorch tensor.')
+    if values.ndimension() != 2:
+        raise ValueError('Argument: values must be a 2D tensor.')
+    if k < 1:
+        raise ValueError('Argument: k cannot be negative.')
+    if k >= values.shape[1]:
+        raise ValueError('Argument: k cannot be larger than\
+                            values.shape[1]')
+
+    _, idx = torch.topk(values, k=k, dim=1, sorted=False)
+    values_binary = torch.zeros_like(values, dtype=torch.bool)
+    values_binary = values_binary.scatter(1, idx[:, :k], True)
+    values_binary[values <= 0] = False
+    return values_binary
 
 
 def reference_points(partitions, dim=2, min=0, max=1, tolerance=0.):

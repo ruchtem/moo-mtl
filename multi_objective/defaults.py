@@ -150,6 +150,35 @@ _C.device='cuda'
 _C.metrics=None
 
 
+
+# VAE model parameters
+# taken from https://github.com/swisscom/ai-research-mamo-framework/blob/master/models/params_multi_VAE.yaml
+_C.vae_params = CN()
+_C.vae_params.dropout = 0.5
+_C.vae_params.no_latent_features = 200
+_C.vae_params.norm_mean = 0.0
+_C.vae_params.norm_std = 0.001
+_C.vae_params.input_size = 1000
+_C.vae_params.output_size = 1000
+_C.vae_params.enc1_out = 600
+_C.vae_params.enc2_in = 600
+_C.vae_params.enc2_out = 400
+_C.vae_params.dec1_in = 200
+_C.vae_params.dec1_out = 600
+_C.vae_params.dec2_in = 600
+
+# Required to weight the vae loss with prices for movielens
+_C.loss_weights = 'None'
+
+# Annealing of KL regularization
+_C.beta_start = 0
+_C.beta_cap = 0.3
+_C.beta_step = 0.3/10000
+
+# For recommender system metrics
+_C.K = 20
+
+
 def get_cfg_defaults():
     """Get a CfgNode object with default values for my_project."""
     return _C.clone()

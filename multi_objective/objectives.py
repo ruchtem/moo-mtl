@@ -1,6 +1,7 @@
 import math
 import torch
 import torch.nn.functional as F
+import numpy as np
 
 
 def from_name(objectives, task_ids=None, **kwargs):
@@ -12,6 +13,8 @@ def from_name(objectives, task_ids=None, **kwargs):
         'L2Regularization': L2Regularization,
         'ddp': DDPHyperbolicTangentRelaxation,
         'deo': DEOHyperbolicTangentRelaxation,
+        'VAELoss': VAELoss,
+        'WeightedVAELoss': WeightedVAELoss,
     }
     if len(task_ids) > 0:
         return {t: map[n]("labels_{}".format(t), "logits_{}".format(t), **kwargs) for n, t in zip(objectives, task_ids)}
@@ -204,3 +207,60 @@ class DEOHyperbolicTangentRelaxation():
 
         return torch.abs(torch.tanh(self.c * torch.relu(s_positive)).mean() - torch.tanh(self.c * torch.relu(s_negative)).mean())
 
+
+
+class VAELoss():
+
+    """taken from https://github.com/swisscom/ai-research-mamo-framework/blob/master/loss/vae_loss.py
+    and adaped."""
+    
+    def __init__(self, label_name='labels', logits_name='logits', **kwargs):
+        super().__init__()
+        self.label_name = label_name
+        self.logits_name = logits_name
+        self.reduction = 'mean'
+        self.weighted_vector = None
+
+
+    def __call__(self, **kwargs):
+        y_pred = kwargs[self.logits_name]
+        y_true = kwargs[self.label_name]
+
+        anneal = kwargs['vae_beta']
+
+        mean = kwargs['mean']
+        log_variance = kwargs['log_variance']
+
+        assert len(y_pred) == len(y_true)
+        assert mean is not None
+        assert log_variance is not None
+
+        assert self.reduction == 'mean'
+        
+        # calculate the reconstruction loss
+        if(self.weighted_vector is not None):
+            # reconstruction loss if user provides a weighted vector
+            BCE = -torch.mean(torch.sum(F.log_softmax(y_pred, 1)
+                                        * y_true * self.weighted_vector, -1))
+        else:
+            # reconstruction loss without weigted vector
+            BCE = -torch.mean(torch.sum(F.log_softmax(y_pred, 1) * y_true, -1))
+
+        # calculate the 'regularization' loss based on Kullback-Leibler divergence.
+        # here we compute the KLd between two multivariate normal distributions.
+        # The first is a multivariate gaussian with mean 'mean' and log-variance 'log_variance'
+        # The second is a multivariate standard normal distribution (mean 0 and unit variance)
+        # The exact equation is given in: https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence
+        KLD = -0.5 * torch.mean(torch.sum(1 + log_variance - mean.pow(2) - log_variance.exp(),
+                                          dim=1))
+
+        # return combined loss.
+        return BCE + anneal * KLD
+    
+class WeightedVAELoss(VAELoss):
+
+    def __init__(self, label_name='labels', logits_name='logits', loss_weights=None, **kwargs):
+        self.label_name = label_name
+        self.logits_name = logits_name
+        self.reduction = 'mean'
+        self.weighted_vector = torch.from_numpy(np.load(loss_weights)).to(kwargs['device'])

@@ -252,6 +252,8 @@ def main(rank, world_size, cfg, tag='', resume=False):
     best_hv_sofar = 0.
     best_idx_sofar = -1
 
+    beta = cfg.beta_start if cfg.dataset == 'movielens' else None
+
     if resume and os.path.exists(os.path.join(logdir, 'checkpoint.pth')):
 
         map_location = {'cuda:%d' % 0: 'cuda:%d' % rank} if world_size > 1 else None
@@ -265,6 +267,7 @@ def main(rank, world_size, cfg, tag='', resume=False):
         train_results = checkpoint['train_results']
         val_results = checkpoint['val_results']
         test_results = checkpoint['test_results']
+        beta = checkpoint['beta']
 
         torch.set_rng_state(checkpoint['torch_rng_state'])
         np.random.set_state(checkpoint['np_rng_state'])
@@ -282,6 +285,11 @@ def main(rank, world_size, cfg, tag='', resume=False):
         method.new_epoch(e)
 
         for b, batch in enumerate(train_loader):
+            if beta is not None:
+                beta += cfg.beta_step
+                beta = beta if beta < cfg.beta_cap else cfg.beta_cap
+                batch['vae_beta'] = beta
+
             batch = utils.dict_to(batch, cfg.device)
             optimizer.zero_grad()
             loss = method.step(batch)
@@ -320,7 +328,8 @@ def main(rank, world_size, cfg, tag='', resume=False):
                 epoch=e,
                 train_results=train_results,
                 val_results=val_results,
-                test_results=test_results
+                test_results=test_results,
+                beta=beta,
             )
 
         # run eval on train set (mainly for debugging)
@@ -333,7 +342,7 @@ def main(rank, world_size, cfg, tag='', resume=False):
                 cfg=cfg,
                 logger=logger,)
         
-        if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0 and e > 0:
+        if cfg['eval_every'] > 0 and (e+1) % cfg['eval_every'] == 0:# and e > 0:
             # Validation results
             val_results = evaluate(e, method, scores, val_loader,
                 split='val',

@@ -1,0 +1,20 @@
+dataset: movielens
+dim: [8936]
+objectives: [VAELoss, WeightedVAELoss]
+
+loss_mins: [0.0, 0.0]
+loss_maxs: [1.0, 1.0]
+
+metrics: ['RecallAtK', 'RevenueAtK']
+K: 10
+
+batch_size: 500
+epochs: 100
+eval_every: 1
+
+# prices of the movies
+loss_weights: 'data/movielens20m/movielens_products_data.npy'
+
+vae_params:
+  input_size: 8936
+  output_size: 8936

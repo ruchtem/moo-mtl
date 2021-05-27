@@ -5,6 +5,7 @@ from abc import abstractmethod
 from pycocotools.mask import encode, iou
 
 import multi_objective.objectives as obj
+from multi_objective import utils
 
 
 def from_objectives(obj_instances, metrics, objectives, task_ids=None, **kwargs):
@@ -16,6 +17,10 @@ def from_objectives(obj_instances, metrics, objectives, task_ids=None, **kwargs)
         'MSELoss': L2Distance,
         'L1Loss': L1Loss,
         'mIoU': mIoU,
+        'VAELoss': VAELoss,
+        'WeightedVAELoss': WeightedVAELoss,
+        'RecallAtK': RecallAtK,
+        'RevenueAtK': RevenueAtK,
     }
     if len(task_ids) == 0:
         task_ids = list(obj_instances.keys())
@@ -33,6 +38,7 @@ class BaseScore():
         self.label_name = label_name
         self.logits_name = logits_name
         self.ignore_index = ignore_index
+        self.kwargs = kwargs
 
 
     @abstractmethod
@@ -80,15 +86,6 @@ class mIoU(BaseScore):
     def __call__(self, **kwargs):
         logits = kwargs[self.logits_name]
         labels = kwargs[self.label_name]
-
-        # metric = RunningMetric(metric_type = 'IOU', n_classes=19)
-
-        # metric.update(logits, labels)
-        
-        # return metric.get_result()['mIOU']
-
-
-
 
         predictions = logits.max(dim=1)[1]
         ious = []
@@ -170,74 +167,89 @@ class DEO(BaseScore):
             return (1/n * torch.abs(torch.sum(logits_s_negative > 0) - torch.sum(logits_s_positive > 0))).cpu().item()        
 
 
+class VAELoss(obj.VAELoss):
+
+    def __call__(self, **kwargs):
+        kwargs['vae_beta'] = 1.
+        with torch.no_grad():
+            return super().__call__(**kwargs).item()
 
 
+class WeightedVAELoss(obj.WeightedVAELoss):
 
-class RunningMetric(object):
-    def __init__(self, metric_type, n_classes =None):
-        self._metric_type = metric_type
-        if metric_type == 'ACC':
-            self.accuracy = 0.0
-            self.num_updates = 0.0
-        if metric_type == 'L1':
-            self.l1 = 0.0
-            self.num_updates = 0.0
-        if metric_type == 'IOU':
-            if n_classes is None:
-                print('ERROR: n_classes is needed for IOU')
-            self.num_updates = 0.0
-            self._n_classes = n_classes
-            self.confusion_matrix = np.zeros((n_classes, n_classes))
+    def __call__(self, **kwargs):
+        kwargs['vae_beta'] = 1.
+        with torch.no_grad():
+            return super().__call__(**kwargs).item()
 
-    def reset(self):
-        if self._metric_type == 'ACC':
-            self.accuracy = 0.0
-            self.num_updates = 0.0
-        if self._metric_type == 'L1':
-            self.l1 = 0.0
-            self.num_updates = 0.0
-        if self._metric_type == 'IOU':
-            self.num_updates = 0.0
-            self.confusion_matrix = np.zeros((self._n_classes, self._n_classes))
 
-    def _fast_hist(self, pred, gt):
-        mask = (gt >= 0) & (gt < self._n_classes)
-        hist = np.bincount(
-            self._n_classes * gt[mask].astype(int) +
-            pred[mask], minlength=self._n_classes**2).reshape(self._n_classes, self._n_classes)
-        return hist
+class RecallAtK(BaseScore):
+    """
+    Taken from https://github.com/swisscom/ai-research-mamo-framework/tree/master/metric
+    and adapted
+    """
 
-    def update(self, pred, gt):
-        if self._metric_type == 'ACC':
-            predictions = pred.data.max(1, keepdim=True)[1]
-            self.accuracy += (predictions.eq(gt.data.view_as(predictions)).cpu().sum()) 
-            self.num_updates += predictions.shape[0]
-    
-        if self._metric_type == 'L1':
-            _gt = gt.data.cpu().numpy()
-            _pred = pred.data.cpu().numpy()
-            gti = _gt.astype(np.int32)
-            mask = gti!=250
-            if np.sum(mask) < 1:
-                return
-            self.l1 += np.sum( np.abs(gti[mask] - _pred.astype(np.int32)[mask]) ) 
-            self.num_updates += np.sum(mask)
 
-        if self._metric_type == 'IOU':
-            _pred = pred.data.max(1)[1].cpu().numpy()
-            _gt = gt.data.cpu().numpy()
-            for lt, lp in zip(_pred, _gt):
-                self.confusion_matrix += self._fast_hist(lt.flatten(), lp.flatten())
-        
-    def get_result(self):
-        if self._metric_type == 'ACC':
-            return {'acc': self.accuracy/self.num_updates}
-        if self._metric_type == 'L1':
-            return {'l1': self.l1/self.num_updates}
-        if self._metric_type == 'IOU':
-            acc = np.diag(self.confusion_matrix).sum() / self.confusion_matrix.sum()
-            acc_cls = np.diag(self.confusion_matrix).sum() / self.confusion_matrix.sum(axis=1)
-            acc_cls = np.nanmean(acc_cls)
-            iou = np.diag(self.confusion_matrix) / (self.confusion_matrix.sum(axis=1) + self.confusion_matrix.sum(axis=0) - np.diag(self.confusion_matrix)) 
-            mean_iou = np.nanmean(iou)
-            return {'micro_acc': acc, 'macro_acc':acc_cls, 'mIOU': mean_iou}
+    def __call__(self, **kwargs):
+        y_pred = kwargs[self.logits_name]
+        y_true = kwargs[self.label_name]
+        x = kwargs['data']
+
+        # Filtering out already chosen items:
+        # In order to make sure we are not recommending already
+        # chosen items, here we set the prediction of the already
+        # chosen items to the minimum value. We know what items
+        # have already been chosen since they are in our input X.
+        y_pred[x == 1] = torch.min(y_pred)
+
+        y_pred_binary = utils.find_top_k_binary(y_pred, self.kwargs['K'])
+        y_true_binary = y_true > 0
+        tmp = (y_true_binary & y_pred_binary).sum(dim=1).double()
+        ones = torch.ones(y_true_binary.shape[0]).to(y_true.device).double()
+        ks = torch.ones(y_true_binary.shape[0]).to(y_true.device).double()
+        ks.fill_(self.kwargs['K'])
+        d = torch.min(ks, torch.max(ones, y_true_binary.sum(dim=1).double()))
+        recall = tmp / d
+        result = round(recall.mean().item(), 6)
+        if not (0 <= result <= 1):
+            raise ValueError('The output of RecallAtK.evaluate ' + result
+                             + ' must be in [0,1]')
+        return result
+
+
+class RevenueAtK(BaseScore):
+    """
+    Taken from https://github.com/swisscom/ai-research-mamo-framework/tree/master/metric
+    and adapted
+    """
+
+    def __init__(self, label_name, logits_name, loss_weights=None, **kwargs):
+        super().__init__(label_name, logits_name, **kwargs)
+        self._revenue = np.load(loss_weights)
+
+    def __call__(self, **kwargs):
+        y_pred = kwargs[self.logits_name]
+        y_true = kwargs[self.label_name]
+        x = kwargs['data']
+
+        # Filtering out already chosen items:
+        # In order to make sure we are not recommending already
+        # chosen items, here we set the prediction of the already
+        # chosen items to the minimum value. We know what items
+        # have already been chosen since they are in our input X.
+        y_pred[x == 1] = torch.min(y_pred)
+
+        y_true = y_true.cpu().numpy()
+
+        if y_pred.shape[1] != len(self._revenue):
+            raise ValueError('Arguments must have axis 1 of the same size as\
+            the revenue.')
+
+        y_pred_binary = utils.find_top_k_binary(y_pred, self.kwargs['K']).cpu().numpy()
+        y_true_binary = (y_true > 0)
+        tmp = np.logical_and(y_true_binary, y_pred_binary)
+        revenue = 0
+        for i in range(tmp.shape[0]):
+            revenue += np.sum(self._revenue[tmp[i]])
+        return revenue / float(tmp.shape[0])
+
