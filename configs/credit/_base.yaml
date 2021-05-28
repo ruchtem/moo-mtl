@@ -1,0 +1,13 @@
+
+dataset: credit
+dim: [90]
+objectives: [BinaryCrossEntropyLoss, ddp]
+epochs: 50
+eval_every: 2
+batch_size: 56
+
+loss_mins: [0.4, 0.0]
+loss_maxs: [1, .1]
+
+
+  

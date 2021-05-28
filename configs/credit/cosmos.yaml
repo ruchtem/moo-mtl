@@ -1,0 +1,12 @@
+_BASE_: _base.yaml
+
+train_eval_every: 2
+
+# results of hpo, dont change!
+lr: 0.0001
+lambda_clipping: 50.
+train_ray_mildening: 0.1
+dampening: 0.0
+
+weight_decay: 0.1
+
