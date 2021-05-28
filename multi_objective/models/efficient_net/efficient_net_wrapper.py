@@ -11,9 +11,7 @@ class EfficientNetWrapper(EfficientNet):
         global_params = global_params._replace(batch_norm_layer=torch.nn.Identity)
         super().__init__(blocks_args, global_params)
 
-        self.task_layers = torch.nn.ModuleDict({
-            f'task_fc_{t}': torch.nn.Linear(1792, 1) for t in self.task_ids
-        })
+        self.task_layer = torch.nn.Linear(1792, 1)
 
 
     # this is required for approximate mgda
@@ -26,7 +24,7 @@ class EfficientNetWrapper(EfficientNet):
         
     def forward_linear(self, x, t):
         return {
-            f'logits_{t}': self.task_layers[f'task_fc_{t}'](x)
+            f'logits': self.task_layer(x)
         }
 
 
@@ -35,7 +33,7 @@ class EfficientNetWrapper(EfficientNet):
         x = super().forward(x)
         x = x.flatten(start_dim=1)
         return {
-            f'logits_{t}': self.task_layers[f'task_fc_{t}'](x) for t in self.task_ids
+            f'logits': self.task_layer(x)
         }
 
 

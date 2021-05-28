@@ -23,6 +23,9 @@ _C.task_ids = []
 # Some datasets ignore some classes. This can be set here
 _C.ignore_index = -100
 
+_C.accuracy_class = None
+_C.sensible_attribute = None
+
 
 #
 # Model

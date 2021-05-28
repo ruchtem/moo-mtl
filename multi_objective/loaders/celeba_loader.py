@@ -12,7 +12,7 @@ from torch.utils import data
 
 
 class CelebA(data.Dataset):
-    def __init__(self, split, task_ids=[], root='data/celeba', dim=(3, 64, 64), augmentations=None, **kwargs):
+    def __init__(self, split, accuracy_class, sensible_attribute, root='data/celeba', dim=(3, 64, 64), **kwargs):
         """__init__
 
         :param root:
@@ -23,8 +23,8 @@ class CelebA(data.Dataset):
         """
         self.root = root
         self.split = split
-        self.task_ids = task_ids
-        self.augmentations = augmentations
+        self.accuracy_class = accuracy_class
+        self.sensible_attribute = sensible_attribute
         self.n_classes =  40
         self.files = {}
         self.labels = {}
@@ -72,15 +72,14 @@ class CelebA(data.Dataset):
         if len(self.files[self.split]) < 2:
             raise Exception("No files for split=[%s] found in %s" % (self.split, self.root))
 
-        print("Found {} {} images. Defined tasks: {}".format(
-            len(self.files[self.split]), 
-            self.split,
-            [self.class_names[i] for i in task_ids] if task_ids else 'all'
-        ))
+        print(f"Found {len(self)} {split} images. Accuracy class: {self.class_names[self.accuracy_class]} positives {sum(np.array(self.labels[split])[:, self.accuracy_class])},",
+                f"sensible attribute {self.class_names[self.sensible_attribute]} positives positives {sum(np.array(self.labels[split])[:, self.sensible_attribute])}.")
+
 
     def __len__(self):
         """__len__"""
         return len(self.files[self.split])
+
 
     def __getitem__(self, index):
         """__getitem__
@@ -93,12 +92,8 @@ class CelebA(data.Dataset):
         img_path = self.files[self.split][index].rstrip()
         img = Image.open(img_path)
 
-        if self.augmentations is not None:
-            img = self.augmentations(np.array(img, dtype=np.uint8))
-
         img = self.transform(img)
-        labels = {'labels_{}'.format(i): label[i] for i in self.task_names()}
-        return dict(data=img, **labels)
+        return dict(data=img, labels=label[self.accuracy_class], sensible_attribute=label[self.sensible_attribute])
 
     
     def task_names(self):

@@ -1,0 +1,7 @@
+_BASE_: _base.yaml
+
+method: uniform
+
+lr: 1e-3
+lr_scheduler: none
+weight_decay: 1e-2

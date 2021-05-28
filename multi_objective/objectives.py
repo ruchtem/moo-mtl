@@ -159,34 +159,17 @@ class DDPHyperbolicTangentRelaxation():
         logits = kwargs[self.logits_name]
         s = kwargs[self.s_name].bool()
 
-        logits = torch.sigmoid(logits)
-        tanh_convert = torch.tanh(self.c * torch.relu(logits))
+        if any(s) and not all(s):
+            logits = torch.sigmoid(logits)
+            tanh_convert = torch.tanh(self.c * torch.relu(logits))
 
-        reduced_loss = torch.abs(tanh_convert[s].mean() - tanh_convert[~s].mean())
-        if self.reduction == 'mean':
-            return reduced_loss
-        elif self.reduction == 'none':
-            # Our own adaption for instance-wise loss
-            
-            # hack for abs value
-            test = tanh_convert.clone().detach()
-            test[s] *= 1 / sum(s)
-            test[~s] *= -1 / sum(~s)
-
-            result = tanh_convert.clone()
-            if test.sum() <= 0.:
-                result[s] *= -1 / sum(s)
-                result[~s] *= 1 / sum(~s)
-            else:
-                # change the order
-                result[s] *= 1 / sum(s)
-                result[~s] *= -1 / sum(~s)
-            result = result * len(result)   # we reduce with mean instead of sum later
-
-            assert math.isclose(result.mean().item(), reduced_loss.item(), abs_tol=1e-6)
-            return result.squeeze()
+            return torch.abs(tanh_convert[s].mean() - tanh_convert[~s].mean())
         else:
-            raise NotImplementedError()
+            # dpp is only defined if difference can be calculated
+            # set gradients to zero
+            return (logits * 0).mean()
+        
+        
 
 
 class DEOHyperbolicTangentRelaxation():
