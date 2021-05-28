@@ -2,6 +2,8 @@ dataset: movielens
 dim: [8936]
 objectives: [VAELoss, WeightedVAELoss]
 
+reference_point: [300, 1000]
+
 loss_mins: [0.0, 0.0]
 
 # Empirical losses taken from https://github.com/swisscom/ai-research-mamo-framework

@@ -1,6 +1,6 @@
 
 dataset: celeba
-dim: [3, 64, 64]
+dim: [3, 128, 128]
 
 accuracy_class: 2       # attractive
 sensible_attribute: 20  # male
@@ -12,8 +12,8 @@ reference_point: [1, 1]
 n_partitions: 25
 
 epochs: 10
-batch_size: 32
-eval_every: 5
+batch_size: 128
+eval_every: 1
 checkpointing: False
 
 
