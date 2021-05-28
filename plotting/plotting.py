@@ -241,8 +241,8 @@ def plot_row(results, datasets, methods=['cosmos', 'uniform', 'single_task', 'ph
     print('success. See', prefix + '_' + '_'.join(datasets) + '.pdf')
 
 
-results = load_data(datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
-plot_row(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], prefix='baselines')
+# results = load_data(datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
+# plot_row(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], prefix='baselines')
 
 
 #

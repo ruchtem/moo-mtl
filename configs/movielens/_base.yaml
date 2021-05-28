@@ -6,11 +6,11 @@ loss_mins: [0.0, 0.0]
 loss_maxs: [1.0, 1.0]
 
 metrics: ['RecallAtK', 'RevenueAtK']
-K: 10
+K: 20
 
 batch_size: 500
-epochs: 100
-eval_every: 1
+epochs: 50
+eval_every: 5
 
 # prices of the movies
 loss_weights: 'data/movielens20m/movielens_products_data.npy'
