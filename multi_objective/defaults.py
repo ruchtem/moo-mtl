@@ -82,6 +82,7 @@ _C.num_models = 5
 _C.approximate_mgda = False
 
 # Gradient normalization. One of 'none', 'loss', 'loss+', 'l2'
+# Added 'init_loss' proposed in Milojkovic et. al.
 _C.normalization_type='none'
 
 

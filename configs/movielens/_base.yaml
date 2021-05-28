@@ -3,7 +3,9 @@ dim: [8936]
 objectives: [VAELoss, WeightedVAELoss]
 
 loss_mins: [0.0, 0.0]
-loss_maxs: [1.0, 1.0]
+
+# Empirical losses taken from https://github.com/swisscom/ai-research-mamo-framework
+loss_maxs: [433.61216453744584, 4212.220257927393]
 
 metrics: ['RecallAtK', 'RevenueAtK']
 K: 20
