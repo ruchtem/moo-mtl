@@ -67,14 +67,12 @@ class SingleTaskMethod(BaseMethod):
         return loss.item()
 
 
-    def eval_step(self, batch):
+    def eval_step(self, batch, task):
         with torch.no_grad():
-            for t, m in zip(self.task_ids[1:], self.models):
-                m.eval()
-                result = m(batch)
-                batch[f'logits_{t}'] = result[f'logits_{t}']
-            self.model.eval()
-            result = self.model(batch)
-            t = self.task_ids[0]
-            batch[f'logits_{t}'] = result[f'logits_{t}']
-        return batch
+            if task == 0:
+                self.model.eval()
+                return self.model(batch)
+            else:
+                model = self.models[task-1]
+                model.eval()
+                return model(batch)

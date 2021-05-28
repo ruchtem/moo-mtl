@@ -53,6 +53,7 @@ class ADULT(data.Dataset):
 
 
     def __init__(self, root="data/adult", split="train", sensible_attribute="gender", **kwargs):
+        super().__init__()
         assert split in ["train", "val", "test"]
         path = os.path.join(root, "adult.csv")
 
