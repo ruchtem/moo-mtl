@@ -113,7 +113,8 @@ class MultiVAE(nn.Module):
         z = self.reparameterize(mean, log_variance)
 
         # decode
-        return dict(logits=self.decode(z), mean=mean, log_variance=log_variance)
+        logits = self.decode(mean)
+        return dict(logits=logits, mean=mean, log_variance=log_variance)
 
     def encode(self, input):
         """The encoding function for the  VAE

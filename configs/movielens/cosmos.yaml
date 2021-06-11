@@ -2,11 +2,26 @@ _BASE_: _base.yaml
 
 method: cosmos
 
+train_eval_every: 0
+eval_every: 0
+
+loss_mins: [250.0, 180.0]
+loss_maxs: [350.0, 250.0]
+
+epochs: 100
+
 train_ray_mildening: 0.3
 dampening: 0.0
 lambda_clipping: 10.
-lambda_lr: 1.5
+lambda_lr: .2
 
-lr_scheduler: none
-lr: 0.005
+lr_scheduler: CosineAnnealing
+lr: 0.0005
 weight_decay: 0.0
+
+vae_params:
+  dropout: 0.0
+  no_latent_features: 800
+  dec1_in: 800
+  enc2_out: 1600
+  norm_std: 0.01

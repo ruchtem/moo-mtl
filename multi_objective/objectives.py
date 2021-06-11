@@ -209,7 +209,8 @@ class VAELoss():
         y_pred = kwargs[self.logits_name]
         y_true = kwargs[self.label_name]
 
-        anneal = kwargs['vae_beta']
+        # anneal = kwargs['vae_beta']
+        anneal = 0.0
 
         mean = kwargs['mean']
         log_variance = kwargs['log_variance']
@@ -246,4 +247,8 @@ class WeightedVAELoss(VAELoss):
         self.label_name = label_name
         self.logits_name = logits_name
         self.reduction = 'mean'
-        self.weighted_vector = torch.from_numpy(np.load(loss_weights)).to(kwargs['device']).float()
+        # self.weighted_vector = torch.from_numpy(np.load(loss_weights)).to(kwargs['device']).float()
+        p = torch.from_numpy(np.load(loss_weights)).to(kwargs['device']).float()
+        # self.weighted_vector = (p - p.min()) / (p.max() - p.min()) 
+        self.weighted_vector = (p - p.mean()) / p.std()
+        self.weighted_vector += self.weighted_vector.min().abs()
