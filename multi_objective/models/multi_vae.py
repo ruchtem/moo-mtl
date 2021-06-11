@@ -197,4 +197,4 @@ class MultiVAE(nn.Module):
     
 
     def change_input_dim(self, dim):
-        self.self.encoder[0] = nn.Linear(dim, self.encoder[0].out_features)
+        self.encoder[0] = nn.Linear(dim, self.encoder[0].out_features)

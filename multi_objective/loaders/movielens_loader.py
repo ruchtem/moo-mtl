@@ -22,6 +22,10 @@ class MovieLens(data.Dataset):
         else:
             raise ValueError(f"Unknown split {split}. Expected 'train', 'val', or 'test'.")
         
+        self.data = torch.from_numpy(self.data)
+        if self.target is not None:
+            self.target = torch.from_numpy(self.target)
+        
         print(f"Movielens 20m. Loaded {len(self)} instances for split {split}")
     
 

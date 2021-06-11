@@ -148,7 +148,7 @@ class COSMOSMethod(BaseMethod):
                     data2 = np.array(const)
                     print(f"constraints mean {np.abs(data2).mean():.04f} std {data2.std():.04f} max {data2.max()} min {data2.min()}")
 
-                    print(np.hstack((np.array(data), data2.reshape(-1, 1))))
+                    print(np.hstack((np.array(data) + self.loss_mins.cpu().numpy(), data2.reshape(-1, 1))))
                 
                     if self.K == 2:
                         # 2 dimensions

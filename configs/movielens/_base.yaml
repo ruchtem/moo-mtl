@@ -4,7 +4,7 @@ objectives: [VAELoss, WeightedVAELoss]
 
 reference_point: [300, 1000]
 
-loss_mins: [0.0, 0.0]
+loss_mins: [150.0, 500.0]
 
 # Empirical losses taken from https://github.com/swisscom/ai-research-mamo-framework
 loss_maxs: [433.61216453744584, 4212.220257927393]
@@ -14,7 +14,7 @@ K: 20
 
 batch_size: 500
 epochs: 50
-eval_every: 5
+eval_every: 10
 
 # prices of the movies
 loss_weights: 'data/movielens20m/movielens_products_data.npy'

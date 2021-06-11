@@ -1,0 +1,12 @@
+_BASE_: _base.yaml
+
+method: cosmos
+
+train_ray_mildening: 0.3
+dampening: 0.0
+lambda_clipping: 10.
+lambda_lr: 1.5
+
+lr_scheduler: none
+lr: 0.005
+weight_decay: 0.0

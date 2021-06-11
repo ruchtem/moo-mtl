@@ -246,4 +246,4 @@ class WeightedVAELoss(VAELoss):
         self.label_name = label_name
         self.logits_name = logits_name
         self.reduction = 'mean'
-        self.weighted_vector = torch.from_numpy(np.load(loss_weights)).to(kwargs['device'])
+        self.weighted_vector = torch.from_numpy(np.load(loss_weights)).to(kwargs['device']).float()
