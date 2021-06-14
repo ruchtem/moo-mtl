@@ -109,7 +109,7 @@ class CITYSCAPES(data.Dataset):
                 return [i for i, ltr in enumerate(s) if ltr == ch]
             return {i.name[:find(i.name, '_')[2]]: i for i in files}
 
-        if CITYSCAPES.val_identifiers is None and val_size > 0:
+        if CITYSCAPES.val_identifiers is None and val_size > 0.:
             # create the validation set
             files = list(read_files(os.path.join(self.root, 'leftImg8bit', 'train')).keys())
             random.shuffle(files)
@@ -140,6 +140,13 @@ class CITYSCAPES(data.Dataset):
                 self.labels = {k:v for k, v in self.labels.items() if k in CITYSCAPES.val_identifiers}
                 self.instances = {k:v for k, v in self.instances.items() if k in CITYSCAPES.val_identifiers}
                 self.depth = {k:v for k, v in self.depth.items() if k in CITYSCAPES.val_identifiers}
+        else:
+            # we have no validation split; train split already loaded
+            if split == 'val':
+                self.images = {}
+                self.labels = {}
+                self.instances = {}
+                self.depth = {}
 
 
         self.identifiers = list(self.images.keys())

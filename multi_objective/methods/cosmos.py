@@ -207,8 +207,7 @@ class COSMOSMethod(BaseMethod):
         g_i = task_losses / norm(task_losses) - a / norm(a)
 
         # thanks to the constraints we could also omit linear scalarization
-        # loss = a.dot(task_losses.T) + sum(self.lagrangian[i] * g_i) + self.dampening / 2 * sum(g_i ** 2)
-        loss = a.dot(task_losses.T) * 0.0001 + sum(self.lagrangian[i] * g_i) + self.dampening / 2 * sum(g_i ** 2)
+        loss = a.dot(task_losses.T) + sum(self.lagrangian[i] * g_i) + self.dampening / 2 * sum(g_i ** 2)
         loss.backward()
 
         const = sum(self.lagrangian[i] * g_i).item()

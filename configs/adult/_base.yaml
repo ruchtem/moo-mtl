@@ -5,7 +5,6 @@ objectives: [
   BinaryCrossEntropyLoss,
   ddp]
 
-# accuracy_class: 2       # attractive
 sensible_attribute: "gender"
 
 epochs: 50
