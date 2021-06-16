@@ -4,6 +4,6 @@ method: single_task
 
 task_id: l
 
-lr_scheduler: MultiStep
-lr: 0.00025
+lr_scheduler: CosineAnnealing
+lr: 0.0025
 weight_decay: 0.01
