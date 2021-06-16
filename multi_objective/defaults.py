@@ -125,6 +125,13 @@ _C.population_size = 100
 _C.n_offsprings = 20
 
 
+# single task
+# If None, than train and evaluate all models simulataniously. This does not allow for 
+# different hyperparemters, e.g. learning rate or weight decay for different tasks. To
+# optimize those set a task id here and optimize just one model.
+_C.task_id = None
+
+
 #
 # Misc
 #

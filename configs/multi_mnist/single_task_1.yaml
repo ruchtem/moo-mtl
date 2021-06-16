@@ -1,0 +1,9 @@
+_BASE_: _base.yaml
+
+method: single_task
+
+task_id: l
+
+lr_scheduler: CosineAnnealing
+lr: 1e-3
+weight_decay: 1e-2

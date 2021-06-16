@@ -141,9 +141,13 @@ def evaluate(e, method, scores, data_loader, split, result_dict, logdir, train_t
                     # We have to tell it which model we want
                     for eval_mode, score in scores.items():
                         data = []
-                        for t in task_ids:
-                            batch.update(method.eval_step(batch, task=t))
-                            data.append(score[t](**batch))
+                        if cfg.task_id is None:
+                            for t in task_ids:
+                                batch.update(method.eval_step(batch, task=t))
+                                data.append(score[t](**batch))
+                        else:
+                            batch.update(method.eval_step(batch, task=cfg.task_id))
+                            data.append(score[cfg.task_id](**batch))
                         score_values[eval_mode].update(np.array(data), 'single_point')
                 else:
                     # One model for all tasks
