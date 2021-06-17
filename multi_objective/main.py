@@ -223,7 +223,7 @@ def main(rank, world_size, cfg, tag='', resume=False):
     print(rank, world_size)
 
     # create the experiment folders
-    logdir = os.path.join(cfg['logdir'], cfg.method, cfg['dataset'], f'{tag}_{cfg.task_id}' if 'task_id' in cfg else f'{tag}')
+    logdir = os.path.join(cfg['logdir'], cfg.method, cfg['dataset'], f'{tag}_{cfg.task_id}' if cfg.task_id is not None else f'{tag}')
     pathlib.Path(logdir).mkdir(parents=True, exist_ok=True)
 
     logger = setup_logger(os.path.join(logdir, 'exp.log'), name=__name__, distributed_rank=rank)

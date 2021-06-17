@@ -6,7 +6,7 @@ from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from pathlib import Path
 import re
-
+from pymoo.factory import get_performance_indicator
 
 #
 # Helper functions
@@ -61,6 +61,16 @@ def mean_and_std(values):
         np.array(values).mean(axis=0).tolist(),
         np.array(values).std(axis=0).tolist()
     )
+
+def pairwise(iterable):
+    "s -> (s0, s1), (s2, s3), (s4, s5), ..."
+    a = iter(iterable)
+    return zip(a, a)
+
+
+def get_hv(sol):
+    hv = get_performance_indicator("hv", ref_point=np.array([1, 1]))
+    return hv.calc(np.array(sol))
 
 
 #
@@ -134,7 +144,7 @@ limits_baselines = {
 def load_data(
     dirname='results', 
     datasets=['multi_mnist', 'adult', 'compas', 'credit', 'multi_fashion', 'multi_fashion_mnist'],
-    methods= ['cosmos', 'uniform', 'single_task', 'phn', 'pmtl', 'mgda'],
+    methods= ['uniform', 'single_task', 'phn', 'pmtl', 'mgda'],
     ):
 
     p = Path(dirname)
@@ -157,12 +167,26 @@ def load_data(
             test_hv = []
             training_time = []
 
-            for val_run, test_run in zip(data_val, data_test):
-                e = get_early_stop(val_run)
-                r = test_run[e]
-                test_scores.append(r['loss']['pareto_front'] if 'pareto_front' in r['loss'] else r['loss']['center_ray'])
-                test_hv.append(r['loss']['hv'])
-                training_time.append(r['training_time_so_far'])
+            if method == 'single_task':
+                for (val_run_1, val_run_2), (test_run_1, test_run_2) in zip(pairwise(data_val), pairwise(data_test)):
+                    e1 = get_early_stop(val_run_1)
+                    e2 = get_early_stop(val_run_2)
+                    r1 = test_run_1[e1]
+                    r2 = test_run_2[e2]
+
+                    sol = [r1['loss']['center_ray'][0], r2['loss']['center_ray'][1]]
+                    test_scores.append(sol)
+                    test_hv.append(get_hv(sol))
+                    training_time.append(r1['training_time_so_far'] + r2['training_time_so_far'])
+
+                    test_run = test_run_1
+            else:
+                for val_run, test_run in zip(data_val, data_test):
+                    e = get_early_stop(val_run)
+                    r = test_run[e]
+                    test_scores.append(r['loss']['pareto_front'] if 'pareto_front' in r['loss'] else r['loss']['center_ray'])
+                    test_hv.append(r['loss']['hv'])
+                    training_time.append(r['training_time_so_far'])
 
             results[dataset][method] = {
                 'test_scores': mean_and_std(test_scores),

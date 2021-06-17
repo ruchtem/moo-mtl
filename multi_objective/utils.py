@@ -321,7 +321,7 @@ class EvalResult():
     def __init__(self, J, n_test_rays) -> None:
         self.center = torch.zeros(J).cuda()
         self.pf = torch.zeros((n_test_rays, J)).cuda()
-        self.hv = None
+        self.hv = 0
         self.max_angle = None
         self.pf_available = False
         self.i = 0
@@ -366,8 +366,9 @@ class EvalResult():
                 hv = get_performance_indicator("hv", ref_point=np.array(reference_point))
                 self.hv = hv.calc(self.pf)
         else:
-            hv = get_performance_indicator("hv", ref_point=np.array(reference_point))
-            self.hv = hv.calc(self.center)
+            if self.pf.shape[1] <= 5:
+                hv = get_performance_indicator("hv", ref_point=np.array(reference_point))
+                self.hv = hv.calc(self.center)
 
 
     def compute_optimal_sol(self, weights=None):
@@ -540,9 +541,10 @@ class ParetoFront():
             cb1.set_label('Distance to origin')
 
             sort_idx = np.argsort(dists)[:2]
-            coordinates = np.squeeze(np.array(radviz_plot.points))
-            for (x, y), d in zip(coordinates[sort_idx], dists[sort_idx]):
-                radviz_plot.ax.annotate(f"{d :.4f}", (x, y), xytext=(x+.1, y+.1), arrowprops={'arrowstyle': '->'})
+            if len(sort_idx) > 1:
+                coordinates = np.squeeze(np.array(radviz_plot.points))
+                for (x, y), d in zip(coordinates[sort_idx], dists[sort_idx]):
+                    radviz_plot.ax.annotate(f"{d :.4f}", (x, y), xytext=(x+.1, y+.1), arrowprops={'arrowstyle': '->'})
             
             radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
             plt.close()
