@@ -4,6 +4,6 @@ method: mgda
 
 normalization_type: loss+
 
-lr_scheduler: CosineAnnealing
-lr: 0.0005
-weight_decay: 0.01
+lr_scheduler: MultiStep
+lr: 0.0025
+weight_decay: 0.0075
