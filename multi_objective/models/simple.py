@@ -11,15 +11,15 @@ class MultiLeNet(BaseModel):
     def __init__(self, dim, task_ids, channel_multiplier=1, **kwargs):
         super().__init__(task_ids)
         self.channel_multiplier = channel_multiplier
-        self.first_layer = nn.Conv2d(dim[0], 10*channel_multiplier, kernel_size=5)
+        self.first_layer = nn.Conv2d(dim[0], int(10*channel_multiplier), kernel_size=5)
         self.shared =  nn.Sequential(
             nn.MaxPool2d(kernel_size=2),
             nn.ReLU(),
-            nn.Conv2d(10*channel_multiplier, 20*channel_multiplier, kernel_size=5),
+            nn.Conv2d(int(10*channel_multiplier), int(20*channel_multiplier), kernel_size=5),
             nn.MaxPool2d(kernel_size=2),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(720*channel_multiplier , 50),
+            nn.Linear(int(720*channel_multiplier) , 50),
             nn.ReLU(),
         )
         self.task_layers = nn.ModuleDict({
@@ -37,7 +37,7 @@ class MultiLeNet(BaseModel):
 
 
     def change_input_dim(self, dim):
-        self.first_layer = nn.Conv2d(dim, 10*self.channel_multiplier, kernel_size=5)
+        self.first_layer = nn.Conv2d(dim, int(10*self.channel_multiplier), kernel_size=5)
 
 
 class FullyConnected(BaseModel):

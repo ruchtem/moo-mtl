@@ -132,8 +132,8 @@ limits_baselines = {
     'compas': [0, 1.5, -.01, .35],
     'credit': [.42, .65, -0.001, .017],
     'multi_mnist': [.2, .5, .2, .5], 
-    'multi_fashion': [.4, .75, .4, .75], 
-    'multi_fashion_mnist': [.1, .6, .32, .6],
+    'multi_fashion': [.35, .75, .4, .75], 
+    'multi_fashion_mnist': [.1, .6, .3, .6],
 }
 
 
@@ -210,6 +210,7 @@ def plot_row(results, datasets, methods=['cosmos', 'uniform', 'single_task', 'ph
         if dataset not in results:
             continue
         ax = axes[j]
+        lower_limit = None
         for method in methods:
             if method not in results[dataset]:
                 continue
@@ -222,6 +223,7 @@ def plot_row(results, datasets, methods=['cosmos', 'uniform', 'single_task', 'ph
                 s = np.squeeze(s)
                 ax.axvline(x=s[0], color=colors[method], linestyle='-.')
                 ax.axhline(y=s[1], color=colors[method], linestyle='-.', label="{}".format(method_names[method]))
+                lower_limit = s
             else:
                 print(method)
                 ax.plot(
@@ -249,13 +251,12 @@ def plot_row(results, datasets, methods=['cosmos', 'uniform', 'single_task', 'ph
                 #     axins.set_xticklabels([])
                 #     mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
         lim = limits_baselines[dataset]
-        ax.set_xlim(left=lim[0], right=lim[1])
-        ax.set_ylim(bottom=lim[2], top=lim[3])
+        ax.set_xlim(left=lower_limit[0] - .05 if lower_limit is not None else lim[0], right=lim[1])
+        ax.set_ylim(bottom=lower_limit[1] - .05 if lower_limit is not None else lim[2], top=lim[3])
         ax.set_title(titles[dataset])
         ax.set_xlabel(ax_lables[dataset][0])
         if j==0:
             ax.set_ylabel(ax_lables[dataset][1])
-
 
         if j==2:
             ax.legend(loc='upper right')
@@ -265,8 +266,8 @@ def plot_row(results, datasets, methods=['cosmos', 'uniform', 'single_task', 'ph
     print('success. See', prefix + '_' + '_'.join(datasets) + '.pdf')
 
 
-# results = load_data(datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
-# plot_row(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], prefix='baselines')
+# results = load_data(dirname='results_size_2.0', datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
+# plot_row(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], prefix='size_2')
 
 
 #

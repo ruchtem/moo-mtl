@@ -31,7 +31,7 @@ _C.sensible_attribute = None
 # Model
 #
 
-_C.channel_multiplier = 1
+_C.channel_multiplier = 1.
 
 
 #
@@ -117,7 +117,7 @@ _C.upsample_ratio = 1.
 
 
 # cosmos and pmtl
-_C.train_ray_mildening = 0.5
+_C.train_ray_mildening = 0.0
 
 
 # NSGA-II

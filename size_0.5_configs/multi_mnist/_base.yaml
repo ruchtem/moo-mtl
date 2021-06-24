@@ -1,0 +1,11 @@
+dataset: multi_mnist
+dim: [1, 36, 36]
+task_ids: [l, r]    # top left, bottom right
+objectives: [CrossEntropyLoss, CrossEntropyLoss]
+epochs: 100
+eval_every: 2
+
+channel_multiplier: .5
+logdir: results_size_0.5
+
+
