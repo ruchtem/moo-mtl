@@ -6,7 +6,7 @@ from torch.autograd import Variable
 
 from multi_objective.min_norm_solvers import MinNormSolver
 
-from multi_objective.utils import calc_gradients, reference_points, model_from_dataset, reset_weights
+from multi_objective.utils import calc_gradients, reference_points, get_lr_scheduler
 from .base import BaseMethod
 
 
@@ -117,6 +117,7 @@ class ParetoMTLMethod(BaseMethod):
 
         self.models = [deepcopy(model).cpu() for _ in range(self.n)]
         self.optimizers = [torch.optim.Adam(m.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay) for m in self.models]
+        self.schedulers = [get_lr_scheduler(cfg.lr_scheduler, o, cfg, '') for o in self.optimizers]
         self.init_sol_found = [False for _ in range(self.n)]
 
         self.pref_idx = -1
@@ -131,6 +132,9 @@ class ParetoMTLMethod(BaseMethod):
     def new_epoch(self, e):
         for m in self.models:
             m.train()
+        if e>0:
+            for s in self.schedulers:
+                s.step()
         self.e = e
         self.eval_calls = 0
 
@@ -195,7 +199,6 @@ class ParetoMTLMethod(BaseMethod):
             result = self._step(batch, model, idx)
             optim.step()
 
-
             losses.append(result)
         return np.mean(losses).item()
 
@@ -236,7 +239,7 @@ class ParetoMTLMethod(BaseMethod):
     
     def eval_step(self, batch, preference_vector):
         with torch.no_grad():
-            model = self.models[self.eval_calls]
+            model = self.models[self.eval_calls % self.n]   # will be called repeatedly for several batches
             model.eval()
             result = model(batch)
             self.eval_calls += 1
