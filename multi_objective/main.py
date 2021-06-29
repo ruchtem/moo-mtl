@@ -228,6 +228,8 @@ def main(rank, world_size, cfg, tag='', resume=False):
 
     logger = setup_logger(os.path.join(logdir, 'exp.log'), name=__name__, distributed_rank=rank)
     logger.info(f"start experiment with settings: \n{cfg}")
+    if 'SLURMD_NODENAME' in os.environ:
+        logger.info(f"Running on node {os.environ['SLURMD_NODENAME']}")
     logger.info(f"\n\n>>>> Running method {cfg.method} <<<<\n")
 
     torch.cuda.set_device(rank)
@@ -369,9 +371,9 @@ def main(rank, world_size, cfg, tag='', resume=False):
 
             if rank == 0:
                 e_results = val_results[f'epoch_{e}']['loss']
-                if 'hv' in e_results and e_results['hv'] > best_hv_sofar:
-                    best_hv_sofar = e_results['hv']
-                    best_idx_sofar = e
+                # if 'hv' in e_results and e_results['hv'] > best_hv_sofar:
+                best_hv_sofar = e_results['hv']
+                best_idx_sofar = e
 
         if cfg['test_eval_every'] > 0 and (e+1) % cfg['test_eval_every'] == 0 and e > 0:
             # Test results
