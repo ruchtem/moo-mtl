@@ -61,7 +61,7 @@ _C.weight_decay = 1e-3
 _C.batch_size = 256
 
 # method to generate pareto front. One of 'cosmos', 'phn', 'mgda', 'single_task', 'uniform'
-_C.method = 'cosmos'
+_C.method = 'uniform'
 
 #
 # Method specific
@@ -103,21 +103,7 @@ _C.internal_solver_phn='linear'
 
 # COSMOS
 #
-
-_C.n_train_partitions_cosmos = 8
-_C.loss_mins = [0.]  # will be repeated for all losses
-_C.loss_maxs = [1.]
-
-_C.lambda_clipping = 5.
-_C.lambda_lr = 0.2
-_C.dampening = 0.2
-
-
-_C.upsample_ratio = 1.
-
-
-# cosmos and pmtl
-_C.train_ray_mildening = 0.0
+_C.lamda = 0.
 
 
 # NSGA-II
@@ -159,35 +145,6 @@ _C.device='cuda'
 
 # use defaults
 _C.metrics=None
-
-
-
-# VAE model parameters
-# taken from https://github.com/swisscom/ai-research-mamo-framework/blob/master/models/params_multi_VAE.yaml
-_C.vae_params = CN()
-_C.vae_params.dropout = 0.5
-_C.vae_params.no_latent_features = 200
-_C.vae_params.norm_mean = 0.0
-_C.vae_params.norm_std = 0.001
-_C.vae_params.input_size = 1000
-_C.vae_params.output_size = 1000
-_C.vae_params.enc1_out = 600
-_C.vae_params.enc2_in = 600
-_C.vae_params.enc2_out = 400
-_C.vae_params.dec1_in = 200
-_C.vae_params.dec1_out = 600
-_C.vae_params.dec2_in = 600
-
-# Required to weight the vae loss with prices for movielens
-_C.loss_weights = 'None'
-
-# Annealing of KL regularization
-_C.beta_start = 0
-_C.beta_cap = 0.3
-_C.beta_step = 0.3/10000
-
-# For recommender system metrics
-_C.K = 20
 
 
 def get_cfg_defaults():

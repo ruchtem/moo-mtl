@@ -1,9 +1,0 @@
-_BASE_: _base.yaml
-
-method: mgda
-
-normalization_type: init_loss
-
-lr_scheduler: none
-lr: 0.001
-weight_decay: 0.0

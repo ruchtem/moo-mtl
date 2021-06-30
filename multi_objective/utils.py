@@ -16,8 +16,8 @@ from pymoo.factory import get_decomposition, get_reference_directions, get_perfo
 from pymoo.visualization.radviz import Radviz
 
 
-from .loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader, cityscapes_loader, coco_loader, movielens_loader
-from .models import FullyConnected, MultiLeNet, EfficientNet, ResNet, Pspnet, MultiVAE
+from .loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
+from .models import FullyConnected, MultiLeNet, EfficientNet
 
 def dataset_from_name(dataset, **kwargs):
     if dataset == 'adult':

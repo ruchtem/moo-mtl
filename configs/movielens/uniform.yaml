@@ -1,9 +1,0 @@
-_BASE_: _base.yaml
-
-method: uniform
-
-normalization_type: init_loss
-
-lr: 1e-3
-weight_decay: 0.
-lr_scheduler: none
