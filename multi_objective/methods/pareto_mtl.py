@@ -6,7 +6,7 @@ from torch.autograd import Variable
 
 from multi_objective.min_norm_solvers import MinNormSolver
 
-from multi_objective.utils import calc_gradients, reference_points, get_lr_scheduler
+from multi_objective.utils import calc_gradients, reference_points, get_lr_scheduler, num_parameters
 from .base import BaseMethod
 
 
@@ -112,9 +112,7 @@ class ParetoMTLMethod(BaseMethod):
         assert cfg.num_models == cfg.n_partitions + 1
         self.n = cfg.num_models
 
-        self.loss_mins = torch.tensor(cfg.loss_mins, device=self.device)
-        self.loss_maxs = cfg.loss_maxs
-
+        # Ugly hack, we now needlesly train the main model, should be n-1 here.
         self.models = [deepcopy(model).cpu() for _ in range(self.n)]
         self.optimizers = [torch.optim.Adam(m.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay) for m in self.models]
         self.schedulers = [get_lr_scheduler(cfg.lr_scheduler, o, cfg, '') for o in self.optimizers]
@@ -123,7 +121,7 @@ class ParetoMTLMethod(BaseMethod):
         self.pref_idx = -1
         # the original ref_vec can be obtained by circle_points(self.num_pareto_points, min_angle=0.0, max_angle=0.5 * np.pi)
         # we use the same min angle / max angle as for the other methods for comparison.
-        self.ref_points = reference_points(self.n - 1, max=self.loss_maxs - self.loss_mins.cpu().numpy(), tolerance=cfg.train_ray_mildening)
+        self.ref_points = reference_points(self.n - 1)
         self.ref_vec = torch.Tensor(self.ref_points).to(cfg.device).float()
 
         self.eval_calls = 0
@@ -140,7 +138,10 @@ class ParetoMTLMethod(BaseMethod):
 
 
     def log(self):
-        return {"train_ray": self.ref_vec[self.pref_idx].cpu().numpy().tolist()}
+        return {
+            "train_ray": self.ref_vec[self.pref_idx].cpu().numpy().tolist(),
+            "num_parameters": sum(num_parameters(m.parameters()) for m in self.models),
+        }
 
 
     def _find_initial_solution(self, batch, model, pref_idx):

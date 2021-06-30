@@ -254,6 +254,10 @@ def main(rank, world_size, cfg, tag='', resume=False):
     val_results = dict(settings=cfg, num_parameters=utils.num_parameters(method.model_params()))
     test_results = dict(settings=cfg, num_parameters=utils.num_parameters(method.model_params()))
 
+    train_results.update(method.log())
+    val_results.update(method.log())
+    test_results.update(method.log())
+
     if rank == 0:
         with open(pathlib.Path(logdir) / "settings.json", "w") as file:
             json.dump(train_results, file)

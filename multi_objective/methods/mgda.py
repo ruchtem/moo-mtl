@@ -15,7 +15,6 @@ class MGDAMethod(BaseMethod):
         super().__init__(objectives, model, cfg)
         self.approximate_norm_solution = cfg.approximate_mgda
         self.normalization_type = cfg.normalization_type
-        self.loss_maxs = cfg.loss_maxs
 
 
     def step(self, batch):
@@ -51,10 +50,7 @@ class MGDAMethod(BaseMethod):
             # This is plain MGDA
             grads, obj_values = calc_gradients(batch, self.model, self.objectives)
 
-        if self.normalization_type == 'init_loss':
-            gn = gradient_normalizers(grads, self.loss_maxs, 'loss')
-        else:
-            gn = gradient_normalizers(grads, obj_values, self.normalization_type)
+        gn = gradient_normalizers(grads, obj_values, self.normalization_type)
         for t, task_grads in grads.items():
             for name, grad in task_grads.items():
                 grads[t][name] = grad / gn[t]
