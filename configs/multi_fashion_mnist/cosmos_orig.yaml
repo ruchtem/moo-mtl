@@ -1,6 +1,6 @@
 _BASE_: _base.yaml
 
-method: cosmos
+method: cosmos_orig
 
 alpha: 1.2
 lamda: 8.

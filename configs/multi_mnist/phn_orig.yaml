@@ -1,6 +1,6 @@
 _BASE_: _base.yaml
 
-method: phn
+method: phn_orig
 
 alpha: 0.2
 internal_solver_phn: linear

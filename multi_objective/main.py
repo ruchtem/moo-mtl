@@ -48,11 +48,11 @@ def method_from_name(objectives, model, cfg):
     if method == 'pmtl':
         assert cfg.dataset not in ['celeba', 'cityscapes'], f"Not supported"
         return ParetoMTLMethod(objectives, model, cfg)
-    elif method == 'cosmos':
+    elif 'cosmos' in method:
         return COSMOSMethod(objectives, model, cfg)
     elif method == 'single_task':
         return SingleTaskMethod(objectives, model, cfg)
-    elif method == 'phn':
+    elif 'phn' in method:
         assert cfg.dataset not in ['celeba', 'cityscapes'], f"Not supported"
         return HypernetMethod(objectives, model, cfg)
     elif method == 'mgda':
