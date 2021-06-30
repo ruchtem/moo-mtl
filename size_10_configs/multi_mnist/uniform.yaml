@@ -1,7 +1,0 @@
-_BASE_: _base.yaml
-
-method: uniform
-
-lr_scheduler: CosineAnnealing
-lr: 0.0005
-weight_decay: 0.01
