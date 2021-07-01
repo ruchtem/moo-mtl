@@ -2,10 +2,10 @@ _BASE_: _base.yaml
 
 method: phn
 
-alpha: 0.2
-internal_solver_phn: linear
+alpha: 0.1
+internal_solver_phn: epo
 
 lr_scheduler: CosineAnnealing
 lr: 0.001
-weight_decay: 0.05
+weight_decay: 0.075
 

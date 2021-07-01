@@ -8,4 +8,4 @@ num_models: 5
 
 lr_scheduler: CosineAnnealing
 lr: 0.00075
-weight_decay: 0.075
+weight_decay: 0.05

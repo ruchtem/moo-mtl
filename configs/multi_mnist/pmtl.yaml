@@ -5,6 +5,6 @@ method: pmtl
 n_partitions: 4
 num_models: 5
 
-lr_scheduler: none
+lr_scheduler: CosineAnnealing
 lr: 0.00025
-weight_decay: 0.05
+weight_decay: 0.075

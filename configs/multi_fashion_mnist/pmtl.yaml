@@ -5,6 +5,6 @@ method: pmtl
 n_partitions: 4
 num_models: 5
 
-lr_scheduler: MultiStep
-lr: 0.0005
+lr_scheduler: CosineAnnealing
+lr: 0.00075
 weight_decay: 0.05

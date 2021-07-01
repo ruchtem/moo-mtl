@@ -7,4 +7,4 @@ lamda: 2.
 
 lr_scheduler: CosineAnnealing
 lr: 0.001
-weight_decay: 0.01
+weight_decay: 0.0075

@@ -6,6 +6,6 @@ alpha: 0.2
 internal_solver_phn: linear
 
 lr_scheduler: CosineAnnealing
-lr: 0.00075
-weight_decay: 0.05
+lr: 0.0005
+weight_decay: 0.075
 

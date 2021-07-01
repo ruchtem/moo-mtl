@@ -6,5 +6,5 @@ alpha: 1.2
 lamda: 2.
 
 lr_scheduler: CosineAnnealing
-lr: 1e-3
-weight_decay: 0.
+lr: 0.00075
+weight_decay: 0.0075
