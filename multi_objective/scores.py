@@ -21,6 +21,7 @@ def from_objectives(obj_instances, metrics, objectives, task_ids=None, **kwargs)
         'WeightedVAELoss': WeightedVAELoss,
         'RecallAtK': RecallAtK,
         'RevenueAtK': RevenueAtK,
+        'mcr': mcr,
     }
     if len(task_ids) == 0:
         task_ids = list(obj_instances.keys())
