@@ -87,16 +87,20 @@ markers = {
     'uniform': '^',
     'phn': '.', 
     'cosmos': 'd', 
+    'phn_orig': '.', 
+    'cosmos_orig': 'd', 
     'pmtl': '*'
 }
 
 colors = {
     'single_task': '#1f77b4', 
     'mgda': '#ff7f0e', 
+    'phn_orig': '#800000',
     'phn': '#2ca02c',
+    'cosmos_orig': '#f58231',
     'cosmos': '#d62728',
     'pmtl': '#9467bd', 
-    'uniform': '#9467bd', 
+    'uniform': '#f032e6', 
 }
 
 titles = {
@@ -119,8 +123,10 @@ ax_lables = {
 
 method_names = {
     'single_task': 'Single Task', 
-    'phn': 'PHN',
-    'cosmos': 'COSMOS',
+    'phn': 'PHN*',
+    'phn_orig': 'PHN',
+    'cosmos_orig': 'COSMOS',
+    'cosmos': 'COSMOS*',
     'pmtl': 'ParetoMTL', 
     'uniform': 'Uniform',
     'mgda': 'MGDA'
@@ -144,7 +150,7 @@ limits_baselines = {
 def load_data(
     dirname='results', 
     datasets=['multi_mnist', 'adult', 'compas', 'credit', 'multi_fashion', 'multi_fashion_mnist'],
-    methods= ['uniform', 'single_task', 'phn', 'pmtl', 'mgda'],
+    methods= ['uniform', 'single_task', 'phn', 'pmtl', 'mgda', 'phn_orig', 'cosmos_orig', 'cosmos'],
     ):
 
     p = Path(dirname)
@@ -203,7 +209,7 @@ def load_data(
 # Generate the plots and tables
 #
 
-def plot_row(results, datasets, methods=['cosmos', 'uniform', 'single_task', 'phn', 'pmtl', 'mgda'], prefix=''):
+def plot_row(results, datasets, methods=['single_task', 'uniform', 'mgda', 'pmtl', 'phn', 'phn_orig', 'cosmos', 'cosmos_orig', ], prefix=''):
     assert len(datasets) == 3
     fig, axes = plt.subplots(1, 3, figsize=figsize)
     for j, dataset in enumerate(datasets):
@@ -231,7 +237,7 @@ def plot_row(results, datasets, methods=['cosmos', 'uniform', 'single_task', 'ph
                     s[:, 1], 
                     color=colors[method],
                     marker=markers[method],
-                    linestyle='--' if method != 'ParetoMTL' else ' ',
+                    linestyle='--' if method in ['phn', 'phn_orig', 'cosmos', 'cosmos_orig'] else ' ',
                     label="{}".format(method_names[method])
                 )
                 
@@ -258,7 +264,7 @@ def plot_row(results, datasets, methods=['cosmos', 'uniform', 'single_task', 'ph
         if j==0:
             ax.set_ylabel(ax_lables[dataset][1])
 
-        if j==2:
+        if j==0:
             ax.legend(loc='upper right')
     plt.subplots_adjust(wspace=.25)
     fig.savefig(prefix + '_' + '_'.join(datasets) + '.pdf', bbox_inches='tight')
@@ -266,33 +272,40 @@ def plot_row(results, datasets, methods=['cosmos', 'uniform', 'single_task', 'ph
     print('success. See', prefix + '_' + '_'.join(datasets) + '.pdf')
 
 
-# results = load_data(dirname='results_size_2.0', datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
-# plot_row(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], prefix='size_2')
-
-
 #
 # generating the tables
 #
 
-def generate_table(results, datasets, methods, name):
-    text = f"""
-\\toprule
-                & Hyper Vol. & Time (Sec) & \\# Params. \\\\ \\midrule"""
-    for dataset in datasets:
+def generate_table(
+        results, 
+        datasets, 
+        methods=['single_task', 'uniform', 'mgda', 'pmtl', 'phn', 'phn_orig', 'cosmos', 'cosmos_orig', ],
+        name='test'
+    ):
+    text = f""""""
+    for method in methods:
+        if method not in results[datasets[0]]:
+            continue
         text += f"""
-                & \\multicolumn{{3}}{{c}}{{\\bf {titles[dataset]}}} \\\\ \cmidrule{{2-4}}"""
-        for method in methods:
+{method_names[method]} & #params """
+        
+        for dataset in datasets:
+            if dataset not in results:
+                continue
             r = results[dataset][method]
-            text += f"""
-{method_names[method]}    & {r['test_hv'][0]:.2f} $\pm$ {r['test_hv'][1]:.2f}        & {r['training_time'][0]:,.0f}          &  {r['num_parameters']//1000:,d}k \\\\ """
+            text += f""" & {r['test_hv'][0]:.4f} $\pm$ {r['test_hv'][1]:.4f} & {results[dataset]['single_task']['test_hv'][0] - r['test_hv'][0]:.4f}"""
+        
+        text += """ \\\\"""
 
-    text += f"""
-\\bottomrule"""
-    
     with open(f'results_{name}.txt', 'w') as f:
         f.writelines(text)
 
 
+if __name__ == "__main__":
+    results = load_data(dirname='results', datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
+    plot_row(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], prefix='baselines')
+
+    generate_table(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
 
 
 # datasets1 = ['adult', 'compas', 'credit']
