@@ -1,5 +1,6 @@
 import argparse
 import json
+from random import uniform
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
@@ -73,6 +74,17 @@ def get_hv(sol):
     return hv.calc(np.array(sol))
 
 
+def adjust_lightness(color, amount=0.5):
+    import matplotlib.colors as mc
+    import colorsys
+    try:
+        c = mc.cnames[color]
+    except:
+        c = color
+    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
+
 #
 # Plotting params
 #
@@ -112,13 +124,22 @@ titles = {
     'multi_fashion_mnist': 'Multi-Fashion+MNIST'
 }
 
-ax_lables = {
+ax_lables_loss = {
     'adult': ('Binary Cross-Entropy Loss', 'DEO'),
     'compas': ('Binary Cross-Entropy Loss', 'DEO'),
     'credit': ('Binary Cross-Entropy Loss', 'DEO'), 
     'multi_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
     'multi_fashion': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
     'multi_fashion_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
+}
+
+ax_lables_mcr = {
+    'adult': ('Binary Cross-Entropy Loss', 'DEO'),
+    'compas': ('Binary Cross-Entropy Loss', 'DEO'),
+    'credit': ('Binary Cross-Entropy Loss', 'DEO'), 
+    'multi_mnist': ('Misclassification Rate Task TL', 'Misclassification Rate Task BR'), 
+    'multi_fashion': ('Misclassification Rate Task TL', 'Misclassification Rate Task BR'), 
+    'multi_fashion_mnist': ('Misclassification Rate Task TL', 'Misclassification Rate Task BR'), 
 }
 
 method_names = {
@@ -132,14 +153,24 @@ method_names = {
     'mgda': 'MGDA'
 }
 
-limits_baselines = {
+limits_loss = {
     # dataset: [left, right, bottom, top]
     'adult': [.3, .6, -0.01, .14],
     'compas': [0, 1.5, -.01, .35],
     'credit': [.42, .65, -0.001, .017],
-    'multi_mnist': [.2, .5, .2, .5], 
-    'multi_fashion': [.35, .75, .4, .75], 
-    'multi_fashion_mnist': [.1, .6, .3, .6],
+    'multi_mnist': [.4, .4], 
+    'multi_fashion': [.55, .55], 
+    'multi_fashion_mnist': [.55, .55],
+}
+
+limits_mcr = {
+    # dataset: [left, bottom]
+    # 'adult': [.3, .6, -0.01, .14],
+    # 'compas': [0, 1.5, -.01, .35],
+    # 'credit': [.42, .65, -0.001, .017],
+    'multi_mnist': [.12, .12], 
+    'multi_fashion': [.20, .20,], 
+    'multi_fashion_mnist': [.3, .3],
 }
 
 
@@ -149,9 +180,12 @@ limits_baselines = {
 
 def load_data(
     dirname='results', 
-    datasets=['multi_mnist', 'adult', 'compas', 'credit', 'multi_fashion', 'multi_fashion_mnist'],
+    datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'],
     methods= ['uniform', 'single_task', 'phn', 'pmtl', 'mgda', 'phn_orig', 'cosmos_orig', 'cosmos'],
+    custom_metric=False,
     ):
+
+    metric = 'metrics' if custom_metric else 'loss'
 
     p = Path(dirname)
     results = {}
@@ -180,7 +214,7 @@ def load_data(
                     r1 = test_run_1[e1]
                     r2 = test_run_2[e2]
 
-                    sol = [r1['loss']['center_ray'][0], r2['loss']['center_ray'][1]]
+                    sol = [r1[metric]['center_ray'][0], r2[metric]['center_ray'][1]]
                     test_scores.append(sol)
                     test_hv.append(get_hv(sol))
                     training_time.append(r1['training_time_so_far'] + r2['training_time_so_far'])
@@ -190,8 +224,8 @@ def load_data(
                 for val_run, test_run in zip(data_val, data_test):
                     e = get_early_stop(val_run)
                     r = test_run[e]
-                    test_scores.append(r['loss']['pareto_front'] if 'pareto_front' in r['loss'] else r['loss']['center_ray'])
-                    test_hv.append(r['loss']['hv'])
+                    test_scores.append(r[metric]['pareto_front'] if 'pareto_front' in r[metric] else r[metric]['center_ray'])
+                    test_hv.append(r[metric]['hv'])
                     training_time.append(r['training_time_so_far'])
 
             results[dataset][method] = {
@@ -209,9 +243,12 @@ def load_data(
 # Generate the plots and tables
 #
 
-def plot_row(results, datasets, methods=['single_task', 'uniform', 'mgda', 'pmtl', 'phn', 'phn_orig', 'cosmos', 'cosmos_orig', ], prefix=''):
-    assert len(datasets) == 3
-    fig, axes = plt.subplots(1, 3, figsize=figsize)
+def plot_row(results, 
+        datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'],
+        methods=['single_task', 'uniform', 'mgda', 'pmtl', 'phn', 'phn_orig', 'cosmos', 'cosmos_orig', ],
+        prefix=''):
+    assert len(datasets) <= 3
+    fig, axes = plt.subplots(1, len(datasets), figsize=(4.5*len(datasets), 3.5))
     for j, dataset in enumerate(datasets):
         if dataset not in results:
             continue
@@ -231,7 +268,6 @@ def plot_row(results, datasets, methods=['single_task', 'uniform', 'mgda', 'pmtl
                 ax.axhline(y=s[1], color=colors[method], linestyle='-.', label="{}".format(method_names[method]))
                 lower_limit = s
             else:
-                print(method)
                 ax.plot(
                     s[:, 0], 
                     s[:, 1], 
@@ -240,36 +276,22 @@ def plot_row(results, datasets, methods=['single_task', 'uniform', 'mgda', 'pmtl
                     linestyle='--' if method in ['phn', 'phn_orig', 'cosmos', 'cosmos_orig'] else ' ',
                     label="{}".format(method_names[method])
                 )
-                
-                # if dataset == 'multi_fashion' and method == 'cosmos_ln' and prefix == 'cosmos':
-                #     axins = zoomed_inset_axes(ax, 7, loc='upper right')
-                #     axins.plot(
-                #         s[:, 0], 
-                #         s[:, 1], 
-                #         color=colors[method],
-                #         marker=markers[method],
-                #         linestyle='--' if method != 'ParetoMTL' else '',
-                #         label="{}".format(method_names[method])
-                #     )
-                #     axins.set_xlim(.4658, .492)
-                #     axins.set_ylim(.488, .513)
-                #     axins.set_yticklabels([])
-                #     axins.set_xticklabels([])
-                #     mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
-        lim = limits_baselines[dataset]
-        ax.set_xlim(left=lower_limit[0] - .05 if lower_limit is not None else lim[0], right=lim[1])
-        ax.set_ylim(bottom=lower_limit[1] - .05 if lower_limit is not None else lim[2], top=lim[3])
+        lim = limits_loss[dataset] if 'mcr' not in prefix else limits_mcr[dataset]
+        margin = .05 if 'mcr' not in prefix else 0.005
+        ax.set_xlim(left=lower_limit[0] - margin, right=lim[0])
+        ax.set_ylim(bottom=lower_limit[1] - margin, top=lim[1])
         ax.set_title(titles[dataset])
-        ax.set_xlabel(ax_lables[dataset][0])
+        ax_lables = ax_lables_loss[dataset] if 'mcr' not in prefix else ax_lables_mcr[dataset]
+        ax.set_xlabel(ax_lables[0])
         if j==0:
-            ax.set_ylabel(ax_lables[dataset][1])
+            ax.set_ylabel(ax_lables[1])
 
         if j==0:
             ax.legend(loc='upper right')
     plt.subplots_adjust(wspace=.25)
-    fig.savefig(prefix + '_' + '_'.join(datasets) + '.pdf', bbox_inches='tight')
+    fig.savefig(prefix + '.pdf', bbox_inches='tight')
     plt.close(fig)
-    print('success. See', prefix + '_' + '_'.join(datasets) + '.pdf')
+    print('success. See', prefix + '.pdf')
 
 
 #
@@ -278,7 +300,7 @@ def plot_row(results, datasets, methods=['single_task', 'uniform', 'mgda', 'pmtl
 
 def generate_table(
         results, 
-        datasets, 
+        datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], 
         methods=['single_task', 'uniform', 'mgda', 'pmtl', 'phn', 'phn_orig', 'cosmos', 'cosmos_orig', ],
         name='test'
     ):
@@ -301,15 +323,102 @@ def generate_table(
         f.writelines(text)
 
 
+def generate_table_taskwise(
+        results, 
+        datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], 
+        methods=['single_task', 'uniform', 'mgda', 'pmtl', 'phn', 'phn_orig', 'cosmos', 'cosmos_orig', ],
+        name='task'
+    ):
+    text = f""""""
+    for method in methods:
+        if method not in results[datasets[0]]:
+            continue
+
+        text += f"""
+{method_names[method]}"""
+        
+        for dataset in datasets:
+            if dataset not in results:
+                continue
+            r = results[dataset][method]
+            if len(r['test_scores'][0]) == 25:
+                r['test_scores'] = (
+                    r['test_scores'][0][12],   # take the middle point of 25 rays
+                    r['test_scores'][1][12]
+                )
+            elif len(r['test_scores'][0]) == 5:
+                r['test_scores'] = (
+                    r['test_scores'][0][2],   # take the middle point of 5 rays
+                    r['test_scores'][1][2]
+                )
+
+            text += f""" & {r['test_scores'][0][0]:.4f} $\pm$ {r['test_scores'][1][0]:.4f} & {r['test_scores'][0][1]:.4f} $\pm$ {r['test_scores'][1][1]:.4f}"""
+        
+        text += """ \\\\"""
+
+    with open(f'results_{name}.txt', 'w') as f:
+        f.writelines(text)
+
+
+def plot_size_ablation(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']):
+    fig, axes = plt.subplots(1, len(datasets), figsize=(4.5*len(datasets), 3.5))
+    color_lightness = [0.5, 1, 1.2, 1.5]
+    for j, dataset in enumerate(datasets):
+        ax = axes[j]
+        for i, size_i in enumerate(['0.5', '1', '10', '50']):
+            lower_limit = None
+            r = results[i]
+            if 'single_task' not in r[dataset]:
+                continue
+            st = np.array(r[dataset]['single_task']['test_scores'][0])
+            uf = np.array(r[dataset]['uniform']['test_scores'][0])
+
+            delta = st-uf
+            ax.arrow(uf[0], uf[1], delta[0], delta[1], width=0.0001, length_includes_head=True, alpha=.5)
+
+            ax.plot(
+                st[0], 
+                st[1], 
+                color=adjust_lightness(colors['single_task'], amount=color_lightness[i]),
+                marker='+',
+                label=f"{method_names['single_task']} {size_i}",
+                linestyle=' ',
+            )
+
+
+            ax.plot(
+                uf[0], 
+                uf[1], 
+                color=adjust_lightness(colors['uniform'], amount=color_lightness[i]),
+                marker=markers['uniform'],
+                label=f"{method_names['uniform']} {size_i}",
+                linestyle=' ',
+            )
+
+            ax.text(uf[0]+0.0005, uf[1]+0.0005, size_i)
+
+            print()
+            
+            
+
+
+    axes[0].legend(loc='upper right')
+
+    fig.savefig('test' + '.png', bbox_inches='tight')
+        
+
+
+
 if __name__ == "__main__":
-    results = load_data(dirname='results', datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
-    plot_row(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], prefix='baselines')
+    results05 = load_data(dirname='results_size_0.5')
+    results1 = load_data(dirname='results', methods=['single_task', 'uniform'])
+    results10 = load_data(dirname='results_size_10')
+    results50 = load_data(dirname='results_size_50')
+    
+    
+    plot_size_ablation([results05, results1, results10, results50])
 
-    generate_table(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
+    # generate_table(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
+    # generate_table_taskwise(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
 
 
-# datasets1 = ['adult', 'compas', 'credit']
-# generate_table(datasets1, methods, name='fairness')
-
-# datasets2 = ['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']
-# generate_table(datasets2, methods, name='mnist')
