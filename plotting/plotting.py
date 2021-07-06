@@ -360,11 +360,12 @@ def generate_table_taskwise(
         f.writelines(text)
 
 
-def plot_size_ablation(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist']):
-    fig, axes = plt.subplots(1, len(datasets), figsize=(4.5*len(datasets), 3.5))
-    color_lightness = [0.5, 1, 1.2, 1.5]
+def plot_size_ablation(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'], prefix=''):
+    fig, axes = plt.subplots(1, len(datasets), figsize=(4.5*len(datasets), 4))
+    color_lightness = [1.4, 0.8, 0.6, 0.3]
     for j, dataset in enumerate(datasets):
         ax = axes[j]
+        handles = []
         for i, size_i in enumerate(['0.5', '1', '10', '50']):
             lower_limit = None
             r = results[i]
@@ -373,50 +374,66 @@ def plot_size_ablation(results, datasets=['multi_mnist', 'multi_fashion', 'multi
             st = np.array(r[dataset]['single_task']['test_scores'][0])
             uf = np.array(r[dataset]['uniform']['test_scores'][0])
 
-            delta = st-uf
-            ax.arrow(uf[0], uf[1], delta[0], delta[1], width=0.0001, length_includes_head=True, alpha=.5)
+            st_err = np.array(r[dataset]['single_task']['test_scores'][1])
 
-            ax.plot(
+            ax.annotate('', xy=st, xytext=uf, arrowprops={'arrowstyle': '->'})
+
+            ax.errorbar(st[0], st[1], xerr=st_err[0], yerr=st_err[1],
+                ecolor=adjust_lightness(colors['single_task'], amount=color_lightness[i]),
+                alpha=.3,
+                capsize=3)
+
+            h = ax.plot(
                 st[0], 
                 st[1], 
                 color=adjust_lightness(colors['single_task'], amount=color_lightness[i]),
                 marker='+',
-                label=f"{method_names['single_task']} {size_i}",
+                label=f"{method_names['single_task']} (size {size_i})",
                 linestyle=' ',
             )
+            handles.append(h[0])
 
+            ax.errorbar(uf[0], uf[1], xerr=st_err[0], yerr=st_err[1],
+                ecolor=adjust_lightness(colors['uniform'], amount=color_lightness[i]),
+                alpha=.3,
+                capsize=3)
 
-            ax.plot(
+            h = ax.plot(
                 uf[0], 
                 uf[1], 
                 color=adjust_lightness(colors['uniform'], amount=color_lightness[i]),
                 marker=markers['uniform'],
-                label=f"{method_names['uniform']} {size_i}",
+                label=f"{method_names['uniform']} (size {size_i})",
                 linestyle=' ',
             )
+            handles.append(h[0])
 
-            ax.text(uf[0]+0.0005, uf[1]+0.0005, size_i)
-
-            print()
+            # ax.text(uf[0]+0.002, uf[1]+0.002, f"size {size_i}")
+        ax.set_title(titles[dataset])
+        ax_lables = ax_lables_loss[dataset] if 'mcr' not in prefix else ax_lables_mcr[dataset]
+        ax.set_xlabel(ax_lables[0])
+        if j==0:
+            ax.set_ylabel(ax_lables[1])
             
-            
+    fig.subplots_adjust(bottom=0.2, wspace=0.25)
+    axes[1].legend(handles=handles, loc='upper center', 
+             bbox_to_anchor=(0.5, -0.23),fancybox=False, shadow=False, ncol=4)
 
+    # axes[0].legend(loc='upper right')
 
-    axes[0].legend(loc='upper right')
-
-    fig.savefig('test' + '.png', bbox_inches='tight')
+    fig.savefig(prefix + 'ablation.pdf', bbox_inches='tight')
         
 
 
 
 if __name__ == "__main__":
-    results05 = load_data(dirname='results_size_0.5')
-    results1 = load_data(dirname='results', methods=['single_task', 'uniform'])
-    results10 = load_data(dirname='results_size_10')
-    results50 = load_data(dirname='results_size_50')
+    results05 = load_data(dirname='results_size_0.5', custom_metric=True)
+    results1 = load_data(dirname='results', methods=['single_task', 'uniform'], custom_metric=True)
+    results10 = load_data(dirname='results_size_10', custom_metric=True)
+    results50 = load_data(dirname='results_size_50', custom_metric=True)
     
     
-    plot_size_ablation([results05, results1, results10, results50])
+    plot_size_ablation([results05, results1, results10, results50], prefix='mcr')
 
     # generate_table(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
     # generate_table_taskwise(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
