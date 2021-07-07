@@ -1,10 +1,6 @@
-import argparse
 import json
-from random import uniform
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
-from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from pathlib import Path
 import re
 from pymoo.factory import get_performance_indicator
@@ -116,27 +112,18 @@ colors = {
 }
 
 titles = {
-    'adult': 'Adult',
-    'compas': 'Compass',
-    'credit': 'Default', 
     'multi_mnist': "Multi-MNIST", 
     'multi_fashion': 'Multi-Fashion',
     'multi_fashion_mnist': 'Multi-Fashion+MNIST'
 }
 
 ax_lables_loss = {
-    'adult': ('Binary Cross-Entropy Loss', 'DEO'),
-    'compas': ('Binary Cross-Entropy Loss', 'DEO'),
-    'credit': ('Binary Cross-Entropy Loss', 'DEO'), 
     'multi_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
     'multi_fashion': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
     'multi_fashion_mnist': ('Cross-Entropy Loss Task TL', 'Cross-Entropy Loss Task BR'), 
 }
 
 ax_lables_mcr = {
-    'adult': ('Binary Cross-Entropy Loss', 'DEO'),
-    'compas': ('Binary Cross-Entropy Loss', 'DEO'),
-    'credit': ('Binary Cross-Entropy Loss', 'DEO'), 
     'multi_mnist': ('Misclassification Rate Task TL', 'Misclassification Rate Task BR'), 
     'multi_fashion': ('Misclassification Rate Task TL', 'Misclassification Rate Task BR'), 
     'multi_fashion_mnist': ('Misclassification Rate Task TL', 'Misclassification Rate Task BR'), 
@@ -148,16 +135,13 @@ method_names = {
     'phn_orig': 'PHN',
     'cosmos_orig': 'COSMOS',
     'cosmos': 'COSMOS*',
-    'pmtl': 'ParetoMTL', 
+    'pmtl': 'PMTL', 
     'uniform': 'Uniform',
     'mgda': 'MGDA'
 }
 
 limits_loss = {
     # dataset: [left, right, bottom, top]
-    'adult': [.3, .6, -0.01, .14],
-    'compas': [0, 1.5, -.01, .35],
-    'credit': [.42, .65, -0.001, .017],
     'multi_mnist': [.4, .4], 
     'multi_fashion': [.55, .55], 
     'multi_fashion_mnist': [.55, .55],
@@ -165,9 +149,6 @@ limits_loss = {
 
 limits_mcr = {
     # dataset: [left, bottom]
-    # 'adult': [.3, .6, -0.01, .14],
-    # 'compas': [0, 1.5, -.01, .35],
-    # 'credit': [.42, .65, -0.001, .017],
     'multi_mnist': [.12, .12], 
     'multi_fashion': [.20, .20,], 
     'multi_fashion_mnist': [.3, .3],
@@ -435,7 +416,7 @@ if __name__ == "__main__":
     
     plot_size_ablation([results05, results1, results10, results50], prefix='mcr')
 
-    # generate_table(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
-    # generate_table_taskwise(results, datasets=['multi_mnist', 'multi_fashion', 'multi_fashion_mnist'])
+    # generate_table(results)
+    # generate_table_taskwise(results)
 
 
