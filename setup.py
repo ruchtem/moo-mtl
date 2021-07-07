@@ -1,10 +1,10 @@
 from setuptools import setup
 
 setup(
-    name='cosmos',
+    name='moo',
     version='0.0.1',
-    description='Efficient multi-objective optimization for deep learning',
-    url='https://github.com/ruchtem/cosmos',
+    description='Multi-Task problems are not multi-objective',
+    url='',
     author='Michael Ruchte',
     author_email='ruchtem@cs.uni-freiburg.de',
     packages=[

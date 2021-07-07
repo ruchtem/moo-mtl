@@ -8,23 +8,17 @@ _C = CN()
 
 # We support several datasets which can be loaded with their correspoding
 # settings using the yaml file. Default is adult datset.
-_C.dataset = 'adult'
+_C.dataset = 'multi_mnist'
 
 # Dimension of the dataset. (Num of columns,) for tabular, (channels, height, width) for images
-_C.dim = (88,)
+_C.dim = (1, 36, 36)
 
 # Objectives to optimize. For options see `objectives.py`
-_C.objectives = ['BinaryCrossEntropyLoss', 'ddp']
+_C.objectives = ["CrossEntropyLoss", "CrossEntropyLoss"]
 
 # Required for MTL problems. The ids are used for the wiring of the objectives and metrics to
-# the right task. Can be string. Here we assign just 0 and 1.
-_C.task_ids = []
-
-# Some datasets ignore some classes. This can be set here
-_C.ignore_index = -100
-
-_C.accuracy_class = None
-_C.sensible_attribute = None
+# the right task. Can be string. If left empty we assign just 0 and 1.
+_C.task_ids = ["l", "r"]
 
 
 #
@@ -60,7 +54,8 @@ _C.weight_decay = 1e-3
 # batch size
 _C.batch_size = 256
 
-# method to generate pareto front. One of 'cosmos', 'phn', 'mgda', 'single_task', 'uniform'
+# method to generate pareto front. One of 'cosmos', 'phn', 'mgda', 'single_task', 'uniform', 'cosmos'.
+# ngsa is also added with experimental support
 _C.method = 'uniform'
 
 #
@@ -106,6 +101,7 @@ _C.lamda = 0.
 
 
 # NSGA-II
+# only experimental support
 _C.population_size = 100
 _C.n_offsprings = 20
 

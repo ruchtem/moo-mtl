@@ -21,7 +21,8 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 
-from rtb import log_every_n_seconds, log_first_n, setup_logger, save_checkpoint
+from logger import log_every_n_seconds, log_first_n, setup_logger
+from multi_objective.utils import save_checkpoint
 
 from multi_objective import defaults, utils
 from multi_objective.objectives import from_name
@@ -172,7 +173,6 @@ def evaluate(e, method, scores, data_loader, split, result_dict, logdir, train_t
             v.compute_hv(cfg['reference_point'])
             if method.preference_at_inference():
                 v.compute_optimal_sol()
-                v.compute_dist()
 
         # plot pareto front to pf
         for eval_mode, score in score_values.items():

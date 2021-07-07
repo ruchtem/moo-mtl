@@ -13,6 +13,7 @@ pickles/
 *.json
 *.tar.gz
 *.pth
+*.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

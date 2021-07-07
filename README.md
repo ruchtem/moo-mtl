@@ -1,70 +1,37 @@
-# COSMOS - Efficient Multi-Objective Optimization for Deep Learning
+# Multi-Task problems are not multi-objective
 
-This is the official implementation for COSMOS: a method to learn Pareto fronts that scales to large datasets and deep models.
+This is the code for the paper "Multi-Task problems are not multi-objective" in which we show
+that the commonly used Multi-Fashion-MNIST datasets are not suitable for benchmarking multi-objective
+methods.
 
-For details see paper.
-
-![Pareto Front for CelebA](res/pareto_front_celeba.png)
+For more details see the paper.
 
 ## Usage
 
-1. Download the dataset as described in `readme.md` in the respective data folder.
-1. Run the code:
-
-```bash
-python multi_objective/main.py --dataset mm --method cosmos
+```python
+python multi_objective/main.py --config path/to/config.yaml
 ```
 
-For the logs and results see newly created folder `results`.
+Config files can be found in [configs](configs).
 
-For the settings see [settings.py](multi_objective/settings.py)
+There is also the option to set options using the command line:
 
----
+```python
+python multi_objective/main.py epochs 100
+```
 
-Available datasets:
-
-| command-line option  | Description                  |
-|----------------------|------------------------------|
-| `-d mm`              | Multi-MNIST dataset          |
-| `-d mf`              | Multi-Fashion dataset        |
-| `-d mfm`             | Multi-Fashion+MNIST dataset  |
-| `-d adult`           | Adult dataset                |
-| `-d compass`         | Compass dataset              |
-| `-d default`         | Default dataset              |
-| `-d celeba`          | CelebA dataset               |
-
----
-
-Available algorithms:
-
-| command-line option  | Description                         |
-|----------------------|-------------------------------------|
-| `-m cosmos`          | COSMOS algorithm                    | 
-| `-m hyper_ln`        | PHN (Linear Scalarization) algorithm [1] | 
-| `-m hyper_epo`       | PHN (EPO) algorithm [1]             | 
-| `-m pmtl`            | ParetoMTL algorithm [2]             | 
-| `-m single_task`     | Treat each objective as single task | 
-| `-m uniform`         | Uniform scaling of all objectives   | 
-
-
-[1] Navon, A., Shamsian, A., Chechik, G. and Fetaya, E., 2020. Learning the Pareto Front with Hypernetworks. arXiv preprint arXiv:2010.04104.
-
-[2] Lin, X., Zhen, H.L., Li, Z., Zhang, Q. and Kwong, S., 2019. Pareto multi-task learning. arXiv preprint arXiv:1912.12854.
-
-
-![Pareto Front for Multi-MNIST](res/pareto_front_multi_mnist.png)
+For reproducing the results of the paper see the jupyter notebooks [generate_results](generate_results.ipynb). For the HPO see [hpo](hpo.ipynb).
 
 ## Installation
 
 Requirements:
-1. CUDA capable GPU (I will port it for CPU usage in future)
 1. Only tested on Ubuntu 20.04
 
 Create a venv:
 
 ```bash
-python3 -m venv cosmos
-source cosmos/bin/activate
+python3 -m venv mtl
+source mtl/bin/activate
 ```
 
 Clone repository:
@@ -80,9 +47,18 @@ Install requirements:
 pip install -r requirements.txt
 ```
 
+Be patient, this takes a while (building wheel for fvcore fails for some reason but is okay anyways).
+
 The large number of dependencies is partly due to the baselines, available in this repository as well.
+
+Finally install the module
+
+```
+pip install -e .
+```
+
 
 ## Acknowledgments
 
-To be done.
+Many thanks to [submitit](https://github.com/facebookincubator/submitit)!
 

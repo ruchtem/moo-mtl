@@ -1,22 +1,9 @@
 import torch
-from torch.distributed.distributed_c10d import is_initialized
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.linalg import norm
 import numpy as np
-import torch.distributed as dist
 
-from collections import OrderedDict
-
-from multi_objective.utils import num_parameters, RunningMean, reference_points, format_list, scale
 from .base import BaseMethod
 
-from pymoo.visualization.radviz import Radviz
-
-import matplotlib.pyplot as plt
-plt.switch_backend('agg')
-
-np.set_printoptions(precision=2, suppress=True)
 
 class Upsampler(nn.Module):
 

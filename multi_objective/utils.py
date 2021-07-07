@@ -1,4 +1,3 @@
-import itertools
 import torch
 import os
 import numpy as np
@@ -8,13 +7,9 @@ import collections
 
 import torch.distributed as dist
 
-from numpy.linalg import norm
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from datetime import datetime
 from pymoo.factory import get_decomposition, get_reference_directions, get_performance_indicator
-from pymoo.visualization.radviz import Radviz
-
 
 from .loaders import multi_mnist_loader
 from .models import MultiLeNet
@@ -63,16 +58,6 @@ def model_from_dataset(dataset, **kwargs):
         raise ValueError("Unknown model name {}".format(dataset))
 
 
-def format_list(list, format='.4f'):
-    string = ""
-    for l in list:
-        if string == "":
-            string += f"{l:{format}}"
-        else:
-            string += f", {l:{format}}"
-    return string
-
-
 def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
     if lr_scheduler == 'none':
         scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lambda epoch: 1.)    # does nothing to the lr
@@ -92,8 +77,6 @@ def get_lr_scheduler(lr_scheduler, optimizer, cfg, tag):
                 milestones = [33]
             else:
                 raise ValueError()
-        # else:
-        #     milestones = cfg['scheduler_milestones']
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones, gamma=0.1)
     else:
         raise ValueError(f"Unknown lr scheduler {lr_scheduler}")
@@ -113,66 +96,6 @@ def scale(a, new_max=1, new_min=0, axis=None):
     new_max = np.array(new_max)
     a = a * (new_max - new_min) + new_min
     return a
-
-
-def find_top_k_binary(values, k):
-    """
-    taken from https://github.com/swisscom/ai-research-mamo-framework/tree/master/metric
-    and adapted
-    
-    Finds the top k values for each row of a matrix and returns a binary
-    mask on their positions.
-
-    The method masks the k input values with the highest numerical value in
-    every row of the input 2D numpy array.
-
-    Args:
-        values: A PyTorch tensor of values.
-        k: An integer that denotes the number of values to obtain from the
-            ranking of the values. The method masks the k values with the
-            highest scores.
-
-    Returns:
-        A binary mask in the form of a 2D Pytorch tensor that outputs the
-        top k values per row from the input values.
-        For example:
-
-        values = tensor([[0.5, 0.7, 0.3],
-                                [0.4, 0.1, 0.7]])
-        k = 2
-        find_top_k_binary returns:
-
-        tensor([[ True, True, False],
-                [ True, False, True]])
-
-    Raises:
-        TypeError: An error occured while accessing the arguments -
-            one of the arguments is NoneType.
-        ValueError: An error occured when checking the dimensions of the
-            values argument. It is not a 2D tensor. Or if k is smaller
-            than 0.
-    """
-    if values is None:
-        raise TypeError('Argument: values must be set.')
-    if k is None:
-        raise TypeError('Argument: k must be set.')
-    if not isinstance(k, int):
-        raise TypeError('Argument: k must be an integer.')
-    if not torch.is_tensor(values):
-        raise TypeError('Argument: values must be a PyTorch tensor.')
-    if values.ndimension() != 2:
-        raise ValueError('Argument: values must be a 2D tensor.')
-    if k < 1:
-        raise ValueError('Argument: k cannot be negative.')
-    if k >= values.shape[1]:
-        raise ValueError('Argument: k cannot be larger than\
-                            values.shape[1]')
-
-    _, idx = torch.topk(values, k=k, dim=1, sorted=False)
-    values_binary = torch.zeros_like(values, dtype=torch.bool)
-    values_binary = values_binary.scatter(1, idx[:, :k], True)
-    values_binary[values <= 0] = False
-    return values_binary
 
 
 def reference_points(partitions, dim=2, min=0, max=1, tolerance=0.):
@@ -210,43 +133,11 @@ def num_parameters(params):
     return int(sum([np.prod(p.size()) for p in model_parameters]))
 
 
-def angle(grads):
-    grads = flatten_grads(grads)
-    return torch.cosine_similarity(grads[0], grads[1], dim=0)
-
-
-def flatten_grads(grads):
-    result = []
-    for grad in grads:
-        flatten = torch.cat(([torch.flatten(g) for g in grad.values()]))
-        result.append(flatten)
-    return result
-
-
-def reset_weights(model):
-    for layer in model.modules():
-        if isinstance(layer, torch.nn.Conv2d) or isinstance(layer, torch.nn.Linear):
-            layer.reset_parameters()
-
-
 def dict_to(dict, device):
     if isinstance(dict, list):
         # we have a list of dicts
         return [dict_to(d, device) for d in dict]
     return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in dict.items()}
-
-
-def normalize_score_dict(d, divisor):
-    d = d.copy()
-    for k, v in d.items():
-        if isinstance(v, int) or isinstance(v, float):
-            d[k] = v/divisor
-        elif isinstance(v, list):
-            v = np.array(v) / divisor
-            d[k] = v.tolist()
-        elif isinstance(v, dict):
-            d[k] = normalize_score_dict(v, divisor)
-    return d
 
 
 def set_seed(seed):
@@ -347,43 +238,6 @@ class EvalResult():
             self.optimal_sol_idx, self.optimal_sol = optimal_solution(self.pf, weights)
 
 
-    def compute_dist(self, normalize=False):
-        if self.pf_available:
-
-            n_points, J = self.pf.shape
-            rays = get_reference_directions('uniform', n_points=n_points, n_dim=J)
-
-            # normalize the losses
-            if normalize:
-                min = self.pf.min(axis=0)
-                max = self.pf.max(axis=0)
-                pf = (self.pf - min) / (max - min + 1e-8)
-            else:
-                pf = self.pf
-
-            def dist(a, b):
-                return norm(a / norm(a) - b / norm(b))
-
-            # compute cosine similarity
-            c = [dist(r, p) for r, p in zip(rays, pf)]
-            self.dist = np.mean(c)
-
-            # for i, (x, y) in enumerate(pf):
-            #     plt.plot(x, y, "ro")
-            #     plt.text(x, y, f"{i}")
-
-
-            # for i, (x, y) in enumerate(rays):
-            #     plt.arrow(0, 0, x, y)
-            #     plt.text(x, y, f"   {i}: {c[i]:.4f}")
-            
-            
-            # # plt.plot(rays[:, 0], rays[:, 1],  "bo")
-            # plt.title(f'l2 norm dist {self.dist}')
-            # plt.savefig('dist.png')
-            # plt.close()
-
-
     def to_dict(self):
         result = {
             'center_ray': self.center.tolist(),
@@ -392,41 +246,11 @@ class EvalResult():
         if self.pf_available:
             result.update({
                 'pareto_front': self.pf.tolist(),
-                'dist': float(self.dist),
                 'optimal_solution': self.optimal_sol.tolist(),
                 'optimal_solution_idx': int(self.optimal_sol_idx),
             })
 
         return result
-
-
-class RunningMinMaxNormalizer():
-
-    def __init__(self, history_len: int=200) -> None:
-        super().__init__()
-        self.history = collections.deque(maxlen=history_len)
-
-
-    def update(self, data):
-        data = np.array(data)
-        assert data.ndim == 1
-        for i in range(len(data)):
-            if isinstance(data[i], torch.Tensor):
-                data[i] = data[i].item()
-        
-        self.history.append(data)
-    
-
-    def normalize(self, data, exploration=.1):
-        minimum = np.array(self.history, dtype=np.float).min(axis=0)
-        maximum = np.array(self.history, dtype=np.float).max(axis=0)
-        diff = maximum - minimum
-        diff = diff + 2*exploration*diff    # extend the range for exploration
-        result = diff * (data) + minimum
-        result[result < 0] = 0
-        return result
-
-
 
 
 class RunningMean():
@@ -455,8 +279,7 @@ class RunningMean():
     def __len__(self):
         return len(self.queue)
 
-from colour import Color
-import matplotlib as mpl
+
 class ParetoFront():
 
 
@@ -477,146 +300,69 @@ class ParetoFront():
         # plot 2d pf
         if p.shape[1] == 2:
             plt.plot(p[:, 0], p[:, 1], 'o')
-            # if rays is not None:
-            #     for r in rays:
-            #         plt.plot([0, r[0]], [0, r[1]], color='black')
             plt.xlabel(self.labels[0])
             plt.ylabel(self.labels[1])
             plt.grid()
             plt.savefig(os.path.join(self.logdir, "pf_{}.png".format(self.prefix)))
             plt.close()
         else:
-            n_colors = 100
-            # plot radviz
-            p_normalized = scale(p, axis=0)
-            dists = norm(p, axis=1)
-            _, bins = np.histogram(dists, bins=n_colors-2)
-            color_idx = np.digitize(dists, bins)
-            colors = list(Color("red").range_to(Color("blue"), n_colors))
-
-            radviz_plot = CustomRadviz()
-
-            # radviz_plot.add(rays, color='grey', alpha=.5)
-            for p, i in zip(p_normalized, color_idx):
-                radviz_plot.add(p, color=colors[i].rgb)
-
-            radviz_plot.plot_if_not_done_yet()
-
-            cbaxes = plt.gcf().add_axes([0.8, 0.25, 0.02, 0.5]) 
-
-            cmap= mpl.colors.ListedColormap([c.rgb for c in colors])
-            cnorm = mpl.colors.Normalize(vmin=dists.min(), vmax=dists.max())
-            cb1 = mpl.colorbar.ColorbarBase(cbaxes, cmap=cmap,
-                                norm=cnorm,
-                                orientation='vertical')
-            cb1.set_label('Distance to origin')
-
-            sort_idx = np.argsort(dists)[:2]
-            if len(sort_idx) > 1:
-                coordinates = np.squeeze(np.array(radviz_plot.points))
-                for (x, y), d in zip(coordinates[sort_idx], dists[sort_idx]):
-                    radviz_plot.ax.annotate(f"{d :.4f}", (x, y), xytext=(x+.1, y+.1), arrowprops={'arrowstyle': '->'})
-            
-            radviz_plot.save(os.path.join(self.logdir, "rad_{}.png".format(self.prefix)))
-            plt.close()
-
-
-from pymoo.visualization.util import plot_circle, plot_radar_line, plot_axis_labels, equal_axis, no_ticks, \
-    get_uniform_points_around_circle
-class CustomRadviz(Radviz):
-
-    def _do(self):
-
-        # initial a figure with a single plot
-        self.init_figure()
-
-        # equal axis length and no ticks
-        equal_axis(self.ax)
-        no_ticks(self.ax)
-
-        V = get_uniform_points_around_circle(self.n_dim)
-        plot_axis_labels(self.ax, V, self.get_labels(), **self.axis_label_style)
-
-        # draw the outer circle and radar lines
-        plot_circle(self.ax, **self.axis_style)
-        plot_radar_line(self.ax, V, **self.axis_style)
-
-        # draw the endpoints of each objective
-        if self.endpoint_style:
-            self.ax.scatter(V[:, 0], V[:, 1], **self.endpoint_style)
-
-        # plot all the points
-        self.points = []
-        for k, (F, kwargs) in enumerate(self.to_plot):
-            N = (F[..., None] * V).sum(axis=1) / F.sum(axis=1)[:, None]
-            self.ax.scatter(N[:, 0], N[:, 1], **kwargs)
-            self.points.append(N)
+            pass # not implemented
 
 
 
-class GradientMonitor():
+import pickle
+import random
+import numpy as np
 
-    means = {}
-    stds = {}
-
-    _registered = []
-
-
-    @staticmethod
-    def register_parameters(module, filter=None):
-        for n, p in module.named_parameters():
-            if filter in n:
-                continue
-            if p.requires_grad:
-                GradientMonitor._registered.append(n)
-        
-        for n in GradientMonitor._registered:
-            GradientMonitor.means[n] = []
-            GradientMonitor.stds[n] = []
-    
-
-    @staticmethod
-    def collect_grads(module):
-        for n, p in module.named_parameters():
-            if n not in GradientMonitor._registered:
-                continue
-            
-            # GradientMonitor.means[n].append(p.grad.abs().mean().item())
-            if p.grad is not None:
-                GradientMonitor.means[n].append((p.grad**2).sum().sqrt().item())
-                GradientMonitor.stds[n].append(p.grad.abs().std().item())
-        
-        if len(GradientMonitor.means[n]) % 10 == 0:
-            plt.figure(figsize=(20, 20))
-            for n in GradientMonitor._registered:
-                mean = np.array(GradientMonitor.means[n])
-                std = np.array(GradientMonitor.stds[n])
-                plt.plot(mean, label=n)
-                # plt.fill_between(range(len(std)), mean-std, mean+std, alpha=0.05)
-            
-            plt.yscale('log')
-            plt.legend()
-            plt.savefig('grads.png')
-            plt.close()
+try:
+    import torch
+    torch_available = True
+except ImportError:
+    torch_available = False
 
 
-class DebugDataset(torch.utils.data.Dataset):
+def save_checkpoint(savepath, use_torch=False, **kwargs):
+    """
+    Saves objects to a pickle. Pickles the state_dict of pytorch modules.
+    Pickles also the state of random number generators for `random`, `numpy` and, if available, `torch`.
+    For loading you can either use
+    ```
+    with open('path/to/checkpoint.pkl', 'rb') as f:
+        checkpoint = pickle.load(f)
+    ```
+    or to make use of torch's `map_location` in distributed settings:
+    ```
+    map_location = {'cuda:%d' % 0: 'cuda:%d' % rank}
+    checkpoint = torch.load('path/to/checkpoint.pkl, map_location)
+    ```
+    This loads the checkpoints into a dict. You can restore torch parameters using `load_state_dict`.
+    To update the state of random number generators you can use
+    ```
+    torch.set_rng_state(checkpoint['torch_rng_state'])
+    np.random.set_state(checkpoint['np_rng_state'])
+    random.setstate(checkpoint['random_rng_state'])
+    ```
+    Args:
+        savepath (str): path for the checkpoint file.
+        use_torch (bool): Whether to use torch.save() or the pickle module.
+        kwargs: objects to checkpoint, e.g. models, epoch, optimizers, ...
+    """
+    savedict = {}
+    for k, v in kwargs.items():
+        if hasattr(v, 'state_dict'):
+            savedict[k] = v.state_dict()
+        else:
+            savedict[k] = v
+    if torch_available:
+        savedict['torch_rng_state'] = torch.get_rng_state()
+    savedict['np_rng_state'] = np.random.get_state()
+    savedict['random_rng_state'] = random.getstate()
 
-    def __init__(self, dataset, size=8, replication=1) -> None:
-        super().__init__()
-        self.replication = replication
-        self.size = size
-        loader = torch.utils.data.DataLoader(dataset, 1, num_workers=4, collate_fn=lambda x: x)
-        self.data = []
-        for i, b in enumerate(loader):
-            if i >= size:
-                break
-            self.data.append(b[0])
-    
+    if use_torch and not torch_available:
+        raise ValueError(f"Asked to use torch.save but torch is not installed.")
 
-    def __len__(self):
-        return len(self.data) * self.replication
-    
-
-    def __getitem__(self, index):
-        return self.data[index % self.size]
+    if use_torch:
+        torch.save(savedict, savepath)
+    else:
+        with open(savepath, 'wb') as f:
+            pickle.dump(savedict, f)
