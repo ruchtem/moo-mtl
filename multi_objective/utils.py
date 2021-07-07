@@ -16,30 +16,16 @@ from pymoo.factory import get_decomposition, get_reference_directions, get_perfo
 from pymoo.visualization.radviz import Radviz
 
 
-from .loaders import adult_loader, compas_loader, multi_mnist_loader, celeba_loader, credit_loader
-from .models import FullyConnected, MultiLeNet, EfficientNet
+from .loaders import multi_mnist_loader
+from .models import MultiLeNet
 
 def dataset_from_name(dataset, **kwargs):
-    if dataset == 'adult':
-        return adult_loader.ADULT(**kwargs)
-    elif dataset == 'credit':
-        return credit_loader.Credit(**kwargs)
-    elif dataset == 'compass':
-        return compas_loader.Compas(**kwargs)
-    elif dataset == 'multi_mnist':
+    if dataset == 'multi_mnist':
         return multi_mnist_loader.MultiMNIST(dataset='mnist', **kwargs)
     elif dataset == 'multi_fashion':
         return multi_mnist_loader.MultiMNIST(dataset='fashion', **kwargs)
     elif dataset == 'multi_fashion_mnist':
         return multi_mnist_loader.MultiMNIST(dataset='fashion_and_mnist', **kwargs)
-    elif dataset == 'celeba':
-        return celeba_loader.CelebA(**kwargs)
-    elif dataset == 'cityscapes':
-        return cityscapes_loader.CITYSCAPES(**kwargs)
-    elif dataset == 'coco':
-        return coco_loader.COCO(**kwargs)
-    elif dataset == 'movielens':
-        return movielens_loader.MovieLens(**kwargs)
     else:
         raise ValueError("Unknown dataset: {}".format(dataset))
 
@@ -49,12 +35,8 @@ def loaders_from_name(dataset, seed, **kwargs):
     val = dataset_from_name(dataset, split='val', **kwargs)
     test = dataset_from_name(dataset, split='test', **kwargs)
 
-    if dataset in ['adult', 'credit', 'compass']:
-        val_bs = len(val)
-        test_bs = len(test)
-    else:
-        val_bs = kwargs['batch_size']
-        test_bs = kwargs['batch_size']
+    val_bs = kwargs['batch_size']
+    test_bs = kwargs['batch_size']
     
     if dist.is_initialized():
         # We are in distributed setting
@@ -75,19 +57,8 @@ def loaders_from_name(dataset, seed, **kwargs):
 
 
 def model_from_dataset(dataset, **kwargs):
-    if dataset == 'adult' or dataset == 'credit' or dataset == 'compass':
-        return FullyConnected(**kwargs)
-    elif dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist' or dataset == 'multi_fashion':
+    if dataset == 'multi_mnist' or dataset == 'multi_fashion_mnist' or dataset == 'multi_fashion':
         return MultiLeNet(**kwargs)
-    elif dataset == 'celeba':
-        # if 'efficientnet' in kwargs['model_name']:
-        return EfficientNet.from_pretrained(model_name='efficientnet-b4', **kwargs)
-        # elif kwargs['model_name'] == 'resnet18':
-        #     return ResNet.from_name(**kwargs)
-    elif dataset == 'cityscapes':
-        return Pspnet(dim=kwargs['dim'])
-    elif dataset == 'movielens':
-        return MultiVAE(**kwargs)
     else:
         raise ValueError("Unknown model name {}".format(dataset))
 
