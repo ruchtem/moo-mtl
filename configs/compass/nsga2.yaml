@@ -1,7 +1,0 @@
-_BASE_: _base.yaml
-
-method: nsga2
-
-epochs: 500
-population_size: 500
-n_offsprings: 100
