@@ -4,7 +4,7 @@ setup(
     name='moo',
     version='0.0.1',
     description='Multi-Task problems are not multi-objective',
-    url='',
+    url='https://github.com/ruchtem/moo-mtl',
     author='Michael Ruchte',
     author_email='ruchtem@cs.uni-freiburg.de',
     packages=[
